@@ -1,0 +1,209 @@
+import type {
+  Assignment,
+  Program,
+  ProgramDay,
+  Routine,
+  RoutineExercise,
+  Session,
+  SetLog,
+  WeighIn,
+} from "../types";
+
+/**
+ * snake_case rows ↔ camelCase domain types, both directions for every mutable
+ * table. Postgres `date` columns round-trip as "YYYY-MM-DD" strings, matching
+ * the app's date convention, so no date conversion happens here.
+ *
+ * `RoutineExercise.order` maps to the `sort_order` column — "order" is a
+ * reserved word in SQL.
+ */
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+export function rowToRoutine(r: any): Routine {
+  return { id: r.id, name: r.name, notes: r.notes };
+}
+
+export function routineToRow(r: Routine) {
+  return { id: r.id, name: r.name, notes: r.notes };
+}
+
+export function rowToRoutineExercise(r: any): RoutineExercise {
+  return {
+    routineId: r.routine_id,
+    order: r.sort_order,
+    exerciseId: r.exercise_id,
+    modalityId: r.modality_id,
+    bandRole: r.band_role,
+    unilateralMode: r.unilateral_mode,
+    sets: r.sets,
+    repMin: r.rep_min,
+    repMax: r.rep_max,
+    durationSeconds: r.duration_seconds,
+    restSeconds: r.rest_seconds,
+    targetRir: r.target_rir,
+    supersetGroup: r.superset_group,
+    notes: r.notes,
+  };
+}
+
+export function routineExerciseToRow(e: RoutineExercise) {
+  return {
+    routine_id: e.routineId,
+    sort_order: e.order,
+    exercise_id: e.exerciseId,
+    modality_id: e.modalityId,
+    band_role: e.bandRole,
+    unilateral_mode: e.unilateralMode,
+    sets: e.sets,
+    rep_min: e.repMin,
+    rep_max: e.repMax,
+    duration_seconds: e.durationSeconds,
+    rest_seconds: e.restSeconds,
+    target_rir: e.targetRir,
+    superset_group: e.supersetGroup,
+    notes: e.notes,
+  };
+}
+
+export function rowToProgram(r: any): Program {
+  return { id: r.id, name: r.name, weeks: r.weeks, notes: r.notes };
+}
+
+export function programToRow(p: Program) {
+  return { id: p.id, name: p.name, weeks: p.weeks, notes: p.notes };
+}
+
+export function rowToProgramDay(r: any): ProgramDay {
+  return {
+    programId: r.program_id,
+    week: r.week,
+    dayOfWeek: r.day_of_week,
+    routineId: r.routine_id,
+  };
+}
+
+export function programDayToRow(d: ProgramDay) {
+  return {
+    program_id: d.programId,
+    week: d.week,
+    day_of_week: d.dayOfWeek,
+    routine_id: d.routineId,
+  };
+}
+
+export function rowToAssignment(r: any): Assignment {
+  return {
+    id: r.id,
+    programId: r.program_id,
+    clientId: r.client_id,
+    startDate: r.start_date,
+    status: r.status,
+  };
+}
+
+export function assignmentToRow(a: Assignment) {
+  return {
+    id: a.id,
+    program_id: a.programId,
+    client_id: a.clientId,
+    start_date: a.startDate,
+    status: a.status,
+  };
+}
+
+export function rowToSession(r: any): Session {
+  return {
+    id: r.id,
+    clientId: r.client_id,
+    date: r.date,
+    assignmentId: r.assignment_id,
+    routineId: r.routine_id,
+    durationMinutes: r.duration_minutes,
+    rpe: r.rpe,
+    condition: r.condition,
+    status: r.status,
+    notes: r.notes,
+  };
+}
+
+export function sessionToRow(s: Session) {
+  return {
+    id: s.id,
+    client_id: s.clientId,
+    date: s.date,
+    assignment_id: s.assignmentId,
+    routine_id: s.routineId,
+    duration_minutes: s.durationMinutes,
+    rpe: s.rpe,
+    condition: s.condition,
+    status: s.status,
+    notes: s.notes,
+  };
+}
+
+export function rowToSetLog(r: any): SetLog {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    position: r.position,
+    exerciseId: r.exercise_id,
+    modalityId: r.modality_id,
+    setNumber: r.set_number,
+    unilateralMode: r.unilateral_mode,
+    side: r.side,
+    reps: r.reps,
+    weightLbs: r.weight_lbs,
+    addedWeightLbs: r.added_weight_lbs,
+    bandId: r.band_id,
+    bandRole: r.band_role,
+    durationSeconds: r.duration_seconds,
+    distanceFeet: r.distance_feet,
+    rir: r.rir,
+    isWarmup: r.is_warmup,
+    completed: r.completed,
+    notes: r.notes,
+  };
+}
+
+export function setLogToRow(s: SetLog) {
+  return {
+    id: s.id,
+    session_id: s.sessionId,
+    position: s.position,
+    exercise_id: s.exerciseId,
+    modality_id: s.modalityId,
+    set_number: s.setNumber,
+    unilateral_mode: s.unilateralMode,
+    side: s.side,
+    reps: s.reps,
+    weight_lbs: s.weightLbs,
+    added_weight_lbs: s.addedWeightLbs,
+    band_id: s.bandId,
+    band_role: s.bandRole,
+    duration_seconds: s.durationSeconds,
+    distance_feet: s.distanceFeet,
+    rir: s.rir,
+    is_warmup: s.isWarmup,
+    completed: s.completed,
+    notes: s.notes,
+  };
+}
+
+export function rowToWeighIn(r: any): WeighIn {
+  return {
+    id: r.id,
+    clientId: r.client_id,
+    date: r.date,
+    bodyweightLbs: r.bodyweight_lbs,
+  };
+}
+
+export function weighInToRow(w: WeighIn) {
+  return {
+    id: w.id,
+    client_id: w.clientId,
+    date: w.date,
+    bodyweight_lbs: w.bodyweightLbs,
+  };
+}

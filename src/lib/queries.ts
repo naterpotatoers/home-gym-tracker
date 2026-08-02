@@ -1,0 +1,650 @@
+import { clientById, clients } from "./data/clients";
+import {
+  hipBandRank,
+  hipBandsByDifficulty,
+  ownedEquipmentIds,
+} from "./data/equipment";
+import {
+  exerciseById,
+  exerciseModalities,
+  exercises,
+  scoresByExercise,
+} from "./data/exercises";
+import { modalityById } from "./data/modalities";
+import { muscleGroups, muscles } from "./data/muscles";
+import type { GymData } from "./gym-data";
+import { nearestLoadableWeight } from "./loading";
+import {
+  bestE1rm,
+  e1rm,
+  effectiveScores,
+  latestBodyweight,
+  normalizedLoad,
+  setLoad,
+  sidesWorked,
+} from "./modality";
+import type {
+  BandRole,
+  Client,
+  ClientId,
+  EquipmentId,
+  ExerciseId,
+  ExerciseModality,
+  HipBand,
+  ModalityId,
+  MuscleId,
+  Session,
+  SetLog,
+} from "./types";
+
+// ---------------------------------------------------------------------------
+// People
+// ---------------------------------------------------------------------------
+
+/** Age from date of birth, so it never goes stale. */
+export function ageOn(dateOfBirth: string, asOf: Date = new Date()): number {
+  const dob = new Date(`${dateOfBirth}T00:00:00`);
+  let age = asOf.getFullYear() - dob.getFullYear();
+  const monthDiff = asOf.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && asOf.getDate() < dob.getDate())) age--;
+  return age;
+}
+
+export type ClientSummary = {
+  client: Client;
+  age: number;
+  bodyweightLbs: number | null;
+  bodyweightChangeLbs: number | null;
+  sessionCount: number;
+  lastSessionDate: string | null;
+};
+
+export function clientSummaries(data: GymData, asOf: Date = new Date()): ClientSummary[] {
+  const isoToday = asOf.toISOString().slice(0, 10);
+  return clients.map((client) => {
+    const mine = data.sessions
+      .filter((s) => s.clientId === client.id && s.status === "completed")
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const current = latestBodyweight(data, client.id, isoToday);
+    const atJoin = latestBodyweight(data, client.id, client.joinDate);
+    return {
+      client,
+      age: ageOn(client.dateOfBirth, asOf),
+      bodyweightLbs: current,
+      bodyweightChangeLbs:
+        current !== null && atJoin !== null && atJoin !== current
+          ? current - atJoin
+          : null,
+      sessionCount: mine.length,
+      lastSessionDate: mine.at(-1)?.date ?? null,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sessions
+// ---------------------------------------------------------------------------
+
+export function sessionsFor(data: GymData, clientId: ClientId): Session[] {
+  return data.sessions
+    .filter((s) => s.clientId === clientId)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export function setsFor(data: GymData, sessionId: string): SetLog[] {
+  return [...(data.setsBySession.get(sessionId) ?? [])];
+}
+
+/** Sets grouped into the exercise × modality blocks they were performed in,
+ *  preserving order — so a mid-session implement switch reads as two blocks. */
+export type SetBlock = {
+  exerciseId: ExerciseId;
+  modalityId: ModalityId;
+  sets: SetLog[];
+};
+
+export function blocksFor(data: GymData, sessionId: string): SetBlock[] {
+  const out: SetBlock[] = [];
+  for (const set of setsFor(data, sessionId)) {
+    const last = out.at(-1);
+    if (last && last.exerciseId === set.exerciseId && last.modalityId === set.modalityId) {
+      last.sets.push(set);
+    } else {
+      out.push({ exerciseId: set.exerciseId, modalityId: set.modalityId, sets: [set] });
+    }
+  }
+  return out;
+}
+
+/** One-line description of a set, in the units that set was actually measured
+ *  in. Ordinal loads render as a band name, never as a number. */
+export function describeSet(data: GymData, set: SetLog): string {
+  const load = setLoad(data, set);
+  const parts: string[] = [];
+
+  if (set.durationSeconds !== null) parts.push(`${set.durationSeconds}s`);
+  if (set.distanceFeet !== null) parts.push(`${set.distanceFeet} ft`);
+  if (set.reps !== null) {
+    parts.push(sidesWorked(set) > 1 ? `${set.reps} × ${sidesWorked(set)} sides` : `${set.reps} reps`);
+  }
+
+  if (set.modalityId === "dumbbell" && set.weightLbs !== null) {
+    parts.push(`${set.weightLbs} lb ea (${load.lbs} total)`);
+  } else if (load.precision === "ordinal") {
+    parts.push(`${bandLabel(set)} band`);
+  } else if (set.bandRole === "assistance") {
+    parts.push(`−${bandLabel(set)} band assist`);
+  } else if (set.bandId) {
+    parts.push(`${bandLabel(set)} band`);
+  } else if (set.weightLbs !== null) {
+    parts.push(`${set.weightLbs} lb`);
+  }
+
+  if (set.rir !== null) parts.push(set.rir === 0 ? "to failure" : `RIR ${set.rir}`);
+  return parts.join(" · ");
+}
+
+function bandLabel(set: SetLog): string {
+  return set.bandId?.replace(/^(band|hip_band)_/, "").replace(/_/g, "/") ?? "";
+}
+
+// ---------------------------------------------------------------------------
+// Strength
+// ---------------------------------------------------------------------------
+
+export type PersonalRecord = {
+  exerciseId: ExerciseId;
+  modalityId: ModalityId;
+  bestE1rmLbs: number;
+  heaviestLbs: number;
+  date: string;
+};
+
+/** Completed working sets for one client × variant. The shared filter behind
+ *  every strength stat, so "counts toward a PR" means one thing. */
+function workingSets(
+  data: GymData,
+  clientId: ClientId,
+  exerciseId?: ExerciseId,
+  modalityId?: ModalityId,
+): SetLog[] {
+  return data.setLogs.filter((set) => {
+    if (exerciseId && set.exerciseId !== exerciseId) return false;
+    if (modalityId && set.modalityId !== modalityId) return false;
+    if (set.isWarmup || !set.completed) return false;
+    return data.sessionById.get(set.sessionId)?.clientId === clientId;
+  });
+}
+
+export function personalRecords(data: GymData, clientId: ClientId): PersonalRecord[] {
+  const groups = new Map<string, SetLog[]>();
+  for (const set of workingSets(data, clientId)) {
+    const key = `${set.exerciseId}|${set.modalityId}`;
+    const existing = groups.get(key);
+    if (existing) existing.push(set);
+    else groups.set(key, [set]);
+  }
+
+  const records: PersonalRecord[] = [];
+  for (const sets of groups.values()) {
+    const best = bestE1rm(data, sets);
+    if (best === null) continue; // ordinal or unloaded work has no e1RM
+    const bestSet = sets.reduce((a, b) =>
+      (e1rm(data, b) ?? 0) > (e1rm(data, a) ?? 0) ? b : a,
+    );
+    const heaviest = Math.max(...sets.map((s) => setLoad(data, s).lbs ?? 0));
+    records.push({
+      exerciseId: bestSet.exerciseId,
+      modalityId: bestSet.modalityId,
+      bestE1rmLbs: best,
+      heaviestLbs: heaviest,
+      date: data.sessionById.get(bestSet.sessionId)?.date ?? "",
+    });
+  }
+  return records.sort((a, b) => b.bestE1rmLbs - a.bestE1rmLbs);
+}
+
+/** e1RM relative to the most recent weigh-in — needs weigh-in history, which
+ *  is why bodyweight does not live on the profile. */
+export function relativeStrength(
+  data: GymData,
+  clientId: ClientId,
+  exerciseId: ExerciseId,
+  modalityId: ModalityId,
+): number | null {
+  const best = bestE1rm(data, workingSets(data, clientId, exerciseId, modalityId));
+  const bodyweight = latestBodyweight(data, clientId, new Date().toISOString().slice(0, 10));
+  if (best === null || bodyweight === null || bodyweight <= 0) return null;
+  return best / bodyweight;
+}
+
+// ---------------------------------------------------------------------------
+// Metrics explorations
+// ---------------------------------------------------------------------------
+
+/** Epley inverted: the weight that lands `reps` at this e1RM. Total pounds per
+ *  rep, same basis as e1RM itself. */
+export function weightForReps(e1rmLbs: number, reps: number): number {
+  return e1rmLbs / (1 + reps / 30);
+}
+
+/** Epley inverted the other way: reps expected at `weightLbs` given this e1RM. */
+export function repsForWeight(e1rmLbs: number, weightLbs: number): number {
+  if (weightLbs <= 0) return 0;
+  return Math.max(0, 30 * (e1rmLbs / weightLbs - 1));
+}
+
+/** Every exercise × modality anyone has actually trained — the picker list for
+ *  the metrics explorer. */
+export type TrainedVariant = {
+  exerciseId: ExerciseId;
+  modalityId: ModalityId;
+  clients: ClientId[];
+  lastDate: string;
+};
+
+export function trainedVariants(data: GymData): TrainedVariant[] {
+  const byKey = new Map<string, TrainedVariant & { clientSet: Set<ClientId> }>();
+  for (const set of data.setLogs) {
+    if (set.isWarmup || !set.completed) continue;
+    const session = data.sessionById.get(set.sessionId);
+    if (!session) continue;
+    const key = `${set.exerciseId}|${set.modalityId}`;
+    let row = byKey.get(key);
+    if (!row) {
+      row = {
+        exerciseId: set.exerciseId,
+        modalityId: set.modalityId,
+        clients: [],
+        lastDate: session.date,
+        clientSet: new Set(),
+      };
+      byKey.set(key, row);
+    }
+    row.clientSet.add(session.clientId);
+    if (session.date > row.lastDate) row.lastDate = session.date;
+  }
+  return [...byKey.values()]
+    .map(({ clientSet, ...row }) => ({ ...row, clients: [...clientSet] }))
+    .sort(
+      (a, b) =>
+        (exerciseById.get(a.exerciseId)?.name ?? "").localeCompare(
+          exerciseById.get(b.exerciseId)?.name ?? "",
+        ) || a.modalityId.localeCompare(b.modalityId),
+    );
+}
+
+/**
+ * "What should I put on the bar for 8-10s?" All numbers are TOTAL pounds per
+ * rep (the e1RM basis) — the UI divides by two for per-implement dumbbell
+ * display. Nulls, never fake numbers, for ordinal/unloaded work.
+ */
+export type RepRangeAnswer = {
+  /** Heaviest completed set whose reps landed inside the range. */
+  bestActual: { weightLbs: number; reps: number; date: string } | null;
+  /** e1RM-predicted weight at the top of the range. */
+  predicted: number | null;
+  /** Nearest plate-buildable bar load to the prediction (barbell only). */
+  suggestedBarLoad: number | null;
+};
+
+export function workingWeightForRepRange(
+  data: GymData,
+  clientId: ClientId,
+  exerciseId: ExerciseId,
+  modalityId: ModalityId,
+  repMin: number,
+  repMax: number,
+): RepRangeAnswer {
+  const sets = workingSets(data, clientId, exerciseId, modalityId);
+
+  let bestActual: RepRangeAnswer["bestActual"] = null;
+  for (const set of sets) {
+    const load = setLoad(data, set);
+    if (load.lbs === null || load.precision === "ordinal") continue;
+    if (set.reps === null || set.reps < repMin || set.reps > repMax) continue;
+    if (!bestActual || load.lbs > bestActual.weightLbs) {
+      bestActual = {
+        weightLbs: load.lbs,
+        reps: set.reps,
+        date: data.sessionById.get(set.sessionId)?.date ?? "",
+      };
+    }
+  }
+
+  const best = bestE1rm(data, sets);
+  const predicted = best === null ? null : weightForReps(best, repMax);
+  return {
+    bestActual,
+    predicted,
+    suggestedBarLoad:
+      predicted !== null && modalityId === "barbell"
+        ? nearestLoadableWeight(predicted)
+        : null,
+  };
+}
+
+/** "How many reps should X pounds give me?" Same total-pounds basis. */
+export type WeightAnswer = {
+  /** Most reps ever completed at or above the asked weight. */
+  bestActual: { reps: number; weightLbs: number; date: string } | null;
+  predictedReps: number | null;
+};
+
+export function repRangeForWeight(
+  data: GymData,
+  clientId: ClientId,
+  exerciseId: ExerciseId,
+  modalityId: ModalityId,
+  weightLbs: number,
+): WeightAnswer {
+  const sets = workingSets(data, clientId, exerciseId, modalityId);
+
+  let bestActual: WeightAnswer["bestActual"] = null;
+  for (const set of sets) {
+    const load = setLoad(data, set);
+    if (load.lbs === null || load.precision === "ordinal") continue;
+    if (set.reps === null || load.lbs < weightLbs) continue;
+    if (!bestActual || set.reps > bestActual.reps) {
+      bestActual = {
+        reps: set.reps,
+        weightLbs: load.lbs,
+        date: data.sessionById.get(set.sessionId)?.date ?? "",
+      };
+    }
+  }
+
+  const best = bestE1rm(data, sets);
+  return {
+    bestActual,
+    predictedReps: best === null ? null : repsForWeight(best, weightLbs),
+  };
+}
+
+/** One row per client for a cross-client comparison of a single variant. */
+export type PrComparisonRow = {
+  clientId: ClientId;
+  bestE1rmLbs: number | null;
+  heaviestLbs: number | null;
+  /** e1RM ÷ latest bodyweight. */
+  relative: number | null;
+  date: string | null;
+};
+
+export function prComparison(
+  data: GymData,
+  exerciseId: ExerciseId,
+  modalityId: ModalityId,
+): PrComparisonRow[] {
+  return clients.map((client) => {
+    const sets = workingSets(data, client.id, exerciseId, modalityId);
+    const best = bestE1rm(data, sets);
+    if (best === null) {
+      return { clientId: client.id, bestE1rmLbs: null, heaviestLbs: null, relative: null, date: null };
+    }
+    const bestSet = sets.reduce((a, b) =>
+      (e1rm(data, b) ?? 0) > (e1rm(data, a) ?? 0) ? b : a,
+    );
+    return {
+      clientId: client.id,
+      bestE1rmLbs: best,
+      heaviestLbs: Math.max(...sets.map((s) => setLoad(data, s).lbs ?? 0)),
+      relative: relativeStrength(data, client.id, exerciseId, modalityId),
+      date: data.sessionById.get(bestSet.sessionId)?.date ?? null,
+    };
+  });
+}
+
+/** Load fields of the most recent completed working set for a client ×
+ *  variant — the prefill when a new session prescribes that variant. */
+export function suggestedLoad(
+  data: GymData,
+  clientId: ClientId,
+  exerciseId: ExerciseId,
+  modalityId: ModalityId,
+): Pick<SetLog, "weightLbs" | "addedWeightLbs" | "bandId" | "bandRole"> | null {
+  let latest: SetLog | null = null;
+  let latestDate = "";
+  for (const set of workingSets(data, clientId, exerciseId, modalityId)) {
+    const date = data.sessionById.get(set.sessionId)?.date ?? "";
+    if (
+      !latest ||
+      date > latestDate ||
+      (date === latestDate && set.position > latest.position)
+    ) {
+      latest = set;
+      latestDate = date;
+    }
+  }
+  if (!latest) return null;
+  return {
+    weightLbs: latest.weightLbs,
+    addedWeightLbs: latest.addedWeightLbs,
+    bandId: latest.bandId,
+    bandRole: latest.bandRole,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Volume
+// ---------------------------------------------------------------------------
+
+export type MuscleVolume = {
+  muscleId: MuscleId;
+  /** Score-weighted load × reps. Only from sets with a real load. */
+  weightedVolumeLbs: number;
+  /** Score-weighted reps from sets whose load has no magnitude (hip bands).
+   *  Kept separate so ordinal work is visible without being faked as a number. */
+  ordinalReps: number;
+  sets: number;
+  /** Highest effective score seen, i.e. how directly this muscle was trained. */
+  peakScore: number;
+};
+
+/**
+ * Per-muscle training volume over a date range.
+ *
+ * Two accumulators on purpose. A hip-band lateral walk genuinely trains glute
+ * med, but there is no lb value to multiply, so folding it into a pounds total
+ * would either drop it silently (looks like you skipped the work) or count it as
+ * zero weight (same thing). It lands in `ordinalReps` instead.
+ *
+ * Mobility work contributes nothing — `effectiveScores` returns empty for it.
+ */
+export function muscleVolume(
+  data: GymData,
+  clientId: ClientId,
+  opts: { from?: string; to?: string } = {},
+): MuscleVolume[] {
+  const totals = new Map<MuscleId, MuscleVolume>();
+  for (const muscle of muscles) {
+    totals.set(muscle.id, {
+      muscleId: muscle.id,
+      weightedVolumeLbs: 0,
+      ordinalReps: 0,
+      sets: 0,
+      peakScore: 0,
+    });
+  }
+
+  for (const set of data.setLogs) {
+    const session = data.sessionById.get(set.sessionId);
+    if (!session || session.clientId !== clientId) continue;
+    if (session.status !== "completed" || !set.completed || set.isWarmup) continue;
+    if (opts.from && session.date < opts.from) continue;
+    if (opts.to && session.date > opts.to) continue;
+
+    const scores = effectiveScores(set.exerciseId, set.modalityId);
+    if (scores.size === 0) continue;
+
+    const load = setLoad(data, set);
+    const normalized = normalizedLoad(data, set);
+    const reps = load.totalReps;
+
+    for (const [muscleId, score] of scores) {
+      const row = totals.get(muscleId);
+      if (!row || score <= 0) continue;
+      const weight = score / 10;
+      row.sets += 1;
+      row.peakScore = Math.max(row.peakScore, score);
+      if (load.precision === "ordinal" || normalized === null) {
+        row.ordinalReps += weight * reps;
+      } else {
+        row.weightedVolumeLbs += weight * reps * normalized;
+      }
+    }
+  }
+
+  return [...totals.values()];
+}
+
+export type GroupedMuscleVolume = {
+  groupId: (typeof muscleGroups)[number]["id"];
+  label: string;
+  rows: (MuscleVolume & { name: string })[];
+};
+
+export function muscleVolumeByGroup(
+  data: GymData,
+  clientId: ClientId,
+  opts: { from?: string; to?: string } = {},
+): GroupedMuscleVolume[] {
+  const volume = new Map(muscleVolume(data, clientId, opts).map((v) => [v.muscleId, v]));
+  return [...muscleGroups]
+    .sort((a, b) => a.order - b.order)
+    .map((group) => ({
+      groupId: group.id,
+      label: group.label,
+      rows: muscles
+        .filter((m) => m.groupId === group.id)
+        .map((m) => ({
+          ...(volume.get(m.id) as MuscleVolume),
+          name: m.name,
+        })),
+    }));
+}
+
+/** Muscles the exercise library can only train as a secondary — no exercise
+ *  scores them 10. Surfaces coverage holes as data rather than a comment. */
+export function musclesWithoutPrimary(): MuscleId[] {
+  const primaries = new Set<MuscleId>();
+  for (const rows of scoresByExercise.values()) {
+    for (const row of rows) if (row.score >= 10) primaries.add(row.muscleId);
+  }
+  return muscles.filter((m) => !primaries.has(m.id)).map((m) => m.id);
+}
+
+// ---------------------------------------------------------------------------
+// Availability
+// ---------------------------------------------------------------------------
+
+export type Variant = {
+  exerciseModality: ExerciseModality;
+  exerciseName: string;
+  modalityName: string;
+  /** False when failing a rep could trap you and you have no spotter arms. */
+  allowsFailure: boolean;
+};
+
+/**
+ * Every exercise × modality you can actually perform with the equipment given.
+ * This is the question a home-gym app exists to answer, and the old schema
+ * could not: nothing joined equipment to exercises at all.
+ */
+export function availableVariants(
+  owned: ReadonlySet<EquipmentId> = ownedEquipmentIds,
+): Variant[] {
+  return exerciseModalities
+    .filter((em) => modalityById.get(em.modalityId)?.owned !== false)
+    .filter((em) => em.requiredEquipment.every((id) => owned.has(id)))
+    .map((em) => ({
+      exerciseModality: em,
+      exerciseName: exerciseById.get(em.exerciseId)?.name ?? em.exerciseId,
+      modalityName: modalityById.get(em.modalityId)?.name ?? em.modalityId,
+      allowsFailure: !em.pinRisk || owned.has("spotter_arms"),
+    }));
+}
+
+/** Valid band roles for a variant. Assistance-only for pull-ups and dips;
+ *  resistance-only for curls. */
+export function bandRolesFor(
+  exerciseId: ExerciseId,
+  modalityId: ModalityId,
+): readonly BandRole[] {
+  return (
+    exerciseModalities.find(
+      (em) => em.exerciseId === exerciseId && em.modalityId === modalityId,
+    )?.bandRoles ?? []
+  );
+}
+
+/** Hip bands ordered easiest to hardest. Derived from circumference — smaller
+ *  is harder — so it cannot drift out of sync with the inventory. */
+export function hipBandLadder(): { band: HipBand; rank: number }[] {
+  return hipBandsByDifficulty.map((band) => ({
+    band,
+    rank: hipBandRank.get(band.id) ?? 0,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Programming
+// ---------------------------------------------------------------------------
+
+export type Adherence = {
+  clientId: ClientId;
+  programName: string;
+  /** Program days scheduled between the start date and today. */
+  scheduled: number;
+  completed: number;
+  rate: number | null;
+};
+
+export function adherence(data: GymData, asOf: Date = new Date()): Adherence[] {
+  return data.assignments.flatMap((assignment) => {
+    const program = data.programById.get(assignment.programId);
+    if (!program) return [];
+    const start = new Date(`${assignment.startDate}T00:00:00`);
+    const weeksElapsed = Math.min(
+      program.weeks,
+      Math.floor((asOf.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1,
+    );
+    const perWeek = data.programDays.filter(
+      (d) => d.programId === assignment.programId && d.week === 1,
+    ).length;
+    const scheduled = Math.max(0, weeksElapsed) * perWeek;
+    const completed = data.sessions.filter(
+      (s) =>
+        s.clientId === assignment.clientId &&
+        s.status === "completed" &&
+        s.date >= assignment.startDate,
+    ).length;
+    return [
+      {
+        clientId: assignment.clientId,
+        programName: program.name,
+        scheduled,
+        completed,
+        rate: scheduled > 0 ? completed / scheduled : null,
+      },
+    ];
+  });
+}
+
+/** The routine prescribed for a client on a given weekday, if any. */
+export function routineForDay(data: GymData, clientId: ClientId, dayOfWeek: number) {
+  const assignment = data.assignments.find(
+    (a) => a.clientId === clientId && a.status === "active",
+  );
+  if (!assignment) return null;
+  const day = data.programDays.find(
+    (d) => d.programId === assignment.programId && d.dayOfWeek === dayOfWeek,
+  );
+  if (!day) return null;
+  return {
+    routineId: day.routineId,
+    exercises: data.exercisesByRoutine.get(day.routineId) ?? [],
+  };
+}
+
+export { clientById, clients, exercises, muscles, muscleGroups };
