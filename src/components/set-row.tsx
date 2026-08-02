@@ -1,42 +1,32 @@
 "use client";
 
 import { IconButton, NumberInput, Select } from "@/components/ui";
-import { bands, dumbbells } from "@/lib/data/equipment";
-import { describePlates, formatPlates, loadableWeights } from "@/lib/loading";
+import { bands } from "@/lib/data/equipment";
+import { describePlates, formatPlates } from "@/lib/loading";
 import { bandRolesFor } from "@/lib/queries";
 import type { BandId, BandRole, MetricType, SetLog } from "@/lib/types";
 
-const BARBELL_LOADS = loadableWeights("ohio_bar");
-const DUMBBELL_LOADS = dumbbells.map((d) => d.weightLbs);
-
-/** Step within a fixed ladder of buildable loads — the stepper can only land
- *  on weights the equipment can actually produce. */
-function stepIn(ladder: readonly number[], current: number | null, direction: -1 | 1): number {
-  if (current === null) return ladder[direction === 1 ? 0 : ladder.length - 1];
-  const candidates =
-    direction === 1
-      ? ladder.filter((w) => w > current)
-      : [...ladder].reverse().filter((w) => w < current);
-  return candidates[0] ?? current;
-}
-
 /**
  * One set's editable row. Weight controls adapt to the set's modality: barbell
- * steps through plate-buildable loads (with a plate breakdown hint), dumbbells
- * through the owned pairs, bodyweight edits added weight, bands pick a band.
+ * and dumbbell take a typed load (with a plate breakdown hint for barbell),
+ * bodyweight edits added weight, bands pick a band.
  */
 export function SetRow({
   set,
   metricType,
   onChange,
   onRemove,
+  dense = false,
 }: {
   set: SetLog;
   metricType: MetricType;
   onChange: (changes: Partial<SetLog>) => void;
   onRemove: () => void;
+  /** Tighter spacing + h-9 controls, for the group board's always-visible list. */
+  dense?: boolean;
 }) {
   const roles = set.modalityId === "band" ? bandRolesFor(set.exerciseId, set.modalityId) : [];
+  const controlSize = dense ? ("sm" as const) : ("md" as const);
   const plateHint =
     set.modalityId === "barbell" && set.weightLbs !== null
       ? formatPlates(set.weightLbs)
@@ -44,57 +34,44 @@ export function SetRow({
 
   return (
     <div
-      className={`grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1 rounded-lg px-2 py-2 text-sm ${
+      className={`grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1 rounded-lg text-sm ${
+        dense ? "px-1 py-1" : "px-2 py-2"
+      } ${
         set.completed ? "bg-success/10" : ""
       } ${set.isWarmup ? "opacity-70" : ""}`}
     >
-      <label className="flex flex-col items-center gap-0.5 p-1.5">
+      <span className="flex flex-col items-center gap-0.5 p-1.5">
         <input
           type="checkbox"
           checked={set.completed}
           onChange={(e) => onChange({ completed: e.target.checked })}
           className="size-6 accent-accent"
         />
-        <span className="font-mono text-xs text-muted">{set.setNumber}</span>
-      </label>
+        {/* Tap the set number to toggle warm-up — W replaces the number. */}
+        <button
+          type="button"
+          onClick={() => onChange({ isWarmup: !set.isWarmup })}
+          title="Toggle warm-up"
+          aria-label={set.isWarmup ? "Warm-up set — tap for working set" : "Working set — tap for warm-up"}
+          className={`cursor-pointer rounded px-2 py-1 font-mono text-xs ${
+            set.isWarmup ? "font-semibold text-warning-text" : "text-muted"
+          }`}
+        >
+          {set.isWarmup ? "W" : set.setNumber}
+        </button>
+      </span>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
         {/* Load control, by modality */}
         {(set.modalityId === "barbell" || set.modalityId === "dumbbell") && (
           <span className="flex items-center gap-1">
-            <IconButton
-              aria-label="Decrease weight"
-              onClick={() =>
-                onChange({
-                  weightLbs: stepIn(
-                    set.modalityId === "barbell" ? BARBELL_LOADS : DUMBBELL_LOADS,
-                    set.weightLbs,
-                    -1,
-                  ),
-                })
-              }
-            >
-              −
-            </IconButton>
             <NumberInput
+              size={controlSize}
+              step={set.modalityId === "barbell" ? 5 : 2.5}
               value={set.weightLbs}
               onChange={(v) => onChange({ weightLbs: v })}
               className="w-20"
             />
-            <IconButton
-              aria-label="Increase weight"
-              onClick={() =>
-                onChange({
-                  weightLbs: stepIn(
-                    set.modalityId === "barbell" ? BARBELL_LOADS : DUMBBELL_LOADS,
-                    set.weightLbs,
-                    1,
-                  ),
-                })
-              }
-            >
-              +
-            </IconButton>
             <span className="text-xs text-muted">
               lb{set.modalityId === "dumbbell" ? " ea" : ""}
             </span>
@@ -104,6 +81,7 @@ export function SetRow({
         {set.modalityId === "machine" && (
           <span className="flex items-center gap-1">
             <NumberInput
+              size={controlSize}
               step={5}
               value={set.weightLbs}
               onChange={(v) => onChange({ weightLbs: v })}
@@ -117,6 +95,7 @@ export function SetRow({
           <span className="flex items-center gap-1">
             <span className="text-xs text-muted">BW +</span>
             <NumberInput
+              size={controlSize}
               step={2.5}
               value={set.addedWeightLbs}
               placeholder="0"
@@ -130,6 +109,7 @@ export function SetRow({
         {set.modalityId === "band" && (
           <span className="flex items-center gap-1">
             <Select
+              size={controlSize}
               value={set.bandId ?? ""}
               onChange={(e) => onChange({ bandId: (e.target.value || null) as BandId | null })}
             >
@@ -144,6 +124,7 @@ export function SetRow({
             </Select>
             {roles.length > 1 && (
               <Select
+                size={controlSize}
                 value={set.bandRole ?? ""}
                 onChange={(e) => onChange({ bandRole: (e.target.value || null) as BandRole | null })}
               >
@@ -159,6 +140,7 @@ export function SetRow({
         {metricType === "time" || set.durationSeconds !== null ? (
           <span className="flex items-center gap-1">
             <NumberInput
+              size={controlSize}
               step={5}
               value={set.durationSeconds}
               onChange={(v) => onChange({ durationSeconds: v })}
@@ -169,6 +151,7 @@ export function SetRow({
         ) : metricType === "distance" ? (
           <span className="flex items-center gap-1">
             <NumberInput
+              size={controlSize}
               step={10}
               value={set.distanceFeet}
               onChange={(v) => onChange({ distanceFeet: v })}
@@ -179,17 +162,20 @@ export function SetRow({
         ) : (
           <span className="flex items-center gap-1">
             <IconButton
+              size={controlSize}
               aria-label="Decrease reps"
               onClick={() => onChange({ reps: Math.max(0, (set.reps ?? 0) - 1) })}
             >
               −
             </IconButton>
             <NumberInput
+              size={controlSize}
               value={set.reps}
               onChange={(v) => onChange({ reps: v })}
               className="w-16"
             />
             <IconButton
+              size={controlSize}
               aria-label="Increase reps"
               onClick={() => onChange({ reps: (set.reps ?? 0) + 1 })}
             >
@@ -201,29 +187,27 @@ export function SetRow({
           </span>
         )}
 
-        <span className="flex items-center gap-1">
-          <span className="text-xs text-muted">RIR</span>
-          <NumberInput
-            min={0}
-            value={set.rir}
-            placeholder="—"
-            onChange={(v) => onChange({ rir: v })}
-            className="w-14"
-          />
-        </span>
-
-        <label className="flex items-center gap-1.5 p-1.5 text-xs text-muted">
-          <input
-            type="checkbox"
-            checked={set.isWarmup}
-            onChange={(e) => onChange({ isWarmup: e.target.checked })}
-            className="size-5 accent-accent"
-          />
-          warmup
-        </label>
+        {/* RIR cycles –, 0…4 on tap — no keyboard, no label. */}
+        <button
+          type="button"
+          onClick={() =>
+            onChange({ rir: set.rir === null ? 0 : set.rir >= 4 ? null : set.rir + 1 })
+          }
+          aria-label={`Reps in reserve: ${set.rir ?? "not set"}, tap to change`}
+          className={`cursor-pointer rounded-md border px-2 font-mono text-xs ${
+            dense ? "h-9" : "h-11"
+          } ${
+            set.rir !== null
+              ? "border-accent/40 bg-accent-soft text-accent-text"
+              : "border-border-strong text-muted"
+          }`}
+        >
+          RIR {set.rir ?? "–"}
+        </button>
 
         <IconButton
           variant="ghost"
+          size={controlSize}
           onClick={onRemove}
           className="ml-auto"
           aria-label="Remove set"

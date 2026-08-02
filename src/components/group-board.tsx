@@ -57,7 +57,10 @@ export function GroupBoard({
         )}
       </div>
 
-      <div className="space-y-3">
+      {/* One card per person; on iPad landscape up to three side by side so
+          people can be compared at a glance. Default stretch alignment keeps
+          cards in a row the same height. */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {people.map((person) => (
           <GroupPersonCard
             key={person.session.id}

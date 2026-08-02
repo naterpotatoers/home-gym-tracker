@@ -99,6 +99,8 @@ export function WorkoutRunner({
                   <span className="text-xs text-muted">
                     {rx.durationSeconds !== null
                       ? `${rx.sets}×${rx.durationSeconds}s`
+                      : rx.repMin === rx.repMax
+                      ? `${rx.sets}×${rx.repMax ?? "?"}`
                       : `${rx.sets}×${rx.repMin ?? "?"}–${rx.repMax ?? "?"}`}
                     {rx.targetRir !== null && ` @ RIR ${rx.targetRir}`}
                     {` · rest ${rx.restSeconds}s`}

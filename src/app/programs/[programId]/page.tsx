@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BodyHeatmap } from "@/components/body-heatmap";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
 import { Button, Input, PageShell, Section, SeedBanner, Select } from "@/components/ui";
 import { ProgramEditor } from "@/components/week-grid";
@@ -11,6 +12,7 @@ import {
 import { coverageByGroup, neglectedMuscles, weekCoverage } from "@/lib/coverage";
 import { clients } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
+import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
 
 export default async function ProgramPage({
   params,
@@ -34,6 +36,8 @@ export default async function ProgramPage({
   const days = data.programDays.filter((d) => d.programId === programId);
   const coverage = weekCoverage(data, programId, week);
   const neglected = neglectedMuscles(coverage);
+  const coverageMax = heatMax({ coverage });
+  const heat = heatValues({ coverage }, coverageMax, ordinalMax({ coverage }));
   const assignments = data.assignments.filter((a) => a.programId === programId);
 
   return (
@@ -68,7 +72,18 @@ export default async function ProgramPage({
             <strong>{neglected.join(", ")}</strong>
           </p>
         )}
-        <MuscleCoverageBars groups={coverageByGroup(coverage)} />
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+          <div className="min-w-0 flex-1">
+            <MuscleCoverageBars groups={coverageByGroup(coverage)} />
+          </div>
+          <div className="shrink-0">
+            <BodyHeatmap
+              values={heat}
+              title={`Week ${week} body map`}
+              maxLabel={`${coverageMax.toFixed(1)} sets/wk`}
+            />
+          </div>
+        </div>
       </Section>
 
       <Section title="Assignments">

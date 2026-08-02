@@ -105,7 +105,7 @@ const buttonVariant = {
 export type ButtonVariant = keyof typeof buttonVariant;
 
 const buttonBase =
-  "inline-flex items-center justify-center gap-1.5 rounded-md font-semibold " +
+  "inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md font-semibold " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 " +
   "focus-visible:ring-offset-2 focus-visible:ring-offset-background " +
   "disabled:opacity-50 disabled:pointer-events-none";
@@ -131,18 +131,22 @@ export function Button({
   );
 }
 
-/** Square ≥44px button for steppers, remove-✕, arrows. */
+/** Square button for steppers, remove-✕, arrows. md = 44px touch target;
+ *  sm is for dense contexts like the group-board set rows. */
 export function IconButton({
   variant = "secondary",
+  size = "md",
   className = "",
   type = "button",
   ...props
-}: React.ComponentProps<"button"> & { variant?: ButtonVariant }) {
+}: React.ComponentProps<"button"> & { variant?: ButtonVariant; size?: "md" | "sm" }) {
   return (
     <button
       {...props}
       type={type}
-      className={`${buttonBase} ${buttonVariant[variant]} size-11 text-lg ${className}`}
+      className={`${buttonBase} ${buttonVariant[variant]} ${
+        size === "md" ? "size-11 text-lg" : "size-9 text-base"
+      } ${className}`}
     />
   );
 }

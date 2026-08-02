@@ -50,16 +50,6 @@ export default async function ProgramsPage() {
 
       <form action={createProgram} className="mt-8 flex flex-wrap gap-2">
         <Input type="text" name="name" required placeholder="New program name" />
-        <Input
-          type="number"
-          name="weeks"
-          required
-          min={1}
-          max={52}
-          defaultValue={8}
-          align="right"
-          className="w-20"
-        />
         <Button type="submit" variant="primary">
           Create
         </Button>

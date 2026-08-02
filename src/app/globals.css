@@ -82,40 +82,42 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Muscle heat map ramp: sequential single-hue blue, near-zero recedes toward
- * the surface. Dark mode is its own selected ramp — the same steps reversed so
- * the dark end means "near zero" against the dark background. */
+/* Muscle heat map ramp: a graded status scale — danger → warning → success,
+ * interpolated in OKLab from the same status tokens the bar charts use, so
+ * red = barely trained and green = well trained everywhere. Hue carries the
+ * meaning, so dark mode gets its own anchors but no reversal. Zero work still
+ * renders as outline-only (never the red end — untouched ≠ measured-low). */
 :root {
-  --heat-0: #cde2fb;
-  --heat-1: #b7d3f6;
-  --heat-2: #9ec5f4;
-  --heat-3: #86b6ef;
-  --heat-4: #6da7ec;
-  --heat-5: #5598e7;
-  --heat-6: #3987e5;
-  --heat-7: #2a78d6;
-  --heat-8: #256abf;
-  --heat-9: #1c5cab;
-  --heat-10: #184f95;
-  --heat-11: #104281;
-  --heat-12: #0d366b;
+  --heat-0: #d03b3b;
+  --heat-1: #d04b37;
+  --heat-2: #cf5832;
+  --heat-3: #ce642c;
+  --heat-4: #cd7023;
+  --heat-5: #cb7b18;
+  --heat-6: #c98500;
+  --heat-7: #b68c02;
+  --heat-8: #a29204;
+  --heat-9: #8b9706;
+  --heat-10: #729c08;
+  --heat-11: #51a00a;
+  --heat-12: #0ca30c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --heat-0: #0d366b;
-    --heat-1: #104281;
-    --heat-2: #184f95;
-    --heat-3: #1c5cab;
-    --heat-4: #256abf;
-    --heat-5: #2a78d6;
-    --heat-6: #3987e5;
-    --heat-7: #5598e7;
-    --heat-8: #6da7ec;
-    --heat-9: #86b6ef;
-    --heat-10: #9ec5f4;
-    --heat-11: #b7d3f6;
-    --heat-12: #cde2fb;
+    --heat-0: #e05252;
+    --heat-1: #e1614e;
+    --heat-2: #e16f49;
+    --heat-3: #e27c43;
+    --heat-4: #e1883c;
+    --heat-5: #e19432;
+    --heat-6: #e0a025;
+    --heat-7: #caa42f;
+    --heat-8: #b3a836;
+    --heat-9: #9bab3c;
+    --heat-10: #7fad42;
+    --heat-11: #5daf47;
+    --heat-12: #22b04b;
   }
 }
 

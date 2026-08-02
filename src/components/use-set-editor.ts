@@ -2,12 +2,13 @@
 
 import { useMemo, useRef, useState } from "react";
 import { getSuggestedLoad, syncSetLogs, updateSetLog } from "@/lib/actions/workout";
+import { randomSuffix } from "@/lib/ids";
 import type { Variant } from "@/lib/queries";
 import { renumber, toBlocks, type Block } from "@/lib/set-blocks";
 import type { Session, SetLog } from "@/lib/types";
 
 function clientSetId(): string {
-  return `sl_${crypto.randomUUID().slice(0, 8)}`;
+  return `sl_${randomSuffix(8)}`;
 }
 
 /**

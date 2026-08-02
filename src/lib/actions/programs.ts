@@ -8,42 +8,150 @@ import { isClientId } from "../validate";
 
 export async function createProgram(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
-  const weeks = Number(formData.get("weeks") ?? 0);
   if (!name) throw new Error("Program needs a name.");
-  if (!Number.isInteger(weeks) || weeks < 1 || weeks > 52) {
-    throw new Error("Weeks must be between 1 and 52.");
-  }
   const id = slugId("p", name);
+  // Programs start at one week; the editor grows them row by row.
   const { error } = await supabase
     .from("programs")
-    .insert({ id, name, weeks, notes: "" });
+    .insert({ id, name, weeks: 1, notes: "" });
   if (error) throw new Error(`creating program: ${error.message}`);
   revalidatePath("/", "layout");
   redirect(`/programs/${id}`);
 }
 
-export async function updateProgramMeta(
+export async function updateProgramInfo(
   programId: string,
-  patch: { name: string; weeks: number; notes: string },
+  patch: { name: string; notes: string },
 ): Promise<void> {
   if (!patch.name.trim()) throw new Error("Program needs a name.");
-  if (!Number.isInteger(patch.weeks) || patch.weeks < 1 || patch.weeks > 52) {
-    throw new Error("Weeks must be between 1 and 52.");
-  }
   const { error } = await supabase
     .from("programs")
-    .update({ name: patch.name.trim(), weeks: patch.weeks, notes: patch.notes })
+    .update({ name: patch.name.trim(), notes: patch.notes })
     .eq("id", programId);
   if (error) throw new Error(`updating program: ${error.message}`);
+  revalidatePath("/", "layout");
+}
 
-  // Shrinking the program orphans days beyond the new length — prune them.
-  const { error: pruneError } = await supabase
+/** Current week count plus that week's day rows — the shared read for the
+ *  week-structure actions below. */
+async function weekState(programId: string, week?: number) {
+  const [{ data: program, error: programError }, { data: days, error: daysError }] =
+    await Promise.all([
+      supabase.from("programs").select("weeks").eq("id", programId).single(),
+      supabase.from("program_days").select("*").eq("program_id", programId),
+    ]);
+  if (programError) throw new Error(`reading program: ${programError.message}`);
+  if (daysError) throw new Error(`reading program days: ${daysError.message}`);
+  const all = days ?? [];
+  return {
+    weeks: program.weeks as number,
+    all,
+    ofWeek: week === undefined ? [] : all.filter((d) => d.week === week),
+  };
+}
+
+/** Append a week at the end — empty, or a copy of `copyFromWeek`'s layout. */
+export async function addWeek(
+  programId: string,
+  copyFromWeek?: number,
+): Promise<void> {
+  const state = await weekState(programId, copyFromWeek);
+  if (state.weeks >= 52) throw new Error("Programs cap at 52 weeks.");
+  const newWeek = state.weeks + 1;
+
+  const { error } = await supabase
+    .from("programs")
+    .update({ weeks: newWeek })
+    .eq("id", programId);
+  if (error) throw new Error(`adding week: ${error.message}`);
+
+  if (state.ofWeek.length > 0) {
+    const { error: copyError } = await supabase.from("program_days").insert(
+      state.ofWeek.map((d) => ({
+        program_id: programId,
+        week: newWeek,
+        day_of_week: d.day_of_week,
+        routine_id: d.routine_id,
+      })),
+    );
+    if (copyError) throw new Error(`adding week: ${copyError.message}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/** Insert a copy of `week` directly after it, shifting later weeks down. */
+export async function duplicateWeek(programId: string, week: number): Promise<void> {
+  const state = await weekState(programId, week);
+  if (state.weeks >= 52) throw new Error("Programs cap at 52 weeks.");
+  const later = state.all.filter((d) => d.week > week);
+
+  // Rewrite: delete everything after the source week, then reinsert shifted
+  // +1 with the duplicate in between. Two steps because the composite PK
+  // (program_id, week, day_of_week) forbids in-place shifts.
+  const { error: deleteError } = await supabase
     .from("program_days")
     .delete()
     .eq("program_id", programId)
-    .gt("week", patch.weeks);
-  if (pruneError) throw new Error(`updating program: ${pruneError.message}`);
+    .gt("week", week);
+  if (deleteError) throw new Error(`duplicating week: ${deleteError.message}`);
 
+  const rows = [
+    ...state.ofWeek.map((d) => ({
+      program_id: programId,
+      week: week + 1,
+      day_of_week: d.day_of_week,
+      routine_id: d.routine_id,
+    })),
+    ...later.map((d) => ({
+      program_id: programId,
+      week: d.week + 1,
+      day_of_week: d.day_of_week,
+      routine_id: d.routine_id,
+    })),
+  ];
+  if (rows.length > 0) {
+    const { error } = await supabase.from("program_days").insert(rows);
+    if (error) throw new Error(`duplicating week: ${error.message}`);
+  }
+
+  const { error: weeksError } = await supabase
+    .from("programs")
+    .update({ weeks: state.weeks + 1 })
+    .eq("id", programId);
+  if (weeksError) throw new Error(`duplicating week: ${weeksError.message}`);
+  revalidatePath("/", "layout");
+}
+
+/** Delete a week and close the gap; later weeks shift up. */
+export async function removeWeek(programId: string, week: number): Promise<void> {
+  const state = await weekState(programId);
+  if (state.weeks <= 1) throw new Error("A program keeps at least one week.");
+  const later = state.all.filter((d) => d.week > week);
+
+  const { error: deleteError } = await supabase
+    .from("program_days")
+    .delete()
+    .eq("program_id", programId)
+    .gte("week", week);
+  if (deleteError) throw new Error(`removing week: ${deleteError.message}`);
+
+  if (later.length > 0) {
+    const { error } = await supabase.from("program_days").insert(
+      later.map((d) => ({
+        program_id: programId,
+        week: d.week - 1,
+        day_of_week: d.day_of_week,
+        routine_id: d.routine_id,
+      })),
+    );
+    if (error) throw new Error(`removing week: ${error.message}`);
+  }
+
+  const { error: weeksError } = await supabase
+    .from("programs")
+    .update({ weeks: state.weeks - 1 })
+    .eq("id", programId);
+  if (weeksError) throw new Error(`removing week: ${weeksError.message}`);
   revalidatePath("/", "layout");
 }
 
@@ -75,49 +183,6 @@ export async function clearProgramDay(
     .eq("week", week)
     .eq("day_of_week", dayOfWeek);
   if (error) throw new Error(`clearing day: ${error.message}`);
-  revalidatePath("/", "layout");
-}
-
-/** Stamp one week's layout across every week of the program. */
-export async function copyWeekToAll(
-  programId: string,
-  sourceWeek: number,
-): Promise<void> {
-  const [{ data: program, error: programError }, { data: days, error: daysError }] =
-    await Promise.all([
-      supabase.from("programs").select("weeks").eq("id", programId).single(),
-      supabase
-        .from("program_days")
-        .select("*")
-        .eq("program_id", programId)
-        .eq("week", sourceWeek),
-    ]);
-  if (programError) throw new Error(`copying week: ${programError.message}`);
-  if (daysError) throw new Error(`copying week: ${daysError.message}`);
-
-  const { error: deleteError } = await supabase
-    .from("program_days")
-    .delete()
-    .eq("program_id", programId)
-    .neq("week", sourceWeek);
-  if (deleteError) throw new Error(`copying week: ${deleteError.message}`);
-
-  const rows = [];
-  for (let week = 1; week <= program.weeks; week++) {
-    if (week === sourceWeek) continue;
-    for (const day of days ?? []) {
-      rows.push({
-        program_id: programId,
-        week,
-        day_of_week: day.day_of_week,
-        routine_id: day.routine_id,
-      });
-    }
-  }
-  if (rows.length > 0) {
-    const { error } = await supabase.from("program_days").insert(rows);
-    if (error) throw new Error(`copying week: ${error.message}`);
-  }
   revalidatePath("/", "layout");
 }
 

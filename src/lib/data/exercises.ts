@@ -34,6 +34,7 @@ export const exercises: readonly Exercise[] = [
 
   // ---- lunge ----
   { id: "lunge", name: "Lunge", pattern: "lunge", metricType: "reps", isCompound: true },
+  { id: "side_lunge", name: "Side Lunge", pattern: "lunge", metricType: "reps", isCompound: true },
   { id: "step_up", name: "Step-Up", pattern: "lunge", metricType: "reps", isCompound: true },
 
   // ---- horizontal push ----
@@ -71,6 +72,7 @@ export const exercises: readonly Exercise[] = [
 
   // ---- carry / hang ----
   { id: "farmer_carry", name: "Farmer Carry", pattern: "carry", metricType: "distance", isCompound: true },
+  { id: "timed_carry", name: "Farmer Carry (time)", pattern: "carry", metricType: "time", isCompound: true },
   { id: "bar_hang", name: "Bar Hang", pattern: "carry", metricType: "time", isCompound: false },
 
   // ---- core ----
@@ -79,7 +81,17 @@ export const exercises: readonly Exercise[] = [
   { id: "copenhagen_plank", name: "Copenhagen Plank", pattern: "core", metricType: "time", isCompound: false },
   { id: "pallof_press", name: "Pallof Press", pattern: "core", metricType: "reps", isCompound: false },
   { id: "hanging_knee_raise", name: "Hanging Knee Raise", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "hanging_leg_raise", name: "Hanging Leg Raise", pattern: "core", metricType: "reps", isCompound: false },
   { id: "lateral_walk", name: "Lateral Walk", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "clam_shell", name: "Banded Clam Shell", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "dead_bug", name: "Dead Bug", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "reverse_dead_bug", name: "Reverse Dead Bug", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "sit_up", name: "Sit-Up", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "hollow_hold", name: "Hollow Hold", pattern: "core", metricType: "time", isCompound: false },
+  { id: "russian_twist", name: "Russian Twist", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "bicycle_crunch", name: "Bicycle Crunch", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "mountain_climber", name: "Mountain Climber", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "woodchopper", name: "Band Woodchopper", pattern: "core", metricType: "reps", isCompound: false },
 
   // ---- mobility ----
   // No muscle scores on purpose. `mobility` is excluded from all volume math
@@ -139,6 +151,9 @@ export const exerciseMuscleScores: readonly ExerciseMuscleScore[] = [
   s("lunge", "quads", 9), s("lunge", "glutes", 8), s("lunge", "hamstrings", 4),
   s("lunge", "adductors", 3), s("lunge", "glute_med", 3), s("lunge", "calves", 2),
   s("lunge", "abs", 2),
+  // Side Lunge — frontal-plane lunge; adductors of the straight leg do real work
+  s("side_lunge", "adductors", 8), s("side_lunge", "quads", 7), s("side_lunge", "glutes", 6),
+  s("side_lunge", "glute_med", 5), s("side_lunge", "hamstrings", 2),
   // Step-Up
   s("step_up", "quads", 9), s("step_up", "glutes", 8), s("step_up", "glute_med", 4),
   s("step_up", "hamstrings", 3), s("step_up", "hip_flexors", 3), s("step_up", "calves", 2),
@@ -228,6 +243,11 @@ export const exerciseMuscleScores: readonly ExerciseMuscleScore[] = [
   s("farmer_carry", "abs", 5), s("farmer_carry", "obliques", 5),
   s("farmer_carry", "glute_med", 4), s("farmer_carry", "calves", 3),
   s("farmer_carry", "lower_back", 3),
+  // Farmer Carry (time) — same movement, clocked instead of measured
+  s("timed_carry", "forearms", 10), s("timed_carry", "traps", 7),
+  s("timed_carry", "abs", 5), s("timed_carry", "obliques", 5),
+  s("timed_carry", "glute_med", 4), s("timed_carry", "calves", 3),
+  s("timed_carry", "lower_back", 3),
   // Bar Hang
   s("bar_hang", "forearms", 10), s("bar_hang", "lats", 5), s("bar_hang", "abs", 3),
   s("bar_hang", "traps", 3), s("bar_hang", "rotator_cuff", 3),
@@ -252,6 +272,34 @@ export const exerciseMuscleScores: readonly ExerciseMuscleScore[] = [
   // Lateral Walk
   s("lateral_walk", "glute_med", 10), s("lateral_walk", "glutes", 4),
   s("lateral_walk", "quads", 3),
+  // Banded Clam Shell — hip external rotation against the band
+  s("clam_shell", "glute_med", 9), s("clam_shell", "glutes", 5),
+  // Hanging Leg Raise — straight legs push both prime movers past knee raises
+  s("hanging_leg_raise", "abs", 10), s("hanging_leg_raise", "hip_flexors", 10),
+  s("hanging_leg_raise", "obliques", 6), s("hanging_leg_raise", "forearms", 4),
+  s("hanging_leg_raise", "lats", 2),
+  // Dead Bug — anti-extension with limb movement
+  s("dead_bug", "abs", 8), s("dead_bug", "hip_flexors", 4), s("dead_bug", "obliques", 3),
+  // Reverse Dead Bug (bird-dog position) — the prone, anti-flexion counterpart
+  s("reverse_dead_bug", "lower_back", 7), s("reverse_dead_bug", "glutes", 5),
+  s("reverse_dead_bug", "abs", 4), s("reverse_dead_bug", "glute_med", 3),
+  // Sit-Up
+  s("sit_up", "abs", 9), s("sit_up", "hip_flexors", 6), s("sit_up", "obliques", 3),
+  // Hollow Hold
+  s("hollow_hold", "abs", 10), s("hollow_hold", "hip_flexors", 5), s("hollow_hold", "quads", 2),
+  // Russian Twist
+  s("russian_twist", "obliques", 9), s("russian_twist", "abs", 6),
+  s("russian_twist", "hip_flexors", 3),
+  // Bicycle Crunch
+  s("bicycle_crunch", "abs", 8), s("bicycle_crunch", "obliques", 8),
+  s("bicycle_crunch", "hip_flexors", 4),
+  // Mountain Climber — hip-flexor-led, shoulders hold a moving plank
+  s("mountain_climber", "hip_flexors", 8), s("mountain_climber", "abs", 6),
+  s("mountain_climber", "obliques", 4), s("mountain_climber", "front_delts", 3),
+  s("mountain_climber", "serratus", 3),
+  // Band Woodchopper — rotational pull across the body
+  s("woodchopper", "obliques", 9), s("woodchopper", "abs", 5),
+  s("woodchopper", "front_delts", 3), s("woodchopper", "glute_med", 2),
 
   // Stretch: intentionally none — see `pattern: 'mobility'`.
 ];
@@ -291,6 +339,8 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("lunge", "dumbbell", { isDefault: true, defaultUnilateralMode: "alternating", requiredEquipment: ["dumbbells"] }),
   em("lunge", "bodyweight", { defaultUnilateralMode: "alternating", requiredEquipment: ["floor"] }),
   em("lunge", "barbell", { defaultUnilateralMode: "alternating", requiredEquipment: ["ohio_bar", "plates", "rack"] }),
+  em("side_lunge", "bodyweight", { isDefault: true, defaultUnilateralMode: "alternating", requiredEquipment: ["floor"] }),
+  em("side_lunge", "dumbbell", { defaultUnilateralMode: "alternating", requiredEquipment: ["dumbbells"] }),
   em("step_up", "dumbbell", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["dumbbells", "bench"] }),
   em("step_up", "bodyweight", { defaultUnilateralMode: "single_side", requiredEquipment: ["bench"] }),
 
@@ -352,6 +402,7 @@ export const exerciseModalities: readonly ExerciseModality[] = [
 
   // ---- carry / hang ----
   em("farmer_carry", "dumbbell", { isDefault: true, requiredEquipment: ["dumbbells"] }),
+  em("timed_carry", "dumbbell", { isDefault: true, requiredEquipment: ["dumbbells"] }),
   em("bar_hang", "bodyweight", { isDefault: true, requiredEquipment: ["pull_up_bar"] }),
 
   // ---- core ----
@@ -363,6 +414,18 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   // Hip-band only, and the sole primary driver of glute_med — which is why that
   // muscle's volume is ordinal-only and cannot be charted as a number.
   em("lateral_walk", "band", { isDefault: true, bandRoles: ["resistance"], requiredEquipment: ["hip_bands"] }),
+  em("clam_shell", "band", { isDefault: true, bandRoles: ["resistance"], defaultUnilateralMode: "single_side", requiredEquipment: ["hip_bands", "floor"] }),
+  em("hanging_leg_raise", "bodyweight", { isDefault: true, requiredEquipment: ["pull_up_bar"] }),
+  em("dead_bug", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("reverse_dead_bug", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("sit_up", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("sit_up", "dumbbell", { requiredEquipment: ["dumbbells", "floor"], notes: "Weighted: dumbbell hugged to the chest." }),
+  em("hollow_hold", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("russian_twist", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("russian_twist", "dumbbell", { requiredEquipment: ["dumbbells", "floor"] }),
+  em("bicycle_crunch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("mountain_climber", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("woodchopper", "band", { isDefault: true, bandRoles: ["resistance"], defaultUnilateralMode: "single_side", requiredEquipment: ["monster_bands", "rack"] }),
 
   // ---- mobility ----
   em("stretch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),

@@ -44,7 +44,7 @@ export default async function GroupBoardPage({
   }
 
   return (
-    <PageShell className="max-w-3xl">
+    <PageShell className="max-w-7xl">
       {data.source === "seed" && <SeedBanner />}
       <GroupBoard people={people} variants={availableVariants()} />
     </PageShell>

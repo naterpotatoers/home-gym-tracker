@@ -1,20 +1,26 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Button, Card, Input, Select } from "@/components/ui";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { Button, Card, IconButton, Input, Select } from "@/components/ui";
 import {
+  addWeek,
   clearProgramDay,
-  copyWeekToAll,
+  duplicateWeek,
+  removeWeek,
   setProgramDay,
-  updateProgramMeta,
+  updateProgramInfo,
 } from "@/lib/actions/programs";
 import type { Program, ProgramDay, Routine } from "@/lib/types";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/** Editable program header + the weeks × days grid of routine selects.
- *  md+ renders the classic grid table; below md each week is a card of
- *  stacked day rows. Both share DayCell so the handlers can't fork. */
+/**
+ * Editable program header + week rows. Weeks are managed structurally —
+ * duplicate/remove per row, add at the bottom — and the header autosaves,
+ * so there is no weeks-number-plus-Save dance. md+ renders the classic grid
+ * table; below md each week is a card of stacked day rows. Both share
+ * DayCell so the handlers can't fork.
+ */
 export function ProgramEditor({
   program,
   days,
@@ -25,14 +31,34 @@ export function ProgramEditor({
   routines: Routine[];
 }) {
   const [name, setName] = useState(program.name);
-  const [weeks, setWeeks] = useState(program.weeks);
   const [notes, setNotes] = useState(program.notes);
   const [error, setError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [pending, startTransition] = useTransition();
+  const firstRender = useRef(true);
 
   const byCell = new Map(days.map((d) => [`${d.week}|${d.dayOfWeek}`, d.routineId]));
   const sorted = [...routines].sort((a, b) => a.name.localeCompare(b.name));
   const weekNumbers = Array.from({ length: program.weeks }, (_, i) => i + 1);
+
+  // Debounced header autosave — name/notes persist ~1s after the last keystroke.
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    setSaveState("saving");
+    const timer = setTimeout(async () => {
+      try {
+        await updateProgramInfo(program.id, { name, notes });
+        setSaveState("saved");
+      } catch (e) {
+        setSaveState("idle");
+        setError(e instanceof Error ? e.message : "Save failed.");
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [name, notes, program.id]);
 
   function run(action: () => Promise<void>) {
     setError(null);
@@ -43,6 +69,11 @@ export function ProgramEditor({
         setError(e instanceof Error ? e.message : "Update failed.");
       }
     });
+  }
+
+  function confirmRemove(week: number) {
+    if (!confirm(`Remove week ${week}? Later weeks shift up.`)) return;
+    run(() => removeWeek(program.id, week));
   }
 
   function DayCell({
@@ -82,6 +113,31 @@ export function ProgramEditor({
     );
   }
 
+  function WeekActions({ week }: { week: number }) {
+    return (
+      <span className="flex gap-1">
+        <IconButton
+          variant="ghost"
+          disabled={pending || program.weeks >= 52}
+          onClick={() => run(() => duplicateWeek(program.id, week))}
+          title={`Duplicate week ${week}`}
+          aria-label={`Duplicate week ${week}`}
+        >
+          ⧉
+        </IconButton>
+        <IconButton
+          variant="ghost"
+          disabled={pending || program.weeks <= 1}
+          onClick={() => confirmRemove(week)}
+          title={`Remove week ${week}`}
+          aria-label={`Remove week ${week}`}
+        >
+          ✕
+        </IconButton>
+      </span>
+    );
+  }
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3">
@@ -91,19 +147,6 @@ export function ProgramEditor({
           onChange={(e) => setName(e.target.value)}
           className="min-w-64 text-xl font-bold tracking-tight"
         />
-        <label className="flex items-center gap-1 text-sm">
-          <Input
-            type="number"
-            inputMode="numeric"
-            value={weeks}
-            min={1}
-            max={52}
-            align="right"
-            onChange={(e) => setWeeks(Number(e.target.value))}
-            className="w-16"
-          />
-          <span className="text-muted">weeks</span>
-        </label>
         <Input
           type="text"
           value={notes}
@@ -111,18 +154,17 @@ export function ProgramEditor({
           placeholder="Notes"
           className="min-w-64 flex-1"
         />
-        <Button
-          disabled={pending}
-          onClick={() => run(() => updateProgramMeta(program.id, { name, weeks, notes }))}
-        >
-          Save
-        </Button>
+        <span className="text-xs text-muted">
+          {program.weeks} {program.weeks === 1 ? "week" : "weeks"}
+          {saveState === "saving" && " · saving…"}
+          {saveState === "saved" && " · saved"}
+        </span>
         {error && <span className="text-xs font-semibold text-danger-text">{error}</span>}
       </div>
 
       {/* md+: the weeks × days grid */}
       <div className="mt-6 hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[40rem] text-sm">
+        <table className="w-full min-w-[44rem] text-sm">
           <thead>
             <tr className="border-b border-border text-left">
               <th className="py-1.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted">
@@ -154,15 +196,7 @@ export function ProgramEditor({
                   </td>
                 ))}
                 <td className="py-1 text-right">
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => run(() => copyWeekToAll(program.id, week))}
-                    className="whitespace-nowrap text-xs text-muted hover:text-foreground disabled:opacity-50"
-                    title={`Copy week ${week}'s layout to every other week`}
-                  >
-                    copy to all
-                  </button>
+                  <WeekActions week={week} />
                 </td>
               </tr>
             ))}
@@ -176,15 +210,7 @@ export function ProgramEditor({
           <Card key={week}>
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm font-semibold">Week {week}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={pending}
-                onClick={() => run(() => copyWeekToAll(program.id, week))}
-                title={`Copy week ${week}'s layout to every other week`}
-              >
-                copy to all
-              </Button>
+              <WeekActions week={week} />
             </div>
             <div className="space-y-2">
               {DAY_LABELS.map((label, dayIndex) => (
@@ -196,6 +222,22 @@ export function ProgramEditor({
             </div>
           </Card>
         ))}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          disabled={pending || program.weeks >= 52}
+          onClick={() => run(() => addWeek(program.id))}
+        >
+          + Add week
+        </Button>
+        <Button
+          variant="ghost"
+          disabled={pending || program.weeks >= 52}
+          onClick={() => run(() => addWeek(program.id, program.weeks))}
+        >
+          + Add week (copy last)
+        </Button>
       </div>
     </div>
   );

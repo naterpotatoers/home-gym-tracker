@@ -96,6 +96,7 @@ export type ExerciseId =
   | "glute_bridge"
   // lunge / unilateral legs
   | "lunge"
+  | "side_lunge"
   | "step_up"
   // horizontal push
   | "bench_press"
@@ -127,6 +128,7 @@ export type ExerciseId =
   | "external_rotation"
   // carry
   | "farmer_carry"
+  | "timed_carry"
   | "bar_hang"
   // core
   | "plank"
@@ -134,7 +136,17 @@ export type ExerciseId =
   | "copenhagen_plank"
   | "pallof_press"
   | "hanging_knee_raise"
+  | "hanging_leg_raise"
   | "lateral_walk"
+  | "clam_shell"
+  | "dead_bug"
+  | "reverse_dead_bug"
+  | "sit_up"
+  | "hollow_hold"
+  | "russian_twist"
+  | "bicycle_crunch"
+  | "mountain_climber"
+  | "woodchopper"
   // mobility
   | "stretch";
 

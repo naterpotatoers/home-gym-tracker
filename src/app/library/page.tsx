@@ -1,18 +1,24 @@
-import { MeterLegend, MuscleMeterGroups } from "@/components/meter-rows";
+import { BodyHeatmap } from "@/components/body-heatmap";
+import { MeterLegend, MuscleMeterGroups, type MeterGroup } from "@/components/meter-rows";
+import { VolumeControls, type VolumeFilter, type VolumeSort } from "@/components/volume-controls";
 import { Note, PageShell, Section, Stat, Td, Th } from "@/components/ui";
 import { volumeStatus } from "@/lib/coverage";
 import { bars, dumbbells, hipBands, plates } from "@/lib/data/equipment";
 import { exerciseById } from "@/lib/data/exercises";
 import { modalities, modalityById } from "@/lib/data/modalities";
+import { clientById, clients } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
+import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
 import { loadableWeights, smallestIncrement } from "@/lib/loading";
 import { deriveLoadFactor, effectiveLoadFactor } from "@/lib/modality";
+import type { ClientId } from "@/lib/types";
 import {
   availableVariants,
   blocksFor,
   clientSummaries,
   describeSet,
   hipBandLadder,
+  muscleVolume,
   muscleVolumeByGroup,
   musclesWithoutPrimary,
   personalRecords,
@@ -21,12 +27,33 @@ import {
 
 /** Data reference: inventory, modality tradeoffs, and worked examples of the
  *  modeling decisions (per-set modality, ordinal loads, load factors). */
-export default async function LibraryPage() {
+export default async function LibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ client?: string; sort?: string; filter?: string }>;
+}) {
+  const params = await searchParams;
   const data = await loadGymData();
   const summaries = clientSummaries(data);
   const variants = availableVariants();
   const ohioLoads = loadableWeights("ohio_bar");
-  const volume = muscleVolumeByGroup(data, "nate");
+
+  const volumeClient: ClientId = clients.some((c) => c.id === params.client)
+    ? (params.client as ClientId)
+    : "nate";
+  const volumeSort: VolumeSort =
+    params.sort === "volume" || params.sort === "status" ? params.sort : "group";
+  const volumeFilter: VolumeFilter =
+    params.filter === "needs-work" ? "needs-work" : "all";
+
+  const volume = muscleVolumeByGroup(data, volumeClient);
+  const flatVolume = muscleVolume(data, volumeClient);
+  const volumeHeatMax = heatMax({ volumes: flatVolume });
+  const volumeHeat = heatValues(
+    { volumes: flatVolume },
+    volumeHeatMax,
+    ordinalMax({ volumes: flatVolume }),
+  );
   const noPrimary = musclesWithoutPrimary();
 
   // 2026-06-15 is the session with the deliberate mid-bench implement switch.
@@ -40,6 +67,54 @@ export default async function LibraryPage() {
   const maxVolume = Math.max(
     ...volume.flatMap((g) => g.rows.map((r) => r.weightedVolumeLbs)),
   );
+
+  // Meter rows for the volume section, shaped by the URL's sort and filter.
+  const STATUS_ORDER = { neglected: 0, light: 1, solid: 2 } as const;
+  const grouped: MeterGroup[] = volume.map((group) => ({
+    groupId: group.groupId,
+    label: group.label,
+    rows: group.rows.map((row) => ({
+      id: row.muscleId,
+      name: row.name,
+      peakScore: row.peakScore,
+      value: row.weightedVolumeLbs,
+      display:
+        row.weightedVolumeLbs > 0
+          ? `${Math.round(row.weightedVolumeLbs).toLocaleString()} lb`
+          : "—",
+      status: volumeStatus(row, maxVolume),
+      ordinalNote:
+        row.ordinalReps > 0 ? `+${Math.round(row.ordinalReps)} ord` : undefined,
+    })),
+  }));
+  const flatRows = grouped.flatMap((g) => g.rows);
+  const sorted: MeterGroup[] =
+    volumeSort === "volume"
+      ? [{
+          groupId: "all",
+          label: "All muscles — most to least volume",
+          rows: [...flatRows].sort((a, b) => b.value - a.value),
+        }]
+      : volumeSort === "status"
+        ? [{
+            groupId: "all",
+            label: "All muscles — worst first",
+            rows: [...flatRows].sort(
+              (a, b) =>
+                STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||
+                a.value - b.value,
+            ),
+          }]
+        : grouped;
+  const volumeMeterGroups = sorted
+    .map((g) => ({
+      ...g,
+      rows:
+        volumeFilter === "needs-work"
+          ? g.rows.filter((r) => r.status !== "solid")
+          : g.rows,
+    }))
+    .filter((g) => g.rows.length > 0);
 
   return (
     <PageShell>
@@ -194,29 +269,27 @@ export default async function LibraryPage() {
       </Section>
 
       {/* ---------------------------------------------------------------- */}
-      <Section title="Per-muscle volume (Nate, all time)">
-        <MuscleMeterGroups
-          groups={volume.map((group) => ({
-            groupId: group.groupId,
-            label: group.label,
-            rows: group.rows.map((row) => ({
-              id: row.muscleId,
-              name: row.name,
-              peakScore: row.peakScore,
-              value: row.weightedVolumeLbs,
-              display:
-                row.weightedVolumeLbs > 0
-                  ? `${Math.round(row.weightedVolumeLbs).toLocaleString()} lb`
-                  : "—",
-              status: volumeStatus(row, maxVolume),
-              ordinalNote:
-                row.ordinalReps > 0
-                  ? `+${Math.round(row.ordinalReps)} ord`
-                  : undefined,
-            })),
-          }))}
+      <Section
+        title={`Per-muscle volume (${clientById.get(volumeClient)?.firstName ?? volumeClient}, all time)`}
+      >
+        <VolumeControls
+          clientId={volumeClient}
+          sort={volumeSort}
+          filter={volumeFilter}
         />
-        <MeterLegend mode="volume" />
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+          <div className="min-w-0 flex-1">
+            <MuscleMeterGroups groups={volumeMeterGroups} />
+            <MeterLegend mode="volume" />
+          </div>
+          <div className="shrink-0">
+            <BodyHeatmap
+              values={volumeHeat}
+              title="Body map"
+              maxLabel={`${Math.round(volumeHeatMax).toLocaleString()} lb·reps`}
+            />
+          </div>
+        </div>
         <Note>
           Volume is score-weighted: each set counts toward every muscle it
           trains, scaled by how directly it trains it. &ldquo;ord&rdquo; is
