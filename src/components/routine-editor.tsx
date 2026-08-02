@@ -2,6 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { ExercisePicker } from "@/components/exercise-picker";
+import {
+  Button,
+  Field,
+  IconButton,
+  Input,
+  NumberInput,
+  Select,
+} from "@/components/ui";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
 import { deleteRoutine, saveRoutine } from "@/lib/actions/routines";
 import { coverageByGroup, neglectedMuscles, prescribedCoverage } from "@/lib/coverage";
@@ -111,18 +119,18 @@ export function RoutineEditor({
   return (
     <div>
       <div className="flex flex-wrap items-baseline gap-3">
-        <input
+        <Input
           type="text"
           value={name}
           onChange={(e) => { setName(e.target.value); setSaved(false); }}
-          className="min-w-64 rounded border border-current/20 bg-transparent px-3 py-1.5 text-xl font-bold tracking-tight outline-none"
+          className="min-w-64 text-xl font-bold tracking-tight"
         />
-        <input
+        <Input
           type="text"
           value={notes}
           onChange={(e) => { setNotes(e.target.value); setSaved(false); }}
           placeholder="Notes"
-          className="min-w-64 flex-1 rounded border border-current/10 bg-transparent px-3 py-1.5 text-sm outline-none"
+          className="min-w-64 flex-1"
         />
       </div>
 
@@ -136,10 +144,10 @@ export function RoutineEditor({
           return (
             <div
               key={`${row.exerciseId}-${row.modalityId}-${index}`}
-              className="rounded-lg border border-current/10 p-3"
+              className="rounded-xl border border-border bg-surface p-3"
             >
               <div className="flex flex-wrap items-baseline gap-2">
-                <span className="font-mono text-xs opacity-40">{index + 1}.</span>
+                <span className="font-mono text-xs text-muted">{index + 1}.</span>
                 <button
                   type="button"
                   onClick={() => setPicker({ mode: "replace", index })}
@@ -152,26 +160,26 @@ export function RoutineEditor({
                   {row.modalityId}
                 </span>
                 {bandRoles.length > 1 ? (
-                  <select
+                  <Select
+                    size="sm"
                     value={row.bandRole ?? ""}
                     onChange={(e) => patch(index, { bandRole: e.target.value as RoutineExercise["bandRole"] })}
-                    className="rounded border border-current/20 bg-transparent px-1 py-0.5 text-xs"
                   >
                     {bandRoles.map((role) => (
                       <option key={role} value={role}>{role}</option>
                     ))}
-                  </select>
+                  </Select>
                 ) : (
-                  row.bandRole && <span className="text-xs opacity-60">{row.bandRole}</span>
+                  row.bandRole && <span className="text-xs text-muted">{row.bandRole}</span>
                 )}
                 <span className="ml-auto flex gap-1">
-                  <button type="button" onClick={() => move(index, -1)} className="rounded border border-current/20 px-1.5 text-xs disabled:opacity-30" disabled={index === 0}>↑</button>
-                  <button type="button" onClick={() => move(index, 1)} className="rounded border border-current/20 px-1.5 text-xs disabled:opacity-30" disabled={index === rows.length - 1}>↓</button>
-                  <button type="button" onClick={() => { setRows((prev) => prev.filter((_, i) => i !== index)); setSaved(false); }} className="rounded border border-current/20 px-1.5 text-xs opacity-60 hover:opacity-100">✕</button>
+                  <IconButton onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move up">↑</IconButton>
+                  <IconButton onClick={() => move(index, 1)} disabled={index === rows.length - 1} aria-label="Move down">↓</IconButton>
+                  <IconButton variant="ghost" onClick={() => { setRows((prev) => prev.filter((_, i) => i !== index)); setSaved(false); }} aria-label="Remove exercise">✕</IconButton>
                 </span>
               </div>
 
-              <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-2 text-sm">
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-end">
                 <Field label="Sets">
                   <NumberInput value={row.sets} min={1} onChange={(v) => patch(index, { sets: v ?? 1 })} />
                 </Field>
@@ -196,31 +204,30 @@ export function RoutineEditor({
                   <NumberInput value={row.targetRir} min={0} onChange={(v) => patch(index, { targetRir: v })} />
                 </Field>
                 <Field label="Mode">
-                  <select
+                  <Select
                     value={row.unilateralMode}
                     onChange={(e) => patch(index, { unilateralMode: e.target.value as UnilateralMode })}
-                    className="rounded border border-current/20 bg-transparent px-1 py-0.5 text-xs"
                   >
                     <option value="bilateral">bilateral</option>
                     <option value="alternating">alternating</option>
                     <option value="single_side">single side</option>
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Superset">
-                  <input
+                  <Input
                     type="text"
                     value={row.supersetGroup ?? ""}
                     onChange={(e) => patch(index, { supersetGroup: e.target.value || null })}
-                    className="w-24 rounded border border-current/20 bg-transparent px-1 py-0.5 text-xs"
+                    className="w-full lg:w-24"
                     placeholder="—"
                   />
                 </Field>
                 <Field label="Notes">
-                  <input
+                  <Input
                     type="text"
                     value={row.notes}
                     onChange={(e) => patch(index, { notes: e.target.value })}
-                    className="w-48 rounded border border-current/20 bg-transparent px-1 py-0.5 text-xs"
+                    className="w-full lg:w-48"
                     placeholder="—"
                   />
                 </Field>
@@ -231,38 +238,25 @@ export function RoutineEditor({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => setPicker({ mode: "add" })}
-          className="rounded border border-current/20 px-3 py-1.5 text-sm hover:bg-current/10"
-        >
+        <Button onClick={() => setPicker({ mode: "add" })}>
           + Add exercise
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded border border-current/20 bg-current/10 px-4 py-1.5 text-sm font-semibold hover:bg-current/20 disabled:opacity-50"
-        >
+        </Button>
+        <Button variant="primary" onClick={handleSave} disabled={saving}>
           {saving ? "Saving…" : "Save routine"}
-        </button>
-        {saved && <span className="text-xs opacity-60">Saved.</span>}
-        {error && <span className="text-xs font-semibold">{error}</span>}
-        <button
-          type="button"
-          onClick={handleDelete}
-          className="ml-auto text-xs opacity-50 hover:opacity-100"
-        >
+        </Button>
+        {saved && <span className="text-xs text-success-text">Saved.</span>}
+        {error && <span className="text-xs font-semibold text-danger-text">{error}</span>}
+        <Button variant="danger" size="sm" onClick={handleDelete} className="ml-auto">
           Delete routine
-        </button>
+        </Button>
       </div>
 
       <section className="mt-10">
-        <h2 className="mb-3 border-b border-current/20 pb-1 text-lg font-semibold">
+        <h2 className="mb-3 border-b border-border pb-1 text-lg font-semibold">
           Muscle coverage
         </h2>
         {neglected.length > 0 && (
-          <p className="mb-3 text-xs opacity-70">
+          <p className="mb-3 text-xs text-danger-text">
             Possibly neglected: <strong>{neglected.join(", ")}</strong>
           </p>
         )}
@@ -282,37 +276,5 @@ export function RoutineEditor({
         />
       )}
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-0.5">
-      <span className="text-[10px] uppercase tracking-wide opacity-50">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function NumberInput({
-  value,
-  onChange,
-  min,
-  step,
-}: {
-  value: number | null;
-  onChange: (value: number | null) => void;
-  min?: number;
-  step?: number;
-}) {
-  return (
-    <input
-      type="number"
-      value={value ?? ""}
-      min={min}
-      step={step}
-      onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-      className="w-16 rounded border border-current/20 bg-transparent px-1 py-0.5 font-mono text-xs"
-    />
   );
 }

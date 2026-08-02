@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { NumberInput, Select } from "@/components/ui";
 import { exerciseById } from "@/lib/data/exercises";
 import { modalityById } from "@/lib/data/modalities";
 import type { TrainedVariant } from "@/lib/queries";
@@ -51,13 +52,13 @@ export function MetricsControls({
 
   return (
     <div className="mt-6 flex flex-wrap items-center gap-3 text-sm">
-      <select
+      <Select
         value={selected ? `${selected.exerciseId}|${selected.modalityId}` : ""}
         onChange={(e) => {
           const [exercise, modality] = e.target.value.split("|");
           navigate({ exercise: exercise ?? "", modality: modality ?? "" });
         }}
-        className="rounded border border-current/20 bg-transparent px-2 py-1.5 text-sm"
+        className="max-w-full"
       >
         <option value="">All exercises — top PRs</option>
         {variants.map((variant) => (
@@ -69,7 +70,7 @@ export function MetricsControls({
             {modalityById.get(variant.modalityId)?.name ?? variant.modalityId}
           </option>
         ))}
-      </select>
+      </Select>
 
       {selected && (
         <span className="flex gap-1">
@@ -78,10 +79,10 @@ export function MetricsControls({
               key={v.id}
               type="button"
               onClick={() => navigate({ view: v.id })}
-              className={`rounded px-2 py-1 text-xs ${
+              className={`min-h-10 rounded-md px-3 text-xs ${
                 view === v.id
-                  ? "bg-current/15 font-semibold"
-                  : "opacity-60 hover:opacity-100"
+                  ? "bg-accent-soft font-semibold text-accent-text"
+                  : "text-muted hover:bg-current/5 hover:text-foreground"
               }`}
             >
               {v.label}
@@ -92,36 +93,33 @@ export function MetricsControls({
 
       {selected && view === "weight-for-reps" && (
         <span className="flex items-center gap-1">
-          <span className="text-xs opacity-60">reps</span>
-          <input
-            type="number"
+          <span className="text-xs text-muted">reps</span>
+          <NumberInput
             min={1}
             value={repMin}
-            onChange={(e) => navigate({ repMin: Number(e.target.value) || 1 })}
-            className="w-14 rounded border border-current/20 bg-transparent px-1 py-0.5 text-right font-mono text-xs"
+            onChange={(v) => navigate({ repMin: v ?? 1 })}
+            className="w-16"
           />
-          <span className="opacity-40">–</span>
-          <input
-            type="number"
+          <span className="text-muted">–</span>
+          <NumberInput
             min={1}
             value={repMax}
-            onChange={(e) => navigate({ repMax: Number(e.target.value) || 1 })}
-            className="w-14 rounded border border-current/20 bg-transparent px-1 py-0.5 text-right font-mono text-xs"
+            onChange={(v) => navigate({ repMax: v ?? 1 })}
+            className="w-16"
           />
         </span>
       )}
 
       {selected && view === "reps-for-weight" && (
         <span className="flex items-center gap-1">
-          <input
-            type="number"
+          <NumberInput
             min={0}
             step={5}
             value={weight}
-            onChange={(e) => navigate({ weight: Number(e.target.value) || 0 })}
-            className="w-20 rounded border border-current/20 bg-transparent px-1 py-0.5 text-right font-mono text-xs"
+            onChange={(v) => navigate({ weight: v ?? 0 })}
+            className="w-24"
           />
-          <span className="text-xs opacity-60">lb total</span>
+          <span className="text-xs text-muted">lb total</span>
         </span>
       )}
     </div>

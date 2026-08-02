@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
-import { Section, SeedBanner } from "@/components/ui";
+import { Button, Input, PageShell, Section, SeedBanner, Select } from "@/components/ui";
 import { ProgramEditor } from "@/components/week-grid";
 import {
   createAssignment,
@@ -37,7 +37,7 @@ export default async function ProgramPage({
   const assignments = data.assignments.filter((a) => a.programId === programId);
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+    <PageShell>
       {data.source === "seed" && <SeedBanner />}
       <ProgramEditor
         program={program}
@@ -47,13 +47,15 @@ export default async function ProgramPage({
 
       <Section title="Weekly muscle coverage">
         <div className="mb-3 flex flex-wrap items-baseline gap-1 text-sm">
-          <span className="mr-2 text-xs uppercase tracking-wide opacity-60">Week</span>
+          <span className="mr-2 text-xs uppercase tracking-wide text-muted">Week</span>
           {Array.from({ length: program.weeks }, (_, i) => i + 1).map((w) => (
             <Link
               key={w}
               href={`/programs/${programId}?week=${w}`}
-              className={`rounded px-2 py-0.5 font-mono text-xs ${
-                w === week ? "bg-current/15 font-semibold" : "opacity-50 hover:opacity-100"
+              className={`inline-flex min-h-10 min-w-10 items-center justify-center rounded-md px-2 font-mono text-xs ${
+                w === week
+                  ? "bg-accent-soft font-semibold text-accent-text"
+                  : "text-muted hover:bg-current/5 hover:text-foreground"
               }`}
             >
               {w}
@@ -61,7 +63,7 @@ export default async function ProgramPage({
           ))}
         </div>
         {neglected.length > 0 && (
-          <p className="mb-3 text-xs opacity-70">
+          <p className="mb-3 text-xs text-danger-text">
             Possibly neglected in week {week}:{" "}
             <strong>{neglected.join(", ")}</strong>
           </p>
@@ -85,21 +87,14 @@ export default async function ProgramPage({
                   action={updateAssignmentStatus.bind(null, assignment.id)}
                   className="flex items-center gap-1"
                 >
-                  <select
-                    name="status"
-                    defaultValue={assignment.status}
-                    className="rounded border border-current/20 bg-transparent px-1 py-0.5 text-xs"
-                  >
+                  <Select name="status" size="sm" defaultValue={assignment.status}>
                     <option value="active">active</option>
                     <option value="paused">paused</option>
                     <option value="completed">completed</option>
-                  </select>
-                  <button
-                    type="submit"
-                    className="rounded border border-current/20 px-2 py-0.5 text-xs hover:bg-current/10"
-                  >
+                  </Select>
+                  <Button type="submit" size="sm">
                     Apply
-                  </button>
+                  </Button>
                 </form>
               </li>
             ))}
@@ -108,36 +103,23 @@ export default async function ProgramPage({
 
         <form action={createAssignment} className="flex flex-wrap items-center gap-2 text-sm">
           <input type="hidden" name="programId" value={programId} />
-          <select
-            name="clientId"
-            className="rounded border border-current/20 bg-transparent px-2 py-1 text-sm"
-          >
+          <Select name="clientId">
             {clients.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.firstName}
               </option>
             ))}
-          </select>
-          <input
-            type="date"
-            name="startDate"
-            required
-            className="rounded border border-current/20 bg-transparent px-2 py-1 text-sm"
-          />
-          <button
-            type="submit"
-            className="rounded border border-current/20 px-3 py-1 text-sm font-semibold hover:bg-current/10"
-          >
-            Assign
-          </button>
+          </Select>
+          <Input type="date" name="startDate" required />
+          <Button type="submit">Assign</Button>
         </form>
       </Section>
 
       <form action={deleteProgram.bind(null, programId)} className="mt-10">
-        <button type="submit" className="text-xs opacity-50 hover:opacity-100">
+        <Button type="submit" variant="danger" size="sm">
           Delete program
-        </button>
+        </Button>
       </form>
-    </main>
+    </PageShell>
   );
 }

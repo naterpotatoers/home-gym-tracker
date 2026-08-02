@@ -21,7 +21,7 @@ export function EffortPicker({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1">
-        <span className="mr-1 w-14 text-xs uppercase tracking-wide opacity-60">
+        <span className="mr-1 w-14 text-xs uppercase tracking-wide text-muted">
           Effort
         </span>
         {RPE_VALUES.map((value) => (
@@ -29,10 +29,10 @@ export function EffortPicker({
             key={value}
             type="button"
             onClick={() => onChange({ rpe: rpe === value ? null : value })}
-            className={`size-8 rounded border font-mono text-xs ${
+            className={`size-11 rounded-md border font-mono text-sm ${
               rpe === value
-                ? "border-current/40 bg-current/20 font-semibold"
-                : "border-current/20 opacity-60 hover:opacity-100"
+                ? "border-accent bg-accent-soft font-semibold text-accent-text"
+                : "border-border-strong bg-surface text-muted hover:text-foreground"
             }`}
           >
             {value}
@@ -40,7 +40,7 @@ export function EffortPicker({
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-1">
-        <span className="mr-1 w-14 text-xs uppercase tracking-wide opacity-60">
+        <span className="mr-1 w-14 text-xs uppercase tracking-wide text-muted">
           Felt
         </span>
         {CONDITIONS.map((value) => (
@@ -48,10 +48,10 @@ export function EffortPicker({
             key={value}
             type="button"
             onClick={() => onChange({ condition: condition === value ? null : value })}
-            className={`rounded border px-2.5 py-1.5 text-xs ${
+            className={`min-h-11 rounded-md border px-3 text-xs ${
               condition === value
-                ? "border-current/40 bg-current/20 font-semibold"
-                : "border-current/20 opacity-60 hover:opacity-100"
+                ? "border-accent bg-accent-soft font-semibold text-accent-text"
+                : "border-border-strong bg-surface text-muted hover:text-foreground"
             }`}
           >
             {value}

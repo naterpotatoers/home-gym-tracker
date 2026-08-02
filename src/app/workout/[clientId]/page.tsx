@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Chip, Section, SeedBanner } from "@/components/ui";
+import { Button, Chip, PageShell, Section, SeedBanner } from "@/components/ui";
 import { startSession } from "@/lib/actions/workout";
 import { clientById } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
@@ -70,7 +70,7 @@ export default async function ClientWorkoutPage({
     .slice(0, 8);
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+    <PageShell>
       {data.source === "seed" && <SeedBanner />}
       <h1 className="text-3xl font-bold tracking-tight">{client.firstName}</h1>
 
@@ -112,12 +112,9 @@ export default async function ClientWorkoutPage({
                     <form
                       action={startSession.bind(null, clientId, day.routineId, assignment.id)}
                     >
-                      <button
-                        type="submit"
-                        className="rounded border border-current/20 px-2 py-0.5 text-xs font-semibold hover:bg-current/10"
-                      >
+                      <Button type="submit" size="sm">
                         Start
-                      </button>
+                      </Button>
                     </form>
                   )}
                 </li>
@@ -136,12 +133,9 @@ export default async function ClientWorkoutPage({
                 {data.exercisesByRoutine.get(routine.id)?.length ?? 0} exercises
               </span>
               <form action={startSession.bind(null, clientId, routine.id, null)}>
-                <button
-                  type="submit"
-                  className="rounded border border-current/20 px-2 py-0.5 text-xs font-semibold hover:bg-current/10"
-                >
+                <Button type="submit" size="sm">
                   Start
-                </button>
+                </Button>
               </form>
             </li>
           ))}
@@ -172,6 +166,6 @@ export default async function ClientWorkoutPage({
           </ul>
         </Section>
       )}
-    </main>
+    </PageShell>
   );
 }

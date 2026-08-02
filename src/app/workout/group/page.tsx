@@ -1,4 +1,4 @@
-import { SeedBanner } from "@/components/ui";
+import { Button, PageShell, SeedBanner, Select } from "@/components/ui";
 import { startGroupFromForm } from "@/lib/actions/group";
 import { clients } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
@@ -28,7 +28,7 @@ export default async function GroupSetupPage() {
   });
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-10 font-sans">
+    <PageShell className="max-w-3xl">
       {data.source === "seed" && <SeedBanner />}
       <h1 className="text-3xl font-bold tracking-tight">Group session</h1>
       <p className="mt-2 text-sm opacity-70">
@@ -39,19 +39,19 @@ export default async function GroupSetupPage() {
         {rows.map(({ client, planned, assignment, todaysRoutine, defaultPlan }) => (
           <label
             key={client.id}
-            className="flex flex-wrap items-center gap-3 rounded-lg border border-current/10 px-4 py-3"
+            className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3"
           >
             <input
               type="checkbox"
               name={`include_${client.id}`}
               defaultChecked={planned !== undefined || todaysRoutine !== null}
-              className="size-4"
+              className="size-5 accent-accent"
             />
             <span className="w-20 font-semibold">{client.firstName}</span>
-            <select
+            <Select
               name={`plan_${client.id}`}
               defaultValue={defaultPlan}
-              className="min-w-56 flex-1 rounded border border-current/20 bg-transparent px-2 py-1.5 text-sm"
+              className="min-w-56 flex-1"
             >
               {planned && (
                 <option value={`resume:${planned.id}`}>
@@ -70,17 +70,14 @@ export default async function GroupSetupPage() {
                   {routine.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         ))}
 
-        <button
-          type="submit"
-          className="rounded border border-current/20 bg-current/10 px-5 py-2 text-sm font-semibold hover:bg-current/20"
-        >
+        <Button type="submit" variant="primary">
           Start group workout
-        </button>
+        </Button>
       </form>
-    </main>
+    </PageShell>
   );
 }

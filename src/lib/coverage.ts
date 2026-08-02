@@ -74,9 +74,26 @@ export function weekCoverage(
  */
 export type CoverageStatus = "solid" | "light" | "neglected";
 
-function statusOf(row: MuscleCoverage): CoverageStatus {
+export function coverageStatus(row: MuscleCoverage): CoverageStatus {
   if (row.weightedSets < 2 || row.peakScore < 5) return "neglected";
   if (row.weightedSets < 6) return "light";
+  return "solid";
+}
+
+/**
+ * Status band for LOGGED volume (`MuscleVolume`), relative to the largest bar
+ * on screen — the question there is balance, not absolute dose. Ordinal-only
+ * muscles (hip-band work: reps, no pounds) are at most `light`, never
+ * `neglected` — they are trained, just not lbs-measurable.
+ */
+export function volumeStatus(
+  row: { weightedVolumeLbs: number; ordinalReps: number; peakScore: number },
+  max: number,
+): CoverageStatus {
+  if (row.weightedVolumeLbs === 0 && row.ordinalReps === 0) return "neglected";
+  if (row.ordinalReps > 0 && row.weightedVolumeLbs === 0) return "light";
+  if (row.peakScore < 5) return "neglected";
+  if (max > 0 && row.weightedVolumeLbs < 0.25 * max) return "light";
   return "solid";
 }
 
@@ -103,7 +120,7 @@ export function coverageByGroup(
             peakScore: 0,
             exerciseIds: [],
           };
-          return { ...row, name: m.name, status: statusOf(row) };
+          return { ...row, name: m.name, status: coverageStatus(row) };
         }),
     }));
 }
@@ -113,6 +130,6 @@ export function neglectedMuscles(
   coverage: ReadonlyMap<MuscleId, MuscleCoverage>,
 ): string[] {
   return [...coverage.values()]
-    .filter((row) => statusOf(row) === "neglected")
+    .filter((row) => coverageStatus(row) === "neglected")
     .map((row) => muscleById.get(row.muscleId)?.name ?? row.muscleId);
 }

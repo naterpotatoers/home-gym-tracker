@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SeedBanner } from "@/components/ui";
+import { PageShell, SeedBanner } from "@/components/ui";
 import { clientById } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
 import { routineForDay } from "@/lib/queries";
@@ -41,7 +41,7 @@ export default async function Home() {
   const inProgress = data.sessions.filter((s) => s.status === "planned");
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+    <PageShell>
       {data.source === "seed" && <SeedBanner />}
       <h1 className="text-3xl font-bold tracking-tight">Home Gym</h1>
 
@@ -50,7 +50,7 @@ export default async function Home() {
           <Link
             key={flow.href}
             href={flow.href}
-            className="rounded-lg border border-current/20 p-5 hover:bg-current/5"
+            className="rounded-xl border border-border bg-surface p-5 hover:border-accent/50"
           >
             <h2 className="text-lg font-semibold">{flow.title}</h2>
             <p className="mt-2 text-sm leading-relaxed opacity-70">{flow.blurb}</p>
@@ -60,7 +60,7 @@ export default async function Home() {
 
       {inProgress.length > 0 && (
         <section className="mt-10">
-          <h2 className="mb-3 border-b border-current/20 pb-1 text-lg font-semibold">
+          <h2 className="mb-3 border-b border-border pb-1 text-lg font-semibold">
             In progress
           </h2>
           <ul className="space-y-2 text-sm">
@@ -68,7 +68,7 @@ export default async function Home() {
               <li key={session.id}>
                 <Link
                   href={`/workout/session/${session.id}`}
-                  className="underline underline-offset-2"
+                  className="text-accent-text underline underline-offset-2"
                 >
                   Resume {clientById.get(session.clientId)?.firstName} —{" "}
                   {data.routineById.get(session.routineId ?? "")?.name ?? "session"}{" "}
@@ -81,14 +81,14 @@ export default async function Home() {
       )}
 
       <section className="mt-10">
-        <h2 className="mb-3 border-b border-current/20 pb-1 text-lg font-semibold">
+        <h2 className="mb-3 border-b border-border pb-1 text-lg font-semibold">
           Today
         </h2>
         {today.length === 0 ? (
           <p className="text-sm opacity-60">
             No program prescribes training today. Rest day — or start an ad-hoc
             routine from{" "}
-            <Link href="/workout" className="underline underline-offset-2">
+            <Link href="/workout" className="text-accent-text underline underline-offset-2">
               Start a Workout
             </Link>
             .
@@ -106,7 +106,7 @@ export default async function Home() {
                 </span>
                 <Link
                   href={`/workout/${clientId}`}
-                  className="underline underline-offset-2"
+                  className="text-accent-text underline underline-offset-2"
                 >
                   Start
                 </Link>
@@ -115,6 +115,6 @@ export default async function Home() {
           </ul>
         )}
       </section>
-    </main>
+    </PageShell>
   );
 }

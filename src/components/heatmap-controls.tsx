@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { IconButton, Input, Select } from "@/components/ui";
 import { clients } from "@/lib/data/clients";
 import type { PeriodKind } from "@/lib/periods";
 
@@ -48,10 +49,12 @@ export function HeatmapControls({
     router.replace(`/metrics/heatmap?${search.toString()}`);
   }
 
-  const input =
-    "rounded border border-current/20 bg-transparent px-2 py-1 text-xs outline-none";
   const tab = (selected: boolean) =>
-    `rounded px-2 py-1 text-xs ${selected ? "bg-current/15 font-semibold" : "opacity-60 hover:opacity-100"}`;
+    `min-h-10 rounded-md px-3 text-xs ${
+      selected
+        ? "bg-accent-soft font-semibold text-accent-text"
+        : "text-muted hover:bg-current/5 hover:text-foreground"
+    }`;
 
   return (
     <div className="mt-6 space-y-2 text-sm">
@@ -66,17 +69,16 @@ export function HeatmapControls({
         </span>
 
         {params.mode === "logged" && (
-          <select
+          <Select
             value={params.client}
             onChange={(e) => navigate({ client: e.target.value })}
-            className={input}
           >
             {clients.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.firstName}
               </option>
             ))}
-          </select>
+          </Select>
         )}
 
         <button
@@ -105,36 +107,32 @@ export function HeatmapControls({
 
           {(params.period === "day" || params.period === "week") && (
             <span className="flex items-center gap-1">
-              <button
-                type="button"
+              <IconButton
                 disabled={!prevAnchor}
                 onClick={() => prevAnchor && navigate({ date: prevAnchor })}
-                className="rounded border border-current/20 px-2 py-0.5 text-xs disabled:opacity-30"
+                aria-label="Previous"
               >
                 ‹
-              </button>
-              <input
+              </IconButton>
+              <Input
                 type="date"
                 value={params.date ?? ""}
                 onChange={(e) => navigate({ date: e.target.value || undefined })}
-                className={input}
               />
-              <button
-                type="button"
+              <IconButton
                 disabled={!nextAnchor}
                 onClick={() => nextAnchor && navigate({ date: nextAnchor })}
-                className="rounded border border-current/20 px-2 py-0.5 text-xs disabled:opacity-30"
+                aria-label="Next"
               >
                 ›
-              </button>
+              </IconButton>
             </span>
           )}
 
           {params.period === "program" && (
-            <select
+            <Select
               value={params.program ?? ""}
               onChange={(e) => navigate({ program: e.target.value || undefined })}
-              className={input}
             >
               <option value="">current assignment</option>
               {programs.map((program) => (
@@ -142,31 +140,30 @@ export function HeatmapControls({
                   {program.name}
                 </option>
               ))}
-            </select>
+            </Select>
           )}
 
           {params.period === "custom" && (
             <span className="flex items-center gap-1">
-              <input type="date" value={params.from ?? ""} onChange={(e) => navigate({ from: e.target.value || undefined })} className={input} />
-              <span className="opacity-40">→</span>
-              <input type="date" value={params.to ?? ""} onChange={(e) => navigate({ to: e.target.value || undefined })} className={input} />
+              <Input type="date" value={params.from ?? ""} onChange={(e) => navigate({ from: e.target.value || undefined })} />
+              <span className="text-muted">→</span>
+              <Input type="date" value={params.to ?? ""} onChange={(e) => navigate({ to: e.target.value || undefined })} />
             </span>
           )}
 
           {comparing && (
-            <span className="flex items-center gap-1 border-l border-current/10 pl-2">
-              <span className="text-xs opacity-60">vs</span>
+            <span className="flex w-full flex-wrap items-center gap-1 sm:w-auto sm:border-l sm:border-border sm:pl-2">
+              <span className="text-xs text-muted">vs</span>
               {params.period === "custom" ? (
                 <>
-                  <input type="date" value={params.bFrom ?? ""} onChange={(e) => navigate({ bFrom: e.target.value || undefined })} className={input} />
-                  <span className="opacity-40">→</span>
-                  <input type="date" value={params.bTo ?? ""} onChange={(e) => navigate({ bTo: e.target.value || undefined })} className={input} />
+                  <Input type="date" value={params.bFrom ?? ""} onChange={(e) => navigate({ bFrom: e.target.value || undefined })} />
+                  <span className="text-muted">→</span>
+                  <Input type="date" value={params.bTo ?? ""} onChange={(e) => navigate({ bTo: e.target.value || undefined })} />
                 </>
               ) : params.period === "program" ? (
-                <select
+                <Select
                   value={params.bProgram ?? ""}
                   onChange={(e) => navigate({ bProgram: e.target.value || undefined })}
-                  className={input}
                 >
                   <option value="">current assignment</option>
                   {programs.map((program) => (
@@ -174,13 +171,12 @@ export function HeatmapControls({
                       {program.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               ) : (
-                <input
+                <Input
                   type="date"
                   value={params.bDate ?? ""}
                   onChange={(e) => navigate({ bDate: e.target.value || undefined })}
-                  className={input}
                 />
               )}
             </span>
@@ -188,50 +184,52 @@ export function HeatmapControls({
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <Select
             value={params.program ?? programs[0]?.id ?? ""}
             onChange={(e) => navigate({ program: e.target.value })}
-            className={input}
           >
             {programs.map((program) => (
               <option key={program.id} value={program.id}>
                 {program.name}
               </option>
             ))}
-          </select>
+          </Select>
           <label className="flex items-center gap-1 text-xs">
             week
-            <input
+            <Input
               type="number"
+              inputMode="numeric"
               min={1}
+              align="right"
               value={params.week ?? "1"}
               onChange={(e) => navigate({ week: e.target.value || undefined })}
-              className={`w-14 text-right font-mono ${input}`}
+              className="w-16"
             />
           </label>
 
           {comparing && (
-            <span className="flex items-center gap-1 border-l border-current/10 pl-2">
-              <span className="text-xs opacity-60">vs</span>
-              <select
+            <span className="flex w-full flex-wrap items-center gap-1 sm:w-auto sm:border-l sm:border-border sm:pl-2">
+              <span className="text-xs text-muted">vs</span>
+              <Select
                 value={params.bProgram ?? programs[0]?.id ?? ""}
                 onChange={(e) => navigate({ bProgram: e.target.value })}
-                className={input}
               >
                 {programs.map((program) => (
                   <option key={program.id} value={program.id}>
                     {program.name}
                   </option>
                 ))}
-              </select>
+              </Select>
               <label className="flex items-center gap-1 text-xs">
                 week
-                <input
+                <Input
                   type="number"
+                  inputMode="numeric"
                   min={1}
+                  align="right"
                   value={params.bWeek ?? "1"}
                   onChange={(e) => navigate({ bWeek: e.target.value || undefined })}
-                  className={`w-14 text-right font-mono ${input}`}
+                  className="w-16"
                 />
               </label>
             </span>

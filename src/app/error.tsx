@@ -1,4 +1,6 @@
 "use client";
+import { PageShell } from "@/components/ui";
+
 
 export default function Error({
   error,
@@ -8,7 +10,7 @@ export default function Error({
   unstable_retry: () => void;
 }) {
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-16 font-sans">
+    <PageShell>
       <h1 className="text-2xl font-bold tracking-tight">Something broke</h1>
       <p className="mt-3 text-sm opacity-70">
         {error.message || "An unexpected error occurred."}
@@ -20,10 +22,10 @@ export default function Error({
       <button
         type="button"
         onClick={() => unstable_retry()}
-        className="mt-5 rounded border border-current/20 px-4 py-1.5 text-sm font-semibold hover:bg-current/10"
+        className="mt-5 inline-flex min-h-11 items-center rounded-md bg-accent-strong px-4 text-sm font-semibold text-accent-fg hover:opacity-90"
       >
         Retry
       </button>
-    </main>
+    </PageShell>
   );
 }

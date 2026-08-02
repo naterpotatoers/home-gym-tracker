@@ -1,6 +1,7 @@
 import { seedDatabase } from "@/lib/actions/seed";
 import { seedSnapshot } from "@/lib/data/seed-snapshot";
 import { tableStatuses } from "@/lib/db/status";
+import { Button, PageShell } from "@/components/ui";
 
 /**
  * Bootstrap tool: shows live row counts per table and offers a one-time seed
@@ -25,37 +26,39 @@ export default async function SeedPage() {
   const allEmpty = statuses.every((s) => s.count === 0);
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-10 font-sans">
+    <PageShell className="max-w-2xl">
       <h1 className="text-2xl font-bold tracking-tight">Database setup</h1>
 
-      <table className="mt-6 w-full text-sm">
-        <thead>
-          <tr className="border-b border-current/20 text-left">
-            <th className="py-1.5 pr-3 text-xs font-semibold uppercase tracking-wide opacity-60">
-              Table
-            </th>
-            <th className="py-1.5 pr-3 text-right text-xs font-semibold uppercase tracking-wide opacity-60">
-              Rows
-            </th>
-            <th className="py-1.5 text-right text-xs font-semibold uppercase tracking-wide opacity-60">
-              Seed rows
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {statuses.map(({ table, count }) => (
-            <tr key={table} className="border-b border-current/10">
-              <td className="py-1.5 pr-3 font-mono text-xs">{table}</td>
-              <td className="py-1.5 pr-3 text-right font-mono text-xs">
-                {count === null ? "missing" : count}
-              </td>
-              <td className="py-1.5 text-right font-mono text-xs opacity-60">
-                {expected[table]}
-              </td>
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <table className="mt-6 w-full text-sm">
+          <thead>
+            <tr className="border-b border-border-strong text-left">
+              <th className="py-1.5 pr-3 text-xs font-semibold uppercase tracking-wide opacity-60">
+                Table
+              </th>
+              <th className="py-1.5 pr-3 text-right text-xs font-semibold uppercase tracking-wide opacity-60">
+                Rows
+              </th>
+              <th className="py-1.5 text-right text-xs font-semibold uppercase tracking-wide opacity-60">
+                Seed rows
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {statuses.map(({ table, count }) => (
+              <tr key={table} className="border-b border-border">
+                <td className="py-1.5 pr-3 font-mono text-xs">{table}</td>
+                <td className="py-1.5 pr-3 text-right font-mono text-xs">
+                  {count === null ? "missing" : count}
+                </td>
+                <td className="py-1.5 text-right font-mono text-xs opacity-60">
+                  {expected[table]}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {migrationMissing ? (
         <p className="mt-6 text-sm leading-relaxed opacity-70">
@@ -68,12 +71,9 @@ export default async function SeedPage() {
         </p>
       ) : allEmpty ? (
         <form action={seedDatabase} className="mt-6">
-          <button
-            type="submit"
-            className="rounded border border-current/20 px-4 py-2 text-sm font-semibold hover:bg-current/10"
-          >
+          <Button type="submit" variant="primary">
             Seed database
-          </button>
+          </Button>
           <p className="mt-2 text-xs opacity-60">
             Inserts the TypeScript seed data above. One time only — the action
             refuses to touch non-empty tables.
@@ -84,6 +84,6 @@ export default async function SeedPage() {
           Database is seeded. The app is reading from Supabase.
         </p>
       )}
-    </main>
+    </PageShell>
   );
 }

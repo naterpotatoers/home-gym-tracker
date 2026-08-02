@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Button, Input } from "@/components/ui";
 import { exerciseById } from "@/lib/data/exercises";
 import type { Variant } from "@/lib/queries";
 import type { MovementPattern } from "@/lib/types";
@@ -66,34 +67,29 @@ export function ExercisePicker({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 sm:p-4 sm:pt-16"
       onClick={onClose}
     >
       <div
-        className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-lg border border-current/20 bg-[var(--color-background)] p-4 font-sans shadow-xl"
+        className="h-dvh w-full overflow-y-auto bg-surface p-4 sm:h-auto sm:max-h-[80vh] sm:max-w-lg sm:rounded-xl sm:border sm:border-border sm:shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3">
-          <input
-            autoFocus
+          <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search exercises…"
-            className="w-full rounded border border-current/20 bg-transparent px-3 py-1.5 text-sm outline-none"
+            className="w-full"
           />
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-sm opacity-60 hover:opacity-100"
-          >
+          <Button variant="ghost" onClick={onClose}>
             Close
-          </button>
+          </Button>
         </div>
 
         {groups.map(({ pattern, variants: group }) => (
           <div key={pattern} className="mt-4">
-            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-60">
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
               {PATTERN_LABELS[pattern]}
             </h3>
             <ul>
@@ -102,7 +98,7 @@ export function ExercisePicker({
                   <button
                     type="button"
                     onClick={() => onSelect(variant)}
-                    className="flex w-full items-baseline gap-2 rounded px-2 py-1 text-left text-sm hover:bg-current/10"
+                    className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-current/5"
                   >
                     <span>{variant.exerciseName}</span>
                     <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">
@@ -121,7 +117,7 @@ export function ExercisePicker({
           </div>
         ))}
         {groups.length === 0 && (
-          <p className="mt-4 text-sm opacity-60">No variants match.</p>
+          <p className="mt-4 text-sm text-muted">No variants match.</p>
         )}
       </div>
     </div>

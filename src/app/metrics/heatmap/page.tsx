@@ -1,6 +1,6 @@
 import { BodyHeatmap } from "@/components/body-heatmap";
 import { HeatmapControls, type HeatmapParams } from "@/components/heatmap-controls";
-import { Note, SeedBanner } from "@/components/ui";
+import { Note, PageShell, SeedBanner } from "@/components/ui";
 import { weekCoverage } from "@/lib/coverage";
 import { clientById } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
@@ -139,7 +139,7 @@ export default async function HeatmapPage({
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+    <PageShell>
       {data.source === "seed" && <SeedBanner />}
       <h1 className="text-3xl font-bold tracking-tight">Muscle heat map</h1>
       <p className="mt-2 text-sm opacity-70">
@@ -179,6 +179,6 @@ export default async function HeatmapPage({
         value; they sit on their own reps scale rather than faking one. Dashed
         outlines mark deep muscles drawn as callouts.
       </Note>
-    </main>
+    </PageShell>
   );
 }

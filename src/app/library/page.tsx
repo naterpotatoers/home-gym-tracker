@@ -1,4 +1,6 @@
-import { Note, Section, Stat, Td, Th } from "@/components/ui";
+import { MeterLegend, MuscleMeterGroups } from "@/components/meter-rows";
+import { Note, PageShell, Section, Stat, Td, Th } from "@/components/ui";
+import { volumeStatus } from "@/lib/coverage";
 import { bars, dumbbells, hipBands, plates } from "@/lib/data/equipment";
 import { exerciseById } from "@/lib/data/exercises";
 import { modalities, modalityById } from "@/lib/data/modalities";
@@ -40,7 +42,7 @@ export default async function LibraryPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+    <PageShell>
       <h1 className="text-3xl font-bold tracking-tight">Library</h1>
       <p className="mt-2 text-sm opacity-70">
         {summaries.length} people · {variants.length} available exercise variants ·{" "}
@@ -49,47 +51,49 @@ export default async function LibraryPage() {
 
       {/* ---------------------------------------------------------------- */}
       <Section title="Clients">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-current/20 text-left">
-              <Th>Name</Th>
-              <Th>Age</Th>
-              <Th>Bodyweight</Th>
-              <Th>Level</Th>
-              <Th>Goal</Th>
-              <Th numeric>Sessions</Th>
-              <Th>Last</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {summaries.map(({ client, age, bodyweightLbs, bodyweightChangeLbs, sessionCount, lastSessionDate }) => (
-              <tr key={client.id} className="border-b border-current/10">
-                <Td>
-                  {client.firstName}
-                  {client.isTrainer && (
-                    <span className="ml-2 rounded bg-current/10 px-1.5 py-0.5 text-xs">
-                      trainer
-                    </span>
-                  )}
-                </Td>
-                <Td>{age}</Td>
-                <Td>
-                  {bodyweightLbs ?? "—"} lb
-                  {bodyweightChangeLbs !== null && (
-                    <span className="ml-1 text-xs opacity-60">
-                      ({bodyweightChangeLbs > 0 ? "+" : ""}
-                      {bodyweightChangeLbs})
-                    </span>
-                  )}
-                </Td>
-                <Td>{client.experienceLevel}</Td>
-                <Td>{client.goal}</Td>
-                <Td numeric>{sessionCount}</Td>
-                <Td>{lastSessionDate ?? "—"}</Td>
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border-strong text-left">
+                <Th>Name</Th>
+                <Th>Age</Th>
+                <Th>Bodyweight</Th>
+                <Th>Level</Th>
+                <Th>Goal</Th>
+                <Th numeric>Sessions</Th>
+                <Th>Last</Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {summaries.map(({ client, age, bodyweightLbs, bodyweightChangeLbs, sessionCount, lastSessionDate }) => (
+                <tr key={client.id} className="border-b border-border">
+                  <Td>
+                    {client.firstName}
+                    {client.isTrainer && (
+                      <span className="ml-2 rounded bg-current/10 px-1.5 py-0.5 text-xs">
+                        trainer
+                      </span>
+                    )}
+                  </Td>
+                  <Td>{age}</Td>
+                  <Td>
+                    {bodyweightLbs ?? "—"} lb
+                    {bodyweightChangeLbs !== null && (
+                      <span className="ml-1 text-xs opacity-60">
+                        ({bodyweightChangeLbs > 0 ? "+" : ""}
+                        {bodyweightChangeLbs})
+                      </span>
+                    )}
+                  </Td>
+                  <Td>{client.experienceLevel}</Td>
+                  <Td>{client.goal}</Td>
+                  <Td numeric>{sessionCount}</Td>
+                  <Td>{lastSessionDate ?? "—"}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <Note>
           Age is derived from date of birth and bodyweight from the weigh-in
           history, so neither can go stale.
@@ -191,50 +195,28 @@ export default async function LibraryPage() {
 
       {/* ---------------------------------------------------------------- */}
       <Section title="Per-muscle volume (Nate, all time)">
-        <div className="space-y-5">
-          {volume.map((group) => (
-            <div key={group.groupId}>
-              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-60">
-                {group.label}
-              </h3>
-              <table className="w-full text-sm">
-                <tbody>
-                  {group.rows.map((row) => (
-                    <tr key={row.muscleId}>
-                      <td className="w-52 py-0.5">{row.name}</td>
-                      <td className="w-14 py-0.5 text-right font-mono text-xs opacity-60">
-                        {row.peakScore}/10
-                      </td>
-                      <td className="py-0.5 pl-3">
-                        <div className="h-2 w-full rounded bg-current/10">
-                          <div
-                            className="h-2 rounded bg-current/50"
-                            style={{
-                              width: `${Math.max(
-                                row.weightedVolumeLbs > 0 ? 1 : 0,
-                                (row.weightedVolumeLbs / maxVolume) * 100,
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      </td>
-                      <td className="w-36 py-0.5 text-right font-mono text-xs">
-                        {row.weightedVolumeLbs > 0
-                          ? `${Math.round(row.weightedVolumeLbs).toLocaleString()} lb`
-                          : "—"}
-                        {row.ordinalReps > 0 && (
-                          <span className="ml-1 opacity-60">
-                            +{Math.round(row.ordinalReps)} ord
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
-        </div>
+        <MuscleMeterGroups
+          groups={volume.map((group) => ({
+            groupId: group.groupId,
+            label: group.label,
+            rows: group.rows.map((row) => ({
+              id: row.muscleId,
+              name: row.name,
+              peakScore: row.peakScore,
+              value: row.weightedVolumeLbs,
+              display:
+                row.weightedVolumeLbs > 0
+                  ? `${Math.round(row.weightedVolumeLbs).toLocaleString()} lb`
+                  : "—",
+              status: volumeStatus(row, maxVolume),
+              ordinalNote:
+                row.ordinalReps > 0
+                  ? `+${Math.round(row.ordinalReps)} ord`
+                  : undefined,
+            })),
+          }))}
+        />
+        <MeterLegend mode="volume" />
         <Note>
           Volume is score-weighted: each set counts toward every muscle it
           trains, scaled by how directly it trains it. &ldquo;ord&rdquo; is
@@ -254,64 +236,68 @@ export default async function LibraryPage() {
 
       {/* ---------------------------------------------------------------- */}
       <Section title="Top estimated 1RMs (Nate)">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-current/20 text-left">
-              <Th>Exercise</Th>
-              <Th>Modality</Th>
-              <Th numeric>Best e1RM</Th>
-              <Th numeric>Heaviest</Th>
-              <Th>Date</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {records.map((r) => (
-              <tr key={`${r.exerciseId}-${r.modalityId}`} className="border-b border-current/10">
-                <Td>{exerciseById.get(r.exerciseId)?.name}</Td>
-                <Td>{modalityById.get(r.modalityId)?.name}</Td>
-                <Td numeric>{Math.round(r.bestE1rmLbs)} lb</Td>
-                <Td numeric>{r.heaviestLbs} lb</Td>
-                <Td>{r.date}</Td>
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border-strong text-left">
+                <Th>Exercise</Th>
+                <Th>Modality</Th>
+                <Th numeric>Best e1RM</Th>
+                <Th numeric>Heaviest</Th>
+                <Th>Date</Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {records.map((r) => (
+                <tr key={`${r.exerciseId}-${r.modalityId}`} className="border-b border-border">
+                  <Td>{exerciseById.get(r.exerciseId)?.name}</Td>
+                  <Td>{modalityById.get(r.modalityId)?.name}</Td>
+                  <Td numeric>{Math.round(r.bestE1rmLbs)} lb</Td>
+                  <Td numeric>{r.heaviestLbs} lb</Td>
+                  <Td>{r.date}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Section>
 
       {/* ---------------------------------------------------------------- */}
       <Section title="Modality tradeoffs">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-current/20 text-left">
-              <Th>Modality</Th>
-              <Th numeric>Stability</Th>
-              <Th numeric>Load factor</Th>
-              <Th numeric>ROM</Th>
-              <Th>Resistance</Th>
-              <Th>Precision</Th>
-              <Th numeric>Skill</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {modalities.map((m) => (
-              <tr
-                key={m.id}
-                className={`border-b border-current/10 ${m.owned ? "" : "opacity-40"}`}
-              >
-                <Td>
-                  {m.name}
-                  {!m.owned && <span className="ml-2 text-xs">(not owned)</span>}
-                </Td>
-                <Td numeric>{m.stabilityDemand}</Td>
-                <Td numeric>{m.seedLoadFactor?.toFixed(2) ?? "—"}</Td>
-                <Td numeric>{m.romQuality}</Td>
-                <Td>{m.resistanceProfile}</Td>
-                <Td>{m.defaultLoadPrecision ?? "per band"}</Td>
-                <Td numeric>{m.skillDemand}</Td>
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border-strong text-left">
+                <Th>Modality</Th>
+                <Th numeric>Stability</Th>
+                <Th numeric>Load factor</Th>
+                <Th numeric>ROM</Th>
+                <Th>Resistance</Th>
+                <Th>Precision</Th>
+                <Th numeric>Skill</Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {modalities.map((m) => (
+                <tr
+                  key={m.id}
+                  className={`border-b border-border ${m.owned ? "" : "opacity-40"}`}
+                >
+                  <Td>
+                    {m.name}
+                    {!m.owned && <span className="ml-2 text-xs">(not owned)</span>}
+                  </Td>
+                  <Td numeric>{m.stabilityDemand}</Td>
+                  <Td numeric>{m.seedLoadFactor?.toFixed(2) ?? "—"}</Td>
+                  <Td numeric>{m.romQuality}</Td>
+                  <Td>{m.resistanceProfile}</Td>
+                  <Td>{m.defaultLoadPrecision ?? "per band"}</Td>
+                  <Td numeric>{m.skillDemand}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <Note>
           Band resistance is <em>ascending</em> — hardest at end range, easiest
           at the stretch. That is a drawback when a band adds load, but close to
@@ -359,6 +345,6 @@ export default async function LibraryPage() {
           harder.
         </Note>
       </Section>
-    </main>
+    </PageShell>
   );
 }

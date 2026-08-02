@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { EffortPicker } from "@/components/effort-picker";
 import { ExercisePicker } from "@/components/exercise-picker";
+import { Button, Input } from "@/components/ui";
 import type { BoardPerson } from "@/components/group-board";
 import { SetRow } from "@/components/set-row";
 import { useSetEditor } from "@/components/use-set-editor";
@@ -146,9 +147,9 @@ export function GroupPersonCard({
 
   if (finished) {
     return (
-      <div className="flex flex-wrap items-baseline gap-2 rounded-lg border border-current/10 bg-current/5 px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-baseline gap-2 rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-sm">
         <span className="font-semibold">{clientName}</span>
-        <span className="opacity-60">done · {doneCount} sets</span>
+        <span className="text-muted">done · {doneCount} sets</span>
         {rpe !== null && (
           <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">RPE {rpe}</span>
         )}
@@ -157,7 +158,7 @@ export function GroupPersonCard({
         )}
         <Link
           href={`/workout/session/${session.id}`}
-          className="ml-auto text-xs underline underline-offset-2 opacity-60"
+          className="ml-auto text-xs text-accent-text underline underline-offset-2"
         >
           recap
         </Link>
@@ -167,33 +168,33 @@ export function GroupPersonCard({
 
   return (
     <div
-      className={`rounded-lg border p-3 transition-opacity ${
-        ready ? "border-current/40 ring-1 ring-current/40" : "border-current/10"
+      className={`rounded-xl border bg-surface p-3 transition-opacity ${
+        ready ? "border-accent ring-1 ring-accent" : "border-border"
       } ${resting ? "opacity-70" : ""}`}
     >
       {/* Header */}
       <div className="flex flex-wrap items-baseline gap-2">
         <span className="font-semibold">{clientName}</span>
         {currentExercise && (
-          <span className="text-sm opacity-80">{currentExercise.name}</span>
+          <span className="text-sm">{currentExercise.name}</span>
         )}
         {current && (
           <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">
             {modalityById.get(current.modalityId)?.name ?? current.modalityId}
           </span>
         )}
-        <span className="ml-auto font-mono text-xs opacity-60">
+        <span className="ml-auto font-mono text-xs text-muted">
           {doneCount}/{editor.sets.length}
         </span>
         {resting && (
-          <span className="font-mono text-xs opacity-80">
+          <span className="font-mono text-xs text-warning-text">
             rest {Math.floor(restSecondsLeft / 60)}:{String(restSecondsLeft % 60).padStart(2, "0")}
           </span>
         )}
-        {ready && <span className="text-xs font-semibold">ready</span>}
+        {ready && <span className="text-xs font-semibold text-success-text">ready</span>}
       </div>
       {rx && (
-        <p className="mt-0.5 text-xs opacity-50">
+        <p className="mt-0.5 text-xs text-muted">
           {routineName} ·{" "}
           {rx.durationSeconds !== null
             ? `${rx.sets}×${rx.durationSeconds}s`
@@ -208,63 +209,58 @@ export function GroupPersonCard({
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="flex-1 rounded border border-current/20 px-3 py-2 text-left hover:bg-current/5"
+            className="min-h-12 flex-1 rounded-md border border-border-strong bg-surface-input px-3 py-2 text-left hover:border-accent/50"
           >
-            <span className="text-xs opacity-50">Set {current.setNumber} · </span>
+            <span className="text-xs text-muted">Set {current.setNumber} · </span>
             <span className="font-mono text-sm font-semibold">
               {describeTarget(current)}
             </span>
-            <span className="ml-2 text-xs opacity-40">{expanded ? "▲" : "adjust ▾"}</span>
+            <span className="ml-2 text-xs text-muted">{expanded ? "▲" : "adjust ▾"}</span>
           </button>
           <button
             type="button"
             onClick={logCurrent}
             disabled={editor.busy}
-            className="min-h-12 rounded border border-current/30 bg-current/15 px-6 text-sm font-bold tracking-wide hover:bg-current/25 disabled:opacity-50"
+            className="min-h-12 rounded-md bg-accent-strong px-6 text-sm font-bold tracking-wide text-accent-fg hover:opacity-90 disabled:opacity-50"
           >
             LOG
           </button>
         </div>
       ) : (
-        <p className="mt-2 text-sm opacity-70">All sets done — finish below.</p>
+        <p className="mt-2 text-sm text-success-text">All sets done — finish below.</p>
       )}
 
       {/* Footer row: up next + blocks + finish */}
-      <div className="mt-2 flex flex-wrap items-baseline gap-3 text-xs">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
         {upNext && upNext.exerciseId !== current?.exerciseId && (
-          <span className="opacity-50">
+          <span className="self-center text-muted">
             next: {exerciseById.get(upNext.exerciseId)?.name}
           </span>
         )}
-        <button
-          type="button"
-          onClick={() => setShowBlocks((v) => !v)}
-          className="underline underline-offset-2 opacity-60 hover:opacity-100"
-        >
+        <Button variant="ghost" size="sm" onClick={() => setShowBlocks((v) => !v)}>
           Blocks ▾
-        </button>
+        </Button>
         {current && (
-          <button
-            type="button"
-            onClick={skipCurrent}
-            className="opacity-50 hover:opacity-100"
-          >
+          <Button variant="ghost" size="sm" onClick={skipCurrent}>
             Skip set
-          </button>
+          </Button>
         )}
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => setFinishing((v) => !v)}
-          className="ml-auto underline underline-offset-2 opacity-60 hover:opacity-100"
+          className="ml-auto"
         >
           Finish…
-        </button>
-        {editor.error && <span className="w-full font-semibold">{editor.error}</span>}
+        </Button>
+        {editor.error && (
+          <span className="w-full font-semibold text-danger-text">{editor.error}</span>
+        )}
       </div>
 
       {/* Blocks sheet: jump anywhere (staggering) */}
       {showBlocks && (
-        <ul className="mt-2 space-y-1 rounded border border-current/10 p-2 text-sm">
+        <ul className="mt-2 space-y-1 rounded-md border border-border p-2 text-sm">
           {editor.blocks.map((block) => {
             const done = block.sets.filter((s) => s.completed).length;
             const isCurrent = block === currentBlock;
@@ -273,15 +269,15 @@ export function GroupPersonCard({
                 <button
                   type="button"
                   onClick={() => jumpToBlock(block)}
-                  className={`flex w-full items-baseline gap-2 rounded px-2 py-1 text-left hover:bg-current/10 ${
-                    isCurrent ? "bg-current/5 font-semibold" : ""
+                  className={`flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-current/5 ${
+                    isCurrent ? "bg-accent-soft font-semibold text-accent-text" : ""
                   }`}
                 >
                   <span>{exerciseById.get(block.exerciseId)?.name}</span>
-                  <span className="text-xs opacity-50">
+                  <span className="text-xs text-muted">
                     {modalityById.get(block.modalityId)?.name}
                   </span>
-                  <span className="ml-auto font-mono text-xs opacity-60">
+                  <span className="ml-auto font-mono text-xs text-muted">
                     {done}/{block.sets.length}
                   </span>
                 </button>
@@ -293,8 +289,8 @@ export function GroupPersonCard({
 
       {/* Expanded: full editing of the current block */}
       {expanded && currentBlock && (
-        <div className="mt-2 rounded border border-current/10 p-2">
-          <div className="divide-y divide-current/5">
+        <div className="mt-2 rounded-md border border-border p-2">
+          <div className="divide-y divide-border">
             {currentBlock.sets.map((set) => (
               <SetRow
                 key={set.id}
@@ -308,27 +304,19 @@ export function GroupPersonCard({
             ))}
           </div>
           <div className="mt-2 flex gap-2">
-            <button
-              type="button"
-              onClick={() => editor.addSet(currentBlock)}
-              className="rounded border border-current/20 px-2 py-1 text-xs hover:bg-current/10"
-            >
+            <Button size="sm" onClick={() => editor.addSet(currentBlock)}>
               + Add set
-            </button>
-            <button
-              type="button"
-              onClick={() => setSwapBlock(currentBlock)}
-              className="rounded border border-current/20 px-2 py-1 text-xs hover:bg-current/10"
-            >
+            </Button>
+            <Button size="sm" onClick={() => setSwapBlock(currentBlock)}>
               Replace exercise
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {/* Inline finish panel */}
       {finishing && (
-        <div className="mt-3 space-y-3 border-t border-current/10 pt-3">
+        <div className="mt-3 space-y-3 border-t border-border pt-3">
           <EffortPicker
             rpe={rpe}
             condition={condition}
@@ -338,21 +326,16 @@ export function GroupPersonCard({
             }}
           />
           <div className="flex flex-wrap items-center gap-2">
-            <input
+            <Input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Notes"
-              className="min-w-48 flex-1 rounded border border-current/20 bg-transparent px-2 py-1.5 text-sm outline-none"
+              className="min-w-48 flex-1"
             />
-            <button
-              type="button"
-              onClick={handleFinish}
-              disabled={finishBusy}
-              className="rounded border border-current/20 bg-current/10 px-4 py-1.5 text-sm font-semibold hover:bg-current/20 disabled:opacity-50"
-            >
+            <Button variant="primary" onClick={handleFinish} disabled={finishBusy}>
               {finishBusy ? "Saving…" : `Finish ${clientName}`}
-            </button>
+            </Button>
           </div>
         </div>
       )}

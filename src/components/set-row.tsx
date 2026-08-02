@@ -1,5 +1,6 @@
 "use client";
 
+import { IconButton, NumberInput, Select } from "@/components/ui";
 import { bands, dumbbells } from "@/lib/data/equipment";
 import { describePlates, formatPlates, loadableWeights } from "@/lib/loading";
 import { bandRolesFor } from "@/lib/queries";
@@ -43,223 +44,200 @@ export function SetRow({
 
   return (
     <div
-      className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded px-2 py-1.5 text-sm ${
-        set.completed ? "bg-current/5" : ""
+      className={`grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1 rounded-lg px-2 py-2 text-sm ${
+        set.completed ? "bg-success/10" : ""
       } ${set.isWarmup ? "opacity-70" : ""}`}
     >
-      <label className="flex items-center gap-1.5">
+      <label className="flex flex-col items-center gap-0.5 p-1.5">
         <input
           type="checkbox"
           checked={set.completed}
           onChange={(e) => onChange({ completed: e.target.checked })}
-          className="size-4"
+          className="size-6 accent-accent"
         />
-        <span className="w-5 font-mono text-xs opacity-50">{set.setNumber}</span>
+        <span className="font-mono text-xs text-muted">{set.setNumber}</span>
       </label>
 
-      {/* Load control, by modality */}
-      {(set.modalityId === "barbell" || set.modalityId === "dumbbell") && (
-        <span className="flex items-center gap-1">
-          <StepButton
-            label="−"
-            onClick={() =>
-              onChange({
-                weightLbs: stepIn(
-                  set.modalityId === "barbell" ? BARBELL_LOADS : DUMBBELL_LOADS,
-                  set.weightLbs,
-                  -1,
-                ),
-              })
-            }
-          />
-          <input
-            type="number"
-            value={set.weightLbs ?? ""}
-            onChange={(e) =>
-              onChange({ weightLbs: e.target.value === "" ? null : Number(e.target.value) })
-            }
-            className="w-16 rounded border border-current/20 bg-transparent px-1 py-0.5 text-right font-mono text-xs"
-          />
-          <StepButton
-            label="+"
-            onClick={() =>
-              onChange({
-                weightLbs: stepIn(
-                  set.modalityId === "barbell" ? BARBELL_LOADS : DUMBBELL_LOADS,
-                  set.weightLbs,
-                  1,
-                ),
-              })
-            }
-          />
-          <span className="text-xs opacity-50">
-            lb{set.modalityId === "dumbbell" ? " ea" : ""}
-          </span>
-        </span>
-      )}
-
-      {set.modalityId === "machine" && (
-        <span className="flex items-center gap-1">
-          <input
-            type="number"
-            step={5}
-            value={set.weightLbs ?? ""}
-            onChange={(e) =>
-              onChange({ weightLbs: e.target.value === "" ? null : Number(e.target.value) })
-            }
-            className="w-16 rounded border border-current/20 bg-transparent px-1 py-0.5 text-right font-mono text-xs"
-          />
-          <span className="text-xs opacity-50">lb</span>
-        </span>
-      )}
-
-      {set.modalityId === "bodyweight" && (
-        <span className="flex items-center gap-1">
-          <span className="text-xs opacity-50">BW +</span>
-          <input
-            type="number"
-            step={2.5}
-            value={set.addedWeightLbs ?? ""}
-            placeholder="0"
-            onChange={(e) =>
-              onChange({
-                addedWeightLbs: e.target.value === "" ? null : Number(e.target.value),
-              })
-            }
-            className="w-14 rounded border border-current/20 bg-transparent px-1 py-0.5 text-right font-mono text-xs"
-          />
-          <span className="text-xs opacity-50">lb</span>
-        </span>
-      )}
-
-      {set.modalityId === "band" && (
-        <span className="flex items-center gap-1">
-          <select
-            value={set.bandId ?? ""}
-            onChange={(e) => onChange({ bandId: (e.target.value || null) as BandId | null })}
-            className="rounded border border-current/20 bg-transparent px-1 py-0.5 text-xs"
-          >
-            <option value="">band…</option>
-            {bands.map((band) => (
-              <option key={band.id} value={band.id}>
-                {band.family === "monster"
-                  ? `${band.label} (${band.minLbs}-${band.maxLbs})`
-                  : `${band.label} ${band.sizeInches}"`}
-              </option>
-            ))}
-          </select>
-          {roles.length > 1 && (
-            <select
-              value={set.bandRole ?? ""}
-              onChange={(e) => onChange({ bandRole: (e.target.value || null) as BandRole | null })}
-              className="rounded border border-current/20 bg-transparent px-1 py-0.5 text-xs"
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
+        {/* Load control, by modality */}
+        {(set.modalityId === "barbell" || set.modalityId === "dumbbell") && (
+          <span className="flex items-center gap-1">
+            <IconButton
+              aria-label="Decrease weight"
+              onClick={() =>
+                onChange({
+                  weightLbs: stepIn(
+                    set.modalityId === "barbell" ? BARBELL_LOADS : DUMBBELL_LOADS,
+                    set.weightLbs,
+                    -1,
+                  ),
+                })
+              }
             >
-              {roles.map((role) => (
-                <option key={role} value={role}>{role}</option>
-              ))}
-            </select>
-          )}
-        </span>
-      )}
-
-      {/* Metric control */}
-      {metricType === "time" || set.durationSeconds !== null ? (
-        <span className="flex items-center gap-1">
-          <input
-            type="number"
-            step={5}
-            value={set.durationSeconds ?? ""}
-            onChange={(e) =>
-              onChange({
-                durationSeconds: e.target.value === "" ? null : Number(e.target.value),
-              })
-            }
-            className="w-14 rounded border border-current/20 bg-transparent px-1 py-0.5 text-right font-mono text-xs"
-          />
-          <span className="text-xs opacity-50">sec</span>
-        </span>
-      ) : metricType === "distance" ? (
-        <span className="flex items-center gap-1">
-          <input
-            type="number"
-            step={10}
-            value={set.distanceFeet ?? ""}
-            onChange={(e) =>
-              onChange({ distanceFeet: e.target.value === "" ? null : Number(e.target.value) })
-            }
-            className="w-14 rounded border border-current/20 bg-transparent px-1 py-0.5 text-right font-mono text-xs"
-          />
-          <span className="text-xs opacity-50">ft</span>
-        </span>
-      ) : (
-        <span className="flex items-center gap-1">
-          <StepButton
-            label="−"
-            onClick={() => onChange({ reps: Math.max(0, (set.reps ?? 0) - 1) })}
-          />
-          <input
-            type="number"
-            value={set.reps ?? ""}
-            onChange={(e) =>
-              onChange({ reps: e.target.value === "" ? null : Number(e.target.value) })
-            }
-            className="w-12 rounded border border-current/20 bg-transparent px-1 py-0.5 text-right font-mono text-xs"
-          />
-          <StepButton label="+" onClick={() => onChange({ reps: (set.reps ?? 0) + 1 })} />
-          <span className="text-xs opacity-50">
-            reps{set.unilateralMode !== "bilateral" ? "/side" : ""}
+              −
+            </IconButton>
+            <NumberInput
+              value={set.weightLbs}
+              onChange={(v) => onChange({ weightLbs: v })}
+              className="w-20"
+            />
+            <IconButton
+              aria-label="Increase weight"
+              onClick={() =>
+                onChange({
+                  weightLbs: stepIn(
+                    set.modalityId === "barbell" ? BARBELL_LOADS : DUMBBELL_LOADS,
+                    set.weightLbs,
+                    1,
+                  ),
+                })
+              }
+            >
+              +
+            </IconButton>
+            <span className="text-xs text-muted">
+              lb{set.modalityId === "dumbbell" ? " ea" : ""}
+            </span>
           </span>
+        )}
+
+        {set.modalityId === "machine" && (
+          <span className="flex items-center gap-1">
+            <NumberInput
+              step={5}
+              value={set.weightLbs}
+              onChange={(v) => onChange({ weightLbs: v })}
+              className="w-20"
+            />
+            <span className="text-xs text-muted">lb</span>
+          </span>
+        )}
+
+        {set.modalityId === "bodyweight" && (
+          <span className="flex items-center gap-1">
+            <span className="text-xs text-muted">BW +</span>
+            <NumberInput
+              step={2.5}
+              value={set.addedWeightLbs}
+              placeholder="0"
+              onChange={(v) => onChange({ addedWeightLbs: v })}
+              className="w-20"
+            />
+            <span className="text-xs text-muted">lb</span>
+          </span>
+        )}
+
+        {set.modalityId === "band" && (
+          <span className="flex items-center gap-1">
+            <Select
+              value={set.bandId ?? ""}
+              onChange={(e) => onChange({ bandId: (e.target.value || null) as BandId | null })}
+            >
+              <option value="">band…</option>
+              {bands.map((band) => (
+                <option key={band.id} value={band.id}>
+                  {band.family === "monster"
+                    ? `${band.label} (${band.minLbs}-${band.maxLbs})`
+                    : `${band.label} ${band.sizeInches}"`}
+                </option>
+              ))}
+            </Select>
+            {roles.length > 1 && (
+              <Select
+                value={set.bandRole ?? ""}
+                onChange={(e) => onChange({ bandRole: (e.target.value || null) as BandRole | null })}
+              >
+                {roles.map((role) => (
+                  <option key={role} value={role}>{role}</option>
+                ))}
+              </Select>
+            )}
+          </span>
+        )}
+
+        {/* Metric control */}
+        {metricType === "time" || set.durationSeconds !== null ? (
+          <span className="flex items-center gap-1">
+            <NumberInput
+              step={5}
+              value={set.durationSeconds}
+              onChange={(v) => onChange({ durationSeconds: v })}
+              className="w-20"
+            />
+            <span className="text-xs text-muted">sec</span>
+          </span>
+        ) : metricType === "distance" ? (
+          <span className="flex items-center gap-1">
+            <NumberInput
+              step={10}
+              value={set.distanceFeet}
+              onChange={(v) => onChange({ distanceFeet: v })}
+              className="w-20"
+            />
+            <span className="text-xs text-muted">ft</span>
+          </span>
+        ) : (
+          <span className="flex items-center gap-1">
+            <IconButton
+              aria-label="Decrease reps"
+              onClick={() => onChange({ reps: Math.max(0, (set.reps ?? 0) - 1) })}
+            >
+              −
+            </IconButton>
+            <NumberInput
+              value={set.reps}
+              onChange={(v) => onChange({ reps: v })}
+              className="w-16"
+            />
+            <IconButton
+              aria-label="Increase reps"
+              onClick={() => onChange({ reps: (set.reps ?? 0) + 1 })}
+            >
+              +
+            </IconButton>
+            <span className="text-xs text-muted">
+              reps{set.unilateralMode !== "bilateral" ? "/side" : ""}
+            </span>
+          </span>
+        )}
+
+        <span className="flex items-center gap-1">
+          <span className="text-xs text-muted">RIR</span>
+          <NumberInput
+            min={0}
+            value={set.rir}
+            placeholder="—"
+            onChange={(v) => onChange({ rir: v })}
+            className="w-14"
+          />
         </span>
-      )}
 
-      <span className="flex items-center gap-1">
-        <span className="text-xs opacity-50">RIR</span>
-        <input
-          type="number"
-          min={0}
-          value={set.rir ?? ""}
-          placeholder="—"
-          onChange={(e) => onChange({ rir: e.target.value === "" ? null : Number(e.target.value) })}
-          className="w-10 rounded border border-current/20 bg-transparent px-1 py-0.5 text-right font-mono text-xs"
-        />
-      </span>
+        <label className="flex items-center gap-1.5 p-1.5 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={set.isWarmup}
+            onChange={(e) => onChange({ isWarmup: e.target.checked })}
+            className="size-5 accent-accent"
+          />
+          warmup
+        </label>
 
-      <label className="flex items-center gap-1 text-xs opacity-60">
-        <input
-          type="checkbox"
-          checked={set.isWarmup}
-          onChange={(e) => onChange({ isWarmup: e.target.checked })}
-          className="size-3"
-        />
-        warmup
-      </label>
+        <IconButton
+          variant="ghost"
+          onClick={onRemove}
+          className="ml-auto"
+          aria-label="Remove set"
+          title="Remove set"
+        >
+          ✕
+        </IconButton>
 
-      <button
-        type="button"
-        onClick={onRemove}
-        className="ml-auto text-xs opacity-40 hover:opacity-100"
-        title="Remove set"
-      >
-        ✕
-      </button>
-
-      {plateHint && (
-        <span className="w-full pl-11 font-mono text-[10px] opacity-40">
-          {describePlates(plateHint)}
-        </span>
-      )}
+        {plateHint && (
+          <span className="w-full font-mono text-[10px] text-muted">
+            {describePlates(plateHint)}
+          </span>
+        )}
+      </div>
     </div>
-  );
-}
-
-function StepButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="size-6 rounded border border-current/20 text-xs hover:bg-current/10"
-    >
-      {label}
-    </button>
   );
 }

@@ -1,13 +1,83 @@
 @import "tailwindcss";
 
+/* Semantic tokens. Light is the base; dark overrides in the media query below.
+ * Status colors (success/warning/danger) mean good/okay/bad and are reserved
+ * for that — never decorative. The `-text` variants exist because the fill
+ * values only clear 3:1 (non-text contrast); words need the darker ones. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light dark;
+
+  --background: #f4f6f9;
+  --surface: #ffffff;
+  --surface-input: #ffffff;
+  --foreground: #101418;
+  --muted: #5b6472;
+  --border: #dbe1e8;
+  --border-strong: #c2cad4;
+  --track: #e7ebf1;
+
+  /* Accent blues are steps of the heat ramp, so UI chrome and the body map
+   * read as one palette. */
+  --accent: #2a78d6;
+  --accent-strong: #256abf;
+  --accent-fg: #ffffff;
+  --accent-text: #256abf;
+  --accent-soft: color-mix(in oklab, var(--accent) 12%, var(--surface));
+
+  --success: #0ca30c;
+  --warning: #c98500;
+  --danger: #d03b3b;
+  --success-text: #006300;
+  --warning-text: #8a5a00;
+  --danger-text: #b02a2a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b0e13;
+    --surface: #12161d;
+    --surface-input: #1c222b;
+    --foreground: #e7eaf0;
+    --muted: #98a2b3;
+    --border: #262d38;
+    --border-strong: #39424f;
+    --track: #262d38;
+
+    /* White on #3987e5 fails AA — the primary button flips to dark ink. */
+    --accent: #3987e5;
+    --accent-strong: #3987e5;
+    --accent-fg: #0b0e13;
+    --accent-text: #6da7ec;
+
+    --success: #22b04b;
+    --warning: #e0a025;
+    --danger: #e05252;
+    --success-text: #22b04b;
+    --warning-text: #e0a025;
+    --danger-text: #e05252;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-input: var(--surface-input);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-track: var(--track);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-success-text: var(--success-text);
+  --color-warning-text: var(--warning-text);
+  --color-danger-text: var(--danger-text);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -33,8 +103,6 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
     --heat-0: #0d366b;
     --heat-1: #104281;
     --heat-2: #184f95;
@@ -54,5 +122,5 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }

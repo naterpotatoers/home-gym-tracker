@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Chip, SeedBanner } from "@/components/ui";
+import { Button, Chip, Input, PageShell, SeedBanner } from "@/components/ui";
 import { createProgram } from "@/lib/actions/programs";
 import { clientById } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
@@ -9,7 +9,7 @@ export default async function ProgramsPage() {
   const programs = [...data.programs].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+    <PageShell>
       {data.source === "seed" && <SeedBanner />}
       <h1 className="text-3xl font-bold tracking-tight">Programs</h1>
       <p className="mt-2 text-sm opacity-70">
@@ -30,7 +30,7 @@ export default async function ProgramsPage() {
             <li key={program.id}>
               <Link
                 href={`/programs/${program.id}`}
-                className="flex flex-wrap items-baseline gap-3 rounded-lg border border-current/10 px-4 py-3 hover:bg-current/5"
+                className="flex flex-wrap items-baseline gap-3 rounded-xl border border-border bg-surface px-4 py-3 hover:border-accent/50"
               >
                 <span className="font-semibold">{program.name}</span>
                 <span className="text-xs opacity-60">{program.weeks} weeks</span>
@@ -49,29 +49,21 @@ export default async function ProgramsPage() {
       </ul>
 
       <form action={createProgram} className="mt-8 flex flex-wrap gap-2">
-        <input
-          type="text"
-          name="name"
-          required
-          placeholder="New program name"
-          className="rounded border border-current/20 bg-transparent px-3 py-1.5 text-sm outline-none"
-        />
-        <input
+        <Input type="text" name="name" required placeholder="New program name" />
+        <Input
           type="number"
           name="weeks"
           required
           min={1}
           max={52}
           defaultValue={8}
-          className="w-20 rounded border border-current/20 bg-transparent px-3 py-1.5 font-mono text-sm outline-none"
+          align="right"
+          className="w-20"
         />
-        <button
-          type="submit"
-          className="rounded border border-current/20 px-4 py-1.5 text-sm font-semibold hover:bg-current/10"
-        >
+        <Button type="submit" variant="primary">
           Create
-        </button>
+        </Button>
       </form>
-    </main>
+    </PageShell>
   );
 }

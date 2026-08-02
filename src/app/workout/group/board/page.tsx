@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { GroupBoard, type BoardPerson } from "@/components/group-board";
-import { SeedBanner } from "@/components/ui";
+import { PageShell, SeedBanner } from "@/components/ui";
 import { clientById } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
 import { availableVariants } from "@/lib/queries";
@@ -30,7 +30,7 @@ export default async function GroupBoardPage({
 
   if (people.length === 0) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-6 py-10 font-sans">
+      <PageShell className="max-w-3xl">
         <h1 className="text-2xl font-bold tracking-tight">Group board</h1>
         <p className="mt-3 text-sm opacity-70">
           No open sessions here.{" "}
@@ -39,14 +39,14 @@ export default async function GroupBoardPage({
           </Link>
           .
         </p>
-      </main>
+      </PageShell>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6 font-sans sm:px-6">
+    <PageShell className="max-w-3xl">
       {data.source === "seed" && <SeedBanner />}
       <GroupBoard people={people} variants={availableVariants()} />
-    </main>
+    </PageShell>
   );
 }

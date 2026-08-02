@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { WorkoutRunner } from "@/components/workout-runner";
-import { Chip, SeedBanner } from "@/components/ui";
+import { Chip, PageShell, SeedBanner } from "@/components/ui";
 import { clientById } from "@/lib/data/clients";
 import { exerciseById } from "@/lib/data/exercises";
 import { modalityById } from "@/lib/data/modalities";
@@ -22,7 +22,7 @@ export default async function SessionPage({
   // Completed or skipped: read-only recap.
   if (session.status !== "planned") {
     return (
-      <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+      <PageShell>
         <div className="flex flex-wrap items-baseline gap-3">
           <h1 className="text-2xl font-bold tracking-tight">
             {client?.firstName} — {session.date}
@@ -57,7 +57,7 @@ export default async function SessionPage({
             </div>
           ))}
         </div>
-      </main>
+      </PageShell>
     );
   }
 
@@ -67,7 +67,7 @@ export default async function SessionPage({
     : [];
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 font-sans">
+    <PageShell>
       {data.source === "seed" && <SeedBanner />}
       <WorkoutRunner
         session={session}
@@ -76,6 +76,6 @@ export default async function SessionPage({
         variants={availableVariants()}
         clientName={client?.firstName ?? session.clientId}
       />
-    </main>
+    </PageShell>
   );
 }

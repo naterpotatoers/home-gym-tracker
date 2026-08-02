@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { EffortPicker } from "@/components/effort-picker";
+import { Button, Input, NumberInput } from "@/components/ui";
 import { ExercisePicker } from "@/components/exercise-picker";
 import { SetRow } from "@/components/set-row";
 import { useSetEditor } from "@/components/use-set-editor";
@@ -74,11 +75,11 @@ export function WorkoutRunner({
     <div>
       <div className="flex flex-wrap items-baseline gap-3">
         <h1 className="text-2xl font-bold tracking-tight">{clientName}</h1>
-        <span className="text-sm opacity-60">{session.date}</span>
-        <span className="font-mono text-xs opacity-60">
+        <span className="text-sm text-muted">{session.date}</span>
+        <span className="font-mono text-xs text-muted">
           {doneCount}/{editor.sets.length} sets · {elapsedMinutes} min
         </span>
-        {editor.error && <span className="text-xs font-semibold">{editor.error}</span>}
+        {editor.error && <span className="text-xs font-semibold text-danger-text">{editor.error}</span>}
       </div>
 
       <div className="mt-6 space-y-6">
@@ -88,14 +89,14 @@ export function WorkoutRunner({
             (p) => p.exerciseId === block.exerciseId && p.modalityId === block.modalityId,
           );
           return (
-            <div key={block.key} className="rounded-lg border border-current/10 p-3">
+            <div key={block.key} className="rounded-xl border border-border bg-surface p-3">
               <div className="flex flex-wrap items-baseline gap-2">
                 <h2 className="text-sm font-semibold">{exercise?.name ?? block.exerciseId}</h2>
                 <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">
                   {modalityById.get(block.modalityId)?.name ?? block.modalityId}
                 </span>
                 {rx && (
-                  <span className="text-xs opacity-50">
+                  <span className="text-xs text-muted">
                     {rx.durationSeconds !== null
                       ? `${rx.sets}×${rx.durationSeconds}s`
                       : `${rx.sets}×${rx.repMin ?? "?"}–${rx.repMax ?? "?"}`}
@@ -103,16 +104,17 @@ export function WorkoutRunner({
                     {` · rest ${rx.restSeconds}s`}
                   </span>
                 )}
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setSwapTarget(blockIndex)}
-                  className="ml-auto text-xs underline underline-offset-2 opacity-60 hover:opacity-100"
+                  className="ml-auto"
                 >
                   Replace
-                </button>
+                </Button>
               </div>
 
-              <div className="mt-2 divide-y divide-current/5">
+              <div className="mt-2 divide-y divide-border">
                 {block.sets.map((set) => (
                   <SetRow
                     key={set.id}
@@ -124,19 +126,15 @@ export function WorkoutRunner({
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={() => editor.addSet(block)}
-                className="mt-2 rounded border border-current/20 px-2 py-1 text-xs hover:bg-current/10"
-              >
+              <Button size="sm" onClick={() => editor.addSet(block)} className="mt-2">
                 + Add set
-              </button>
+              </Button>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-8 border-t border-current/10 pt-4">
+      <div className="mt-8 border-t border-border pt-4">
         {finishing ? (
           <div className="space-y-4">
             <EffortPicker
@@ -148,56 +146,38 @@ export function WorkoutRunner({
               }}
             />
             <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-baseline gap-1 text-sm">
-                <input
-                  type="number"
+              <label className="flex items-center gap-1 text-sm">
+                <NumberInput
                   value={elapsedMinutes}
                   min={0}
-                  onChange={(e) => setElapsedMinutes(Number(e.target.value))}
-                  className="w-16 rounded border border-current/20 bg-transparent px-2 py-1 text-right font-mono text-xs"
+                  onChange={(v) => setElapsedMinutes(v ?? 0)}
+                  className="w-20"
                 />
-                <span className="opacity-60">min</span>
+                <span className="text-muted">min</span>
               </label>
-              <input
+              <Input
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Session notes"
-                className="min-w-64 flex-1 rounded border border-current/20 bg-transparent px-3 py-1.5 text-sm outline-none"
+                className="min-w-64 flex-1"
               />
-              <button
-                type="button"
-                onClick={handleFinish}
-                disabled={finishBusy}
-                className="rounded border border-current/20 bg-current/10 px-4 py-1.5 text-sm font-semibold hover:bg-current/20 disabled:opacity-50"
-              >
+              <Button variant="primary" onClick={handleFinish} disabled={finishBusy}>
                 {finishBusy ? "Saving…" : "Finish session"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setFinishing(false)}
-                className="text-xs opacity-60 hover:opacity-100"
-              >
+              </Button>
+              <Button variant="ghost" onClick={() => setFinishing(false)}>
                 Back
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
           <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setFinishing(true)}
-              className="rounded border border-current/20 bg-current/10 px-4 py-1.5 text-sm font-semibold hover:bg-current/20"
-            >
+            <Button variant="primary" onClick={() => setFinishing(true)}>
               Finish…
-            </button>
-            <button
-              type="button"
-              onClick={handleDiscard}
-              className="text-xs opacity-50 hover:opacity-100"
-            >
+            </Button>
+            <Button variant="danger" size="sm" onClick={handleDiscard}>
               Discard session
-            </button>
+            </Button>
           </div>
         )}
       </div>
