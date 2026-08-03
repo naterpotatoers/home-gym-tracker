@@ -152,14 +152,8 @@ export const hipBandRank = new Map(
 
 export const barById = new Map(bars.map((b) => [b.id, b]));
 export const bandById = new Map(bands.map((b) => [b.id, b]));
-export const equipmentById = new Map(equipment.map((e) => [e.id, e]));
 
 export const ownedEquipmentIds = new Set(
   equipment.filter((e) => e.owned).map((e) => e.id),
 );
 
-/** Total plate weight across every pair, both sides. */
-export const totalPlateWeightLbs = plates.reduce(
-  (sum, p) => sum + p.weightLbs * p.pairs * 2,
-  0,
-);

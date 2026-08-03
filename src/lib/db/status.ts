@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { supabase } from "./client";
 
 export const SEED_TABLES = [
+  "clients",
   "routines",
   "routine_exercises",
   "programs",

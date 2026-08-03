@@ -15,6 +15,15 @@ import type { Modality } from "../types";
  * with the client's own ratio once there's enough logged data, and the UI
  * shows which one it used.
  */
+/** Identity hues for modality tags — background-tinted chips, never status. */
+export const MODALITY_COLORS: Record<import("../types").ModalityId, string> = {
+  barbell: "#3987e5",
+  dumbbell: "#8b5cf6",
+  bodyweight: "#14b8a6",
+  band: "#f97316",
+  machine: "#06b6d4",
+};
+
 export const modalities: readonly Modality[] = [
   {
     id: "barbell",

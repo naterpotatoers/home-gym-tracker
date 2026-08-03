@@ -1,11 +1,13 @@
 "use server";
 
+import { assertClientId } from "./clients";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { localTodayIso } from "../periods";
 import { supabase } from "../db/client";
 import { sessionToRow, setLogToRow } from "../db/mappers";
 import { loadGymData } from "../db/snapshot";
-import { localToday, plannedSessionFromRoutine } from "../planning";
+import { plannedSessionFromRoutine } from "../planning";
 import { suggestedLoad } from "../queries";
 import type {
   ClientId,
@@ -15,7 +17,6 @@ import type {
   SetLog,
 } from "../types";
 import {
-  isClientId,
   isExerciseId,
   isModalityId,
   isSessionCondition,
@@ -31,14 +32,14 @@ export async function startSession(
   routineId: string,
   assignmentId: string | null,
 ): Promise<void> {
-  if (!isClientId(clientId)) throw new Error(`bad client id ${clientId}`);
+  await assertClientId(clientId);
   const data = await loadGymData();
   const { session, sets } = plannedSessionFromRoutine(
     data,
     clientId,
     routineId,
     assignmentId,
-    localToday(),
+    localTodayIso(),
   );
 
   const { error: sessionError } = await supabase

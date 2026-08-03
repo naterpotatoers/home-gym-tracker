@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { useDebouncedSave } from "@/components/use-debounced-save";
 import { Button, Card, IconButton, Input, Select } from "@/components/ui";
 import {
   addWeek,
@@ -32,33 +33,17 @@ export function ProgramEditor({
 }) {
   const [name, setName] = useState(program.name);
   const [notes, setNotes] = useState(program.notes);
-  const [error, setError] = useState<string | null>(null);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [pending, startTransition] = useTransition();
-  const firstRender = useRef(true);
+
+  // Debounced header autosave — name/notes persist ~1s after the last keystroke.
+  const { saveState, error, setError } = useDebouncedSave(
+    [name, notes, program.id],
+    () => updateProgramInfo(program.id, { name, notes }),
+  );
 
   const byCell = new Map(days.map((d) => [`${d.week}|${d.dayOfWeek}`, d.routineId]));
   const sorted = [...routines].sort((a, b) => a.name.localeCompare(b.name));
   const weekNumbers = Array.from({ length: program.weeks }, (_, i) => i + 1);
-
-  // Debounced header autosave — name/notes persist ~1s after the last keystroke.
-  useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
-    setSaveState("saving");
-    const timer = setTimeout(async () => {
-      try {
-        await updateProgramInfo(program.id, { name, notes });
-        setSaveState("saved");
-      } catch (e) {
-        setSaveState("idle");
-        setError(e instanceof Error ? e.message : "Save failed.");
-      }
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [name, notes, program.id]);
 
   function run(action: () => Promise<void>) {
     setError(null);

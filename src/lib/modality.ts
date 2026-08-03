@@ -1,4 +1,3 @@
-import { clientById } from "./data/clients";
 import { bandById, dumbbells } from "./data/equipment";
 import {
   exerciseModalities,
@@ -319,7 +318,7 @@ export function normalizedLoad(data: GymData, set: SetLog): number | null {
   if (load.lbs === null || load.precision === "ordinal") return null;
   const session = data.sessionById.get(set.sessionId);
   if (!session) return null;
-  if (!clientById.has(session.clientId)) return null;
+  if (!data.clientById.has(session.clientId)) return null;
 
   const { factor } = effectiveLoadFactor(
     data,

@@ -1,11 +1,13 @@
 import "server-only";
 import { connection } from "next/server";
 import { cache } from "react";
+import { clients as seedClients } from "../data/clients";
 import { seedSnapshot } from "../data/seed-snapshot";
 import { buildGymData, type GymData } from "../gym-data";
 import { supabase } from "./client";
 import {
   rowToAssignment,
+  rowToClient,
   rowToProgram,
   rowToProgramDay,
   rowToRoutine,
@@ -43,6 +45,7 @@ export const loadGymData = cache(async (): Promise<GymData> => {
   await connection();
   try {
     const [
+      clientRows,
       routines,
       routineExercises,
       programs,
@@ -52,6 +55,12 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       setLogs,
       weighIns,
     ] = await Promise.all([
+      // Clients get their own fallback: null means migration 002 hasn't run
+      // yet, and the TS seed roster serves read-only.
+      fetchAll("clients", ["first_name"]).catch((e) => {
+        if (e instanceof TablesMissingError) return null;
+        throw e;
+      }),
       fetchAll("routines", ["id"]),
       fetchAll("routine_exercises", ["routine_id", "sort_order"]),
       fetchAll("programs", ["id"]),
@@ -64,6 +73,8 @@ export const loadGymData = cache(async (): Promise<GymData> => {
 
     return buildGymData({
       source: "database",
+      clientsSource: clientRows === null ? "seed" : "database",
+      clients: clientRows === null ? seedClients : clientRows.map(rowToClient),
       routines: routines.map(rowToRoutine),
       routineExercises: routineExercises.map(rowToRoutineExercise),
       programs: programs.map(rowToProgram),

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { GroupBoard, type BoardPerson } from "@/components/group-board";
 import { PageShell, SeedBanner } from "@/components/ui";
-import { clientById } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
 import { availableVariants } from "@/lib/queries";
 
@@ -24,7 +23,8 @@ export default async function GroupBoardPage({
       prescriptions: session!.routineId
         ? (data.exercisesByRoutine.get(session!.routineId) ?? [])
         : [],
-      clientName: clientById.get(session!.clientId)?.firstName ?? session!.clientId,
+      clientName: data.clientById.get(session!.clientId)?.firstName ?? session!.clientId,
+      color: data.clientById.get(session!.clientId)?.color ?? null,
       routineName: data.routineById.get(session!.routineId ?? "")?.name ?? "Session",
     }));
 
@@ -32,10 +32,10 @@ export default async function GroupBoardPage({
     return (
       <PageShell className="max-w-3xl">
         <h1 className="text-2xl font-bold tracking-tight">Group board</h1>
-        <p className="mt-3 text-sm opacity-70">
+        <p className="mt-3 text-sm text-muted">
           No open sessions here.{" "}
-          <Link href="/workout/group" className="underline underline-offset-2">
-            Set up a group workout
+          <Link href="/workout" className="text-accent-text underline underline-offset-2">
+            Set up a workout
           </Link>
           .
         </p>

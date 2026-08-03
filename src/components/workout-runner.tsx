@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { EffortPicker } from "@/components/effort-picker";
-import { Button, Input, NumberInput } from "@/components/ui";
+import { PencilIcon, TrashIcon } from "@/components/icons";
+import { ModalityChip } from "@/components/modality-chip";
+import { Button, IconButton, Input, NumberInput } from "@/components/ui";
 import { ExercisePicker } from "@/components/exercise-picker";
 import { SetRow } from "@/components/set-row";
 import { useSetEditor } from "@/components/use-set-editor";
 import { discardSession, finishSession } from "@/lib/actions/workout";
 import { exerciseById } from "@/lib/data/exercises";
-import { modalityById } from "@/lib/data/modalities";
 import type { Variant } from "@/lib/queries";
 import type { RoutineExercise, Session, SessionCondition, SetLog } from "@/lib/types";
 
@@ -92,9 +93,7 @@ export function WorkoutRunner({
             <div key={block.key} className="rounded-xl border border-border bg-surface p-3">
               <div className="flex flex-wrap items-baseline gap-2">
                 <h2 className="text-sm font-semibold">{exercise?.name ?? block.exerciseId}</h2>
-                <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">
-                  {modalityById.get(block.modalityId)?.name ?? block.modalityId}
-                </span>
+                <ModalityChip modalityId={block.modalityId} />
                 {rx && (
                   <span className="text-xs text-muted">
                     {rx.durationSeconds !== null
@@ -106,14 +105,30 @@ export function WorkoutRunner({
                     {` · rest ${rx.restSeconds}s`}
                   </span>
                 )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSwapTarget(blockIndex)}
-                  className="ml-auto"
-                >
-                  Replace
-                </Button>
+                <span className="ml-auto flex gap-1">
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSwapTarget(blockIndex)}
+                    aria-label="Replace exercise"
+                    title="Replace exercise"
+                  >
+                    <PencilIcon />
+                  </IconButton>
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm(`Remove ${exercise?.name ?? "this exercise"} from the session?`)) {
+                        editor.removeBlock(block);
+                      }
+                    }}
+                    aria-label="Remove exercise from session"
+                    title="Remove exercise from session"
+                  >
+                    <TrashIcon />
+                  </IconButton>
+                </span>
               </div>
 
               <div className="mt-2 divide-y divide-border">

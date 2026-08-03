@@ -12,17 +12,17 @@ export default function Error({
   return (
     <PageShell>
       <h1 className="text-2xl font-bold tracking-tight">Something broke</h1>
-      <p className="mt-3 text-sm opacity-70">
+      <p className="mt-3 text-sm text-muted">
         {error.message || "An unexpected error occurred."}
       </p>
-      <p className="mt-1 text-xs opacity-50">
+      <p className="mt-1 text-xs text-muted">
         If this mentions a missing table, the database migration hasn&apos;t run —
         see /dev/seed.
       </p>
       <button
         type="button"
         onClick={() => unstable_retry()}
-        className="mt-5 inline-flex min-h-11 items-center rounded-md bg-accent-strong px-4 text-sm font-semibold text-accent-fg hover:opacity-90"
+        className="mt-5 inline-flex min-h-11 items-center rounded-md border border-accent/50 px-4 text-sm font-semibold text-accent-text hover:bg-accent/10"
       >
         Retry
       </button>

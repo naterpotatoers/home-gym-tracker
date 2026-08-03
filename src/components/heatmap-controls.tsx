@@ -1,8 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { IconButton, Input, Select } from "@/components/ui";
-import { clients } from "@/lib/data/clients";
+import { chipClass, IconButton, Input, Select } from "@/components/ui";
 import type { PeriodKind } from "@/lib/periods";
 
 export type HeatmapParams = {
@@ -29,11 +28,13 @@ const PERIODS: PeriodKind[] = ["day", "week", "program", "custom"];
 export function HeatmapControls({
   params,
   programs,
+  people,
   prevAnchor,
   nextAnchor,
 }: {
   params: HeatmapParams;
   programs: { id: string; name: string; weeks: number }[];
+  people: { id: string; firstName: string }[];
   prevAnchor: string | null;
   nextAnchor: string | null;
 }) {
@@ -49,21 +50,15 @@ export function HeatmapControls({
     router.replace(`/metrics/heatmap?${search.toString()}`);
   }
 
-  const tab = (selected: boolean) =>
-    `min-h-10 rounded-md px-3 text-xs ${
-      selected
-        ? "bg-accent-soft font-semibold text-accent-text"
-        : "text-muted hover:bg-current/5 hover:text-foreground"
-    }`;
 
   return (
     <div className="mt-6 space-y-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex gap-1">
-          <button type="button" className={tab(params.mode === "logged")} onClick={() => navigate({ mode: "logged" })}>
+          <button type="button" className={chipClass(params.mode === "logged")} onClick={() => navigate({ mode: "logged" })}>
             Logged
           </button>
-          <button type="button" className={tab(params.mode === "prescribed")} onClick={() => navigate({ mode: "prescribed" })}>
+          <button type="button" className={chipClass(params.mode === "prescribed")} onClick={() => navigate({ mode: "prescribed" })}>
             Prescribed
           </button>
         </span>
@@ -73,7 +68,7 @@ export function HeatmapControls({
             value={params.client}
             onChange={(e) => navigate({ client: e.target.value })}
           >
-            {clients.map((client) => (
+            {people.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.firstName}
               </option>
@@ -83,7 +78,7 @@ export function HeatmapControls({
 
         <button
           type="button"
-          className={tab(comparing)}
+          className={chipClass(comparing)}
           onClick={() => navigate({ compare: comparing ? undefined : "1" })}
         >
           Compare
@@ -97,7 +92,7 @@ export function HeatmapControls({
               <button
                 key={period}
                 type="button"
-                className={tab(params.period === period)}
+                className={chipClass(params.period === period)}
                 onClick={() => navigate({ period })}
               >
                 {period}

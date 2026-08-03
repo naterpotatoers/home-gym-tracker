@@ -12,6 +12,8 @@ export type BoardPerson = {
   prescriptions: RoutineExercise[];
   clientName: string;
   routineName: string;
+  /** Preset swatch hex from the person's profile — tints their card. */
+  color: string | null;
 };
 
 /**
@@ -46,7 +48,7 @@ export function GroupBoard({
     <div>
       <div className="mb-4 flex items-baseline gap-3">
         <h1 className="text-xl font-bold tracking-tight">Group board</h1>
-        <span className="font-mono text-xs opacity-60">{elapsedMinutes} min</span>
+        <span className="font-mono text-xs text-muted">{elapsedMinutes} min</span>
         {allDone && (
           <Link
             href="/workout"

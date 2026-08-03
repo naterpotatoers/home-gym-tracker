@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { BodyHeatmap } from "@/components/body-heatmap";
 import { ExercisePicker } from "@/components/exercise-picker";
+import { ModalityChip } from "@/components/modality-chip";
+import { useDebouncedSave } from "@/components/use-debounced-save";
 import {
   Button,
   Field,
@@ -55,11 +57,14 @@ export function RoutineEditor({
   const [notes, setNotes] = useState(routine.notes);
   const [rows, setRows] = useState<RoutineExercise[]>(initialRows);
   const [picker, setPicker] = useState<PickerTarget | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [coverageOpen, setCoverageOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const firstRender = useRef(true);
+
+  // Debounced autosave — every edit persists ~1s after the last change.
+  const { saveState, error, setError } = useDebouncedSave(
+    [name, notes, rows, routine.id],
+    () => saveRoutine(routine.id, { name, notes }, rows),
+  );
 
   const coverage = useMemo(() => prescribedCoverage(rows), [rows]);
   const neglected = useMemo(() => neglectedMuscles(coverage), [coverage]);
@@ -70,26 +75,6 @@ export function RoutineEditor({
       values: heatValues({ coverage }, max, ordinalMax({ coverage })),
     };
   }, [coverage]);
-
-  // Debounced autosave — every edit persists ~1s after the last change.
-  useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
-    setSaveState("saving");
-    const timer = setTimeout(async () => {
-      try {
-        await saveRoutine(routine.id, { name, notes }, rows);
-        setSaveState("saved");
-        setError(null);
-      } catch (e) {
-        setSaveState("idle");
-        setError(e instanceof Error ? e.message : "Save failed.");
-      }
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [name, notes, rows, routine.id]);
 
   function patch(index: number, changes: Partial<RoutineExercise>) {
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...changes } : row)));
@@ -202,9 +187,7 @@ export function RoutineEditor({
                 <span className="text-sm font-semibold">
                   {exercise?.name ?? row.exerciseId}
                 </span>
-                <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">
-                  {row.modalityId}
-                </span>
+                <ModalityChip modalityId={row.modalityId} />
                 {bandRoles.length > 1 ? (
                   <Select
                     size="sm"

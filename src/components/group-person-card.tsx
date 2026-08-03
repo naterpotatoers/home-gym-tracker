@@ -3,57 +3,19 @@
 import Link from "next/link";
 import { useState } from "react";
 import { EffortPicker } from "@/components/effort-picker";
+import { PencilIcon, TrashIcon } from "@/components/icons";
+import { ModalityChip } from "@/components/modality-chip";
 import { ExercisePicker } from "@/components/exercise-picker";
-import { Button, Input } from "@/components/ui";
+import { Button, clientBorderStyle, IconButton, Input } from "@/components/ui";
 import type { BoardPerson } from "@/components/group-board";
 import { SetRow } from "@/components/set-row";
 import { useSetEditor } from "@/components/use-set-editor";
 import { finishSession } from "@/lib/actions/workout";
 import { exerciseById } from "@/lib/data/exercises";
-import { modalityById } from "@/lib/data/modalities";
 import type { Variant } from "@/lib/queries";
+import { describeTarget, nextIncomplete, rxLabel } from "@/lib/session-labels";
 import type { Block } from "@/lib/set-blocks";
-import type { RoutineExercise, SessionCondition, SetLog } from "@/lib/types";
-
-function bandLabel(set: SetLog): string {
-  return set.bandId?.replace(/^(band|hip_band)_/, "").replace(/_/g, "/") ?? "band";
-}
-
-/** Short prefilled-target label for the one-tap hero row. */
-function describeTarget(set: SetLog): string {
-  if (set.durationSeconds !== null) return `${set.durationSeconds}s`;
-  const reps = set.reps !== null ? ` × ${set.reps}` : "";
-  switch (set.modalityId) {
-    case "barbell":
-    case "machine":
-      return `${set.weightLbs ?? "—"} lb${reps}`;
-    case "dumbbell":
-      return set.distanceFeet !== null
-        ? `${set.weightLbs ?? "—"} lb × ${set.distanceFeet} ft`
-        : `${set.weightLbs ?? "—"} lb ea${reps}`;
-    case "bodyweight":
-      return `BW${set.addedWeightLbs ? `+${set.addedWeightLbs}` : ""}${reps}`;
-    case "band":
-      return `${bandLabel(set)} band${reps}`;
-  }
-}
-
-function rxLabel(rx: RoutineExercise): string {
-  const scheme =
-    rx.durationSeconds !== null
-      ? `${rx.sets}×${rx.durationSeconds}s`
-      : rx.repMin === rx.repMax
-        ? `${rx.sets}×${rx.repMax ?? "?"}`
-        : `${rx.sets}×${rx.repMin ?? "?"}–${rx.repMax ?? "?"}`;
-  return `${scheme}${rx.targetRir !== null ? ` @ RIR ${rx.targetRir}` : ""} · rest ${rx.restSeconds}s`;
-}
-
-/** First index at or after `from` that isn't completed, wrapping once. */
-function nextIncomplete(sets: readonly SetLog[], from: number): number {
-  for (let i = from; i < sets.length; i++) if (!sets[i].completed) return i;
-  for (let i = 0; i < from; i++) if (!sets[i].completed) return i;
-  return -1;
-}
+import type { SessionCondition } from "@/lib/types";
 
 /**
  * One person's live card on the group board, laid out as the session's
@@ -76,7 +38,7 @@ export function GroupPersonCard({
   boardElapsedMinutes: number;
   onFinished: () => void;
 }) {
-  const { session, initialSets, prescriptions, clientName, routineName } = person;
+  const { session, initialSets, prescriptions, clientName, routineName, color } = person;
   const editor = useSetEditor(session, initialSets);
   const [cursor, setCursor] = useState(() => {
     const first = initialSets.findIndex((s) => !s.completed);
@@ -130,16 +92,11 @@ export function GroupPersonCard({
     setExpandedKey(null); // follow the flow to the next block
   }
 
-  function skipCurrent() {
-    if (!current) return;
-    const next = nextIncomplete(editor.sets, effectiveCursor + 1);
-    setCursor(next === effectiveCursor ? -1 : next);
-    setExpandedKey(null);
-  }
-
   function tapBlock(block: Block) {
     // Upcoming block: move the workout there. Finished block: just open it
-    // for edits without touching the LOG cursor.
+    // for edits without touching the LOG cursor. (There is no explicit
+    // "skip" — tapping the next exercise IS the skip; unchecked sets never
+    // count toward anything.)
     const firstIncomplete = block.sets.find((s) => !s.completed);
     if (firstIncomplete) {
       const index = editor.sets.findIndex((s) => s.id === firstIncomplete.id);
@@ -171,7 +128,10 @@ export function GroupPersonCard({
 
   if (finished) {
     return (
-      <div className="flex flex-wrap items-baseline gap-2 rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-sm">
+        {color && (
+          <span className="size-3 rounded-full" style={{ backgroundColor: color }} />
+        )}
         <span className="font-semibold">{clientName}</span>
         <span className="text-muted">done · {doneCount} sets</span>
         {rpe !== null && (
@@ -195,9 +155,13 @@ export function GroupPersonCard({
       className={`flex h-full flex-col rounded-xl border bg-surface p-3 transition-opacity ${
         ready ? "border-accent ring-1 ring-accent" : "border-border"
       } ${resting ? "opacity-70" : ""}`}
+      style={ready ? undefined : clientBorderStyle(color)}
     >
       {/* Who + progress */}
       <div className="flex flex-wrap items-center gap-2 pb-2">
+        {color && (
+          <span className="size-3 rounded-full" style={{ backgroundColor: color }} />
+        )}
         <span className="font-semibold">{clientName}</span>
         <span className="text-xs text-muted">{routineName}</span>
         <span className="ml-auto font-mono text-xs text-muted">
@@ -253,36 +217,58 @@ export function GroupPersonCard({
           return (
             <li key={block.key} className="border-t border-border py-2 first:border-t-0">
               {/* Expanded header — tap collapses a manually opened block */}
-              <button
-                type="button"
-                onClick={() => !isCurrent && setExpandedKey(null)}
-                className={`flex w-full flex-wrap items-center gap-2 text-left ${
-                  isCurrent ? "cursor-default" : "cursor-pointer"
-                }`}
-              >
-                <h3
-                  className={
-                    isCurrent
-                      ? "text-xl font-bold tracking-tight"
-                      : "text-base font-semibold"
-                  }
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => !isCurrent && setExpandedKey(null)}
+                  className={`flex min-w-0 flex-1 flex-wrap items-center gap-2 text-left ${
+                    isCurrent ? "cursor-default" : "cursor-pointer"
+                  }`}
                 >
-                  {exercise?.name ?? block.exerciseId}
-                </h3>
-                <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">
-                  {modalityById.get(block.modalityId)?.name ?? block.modalityId}
-                </span>
-                {blockDone && (
-                  <span className="font-mono text-xs text-success-text">✓ done</span>
-                )}
-                {!isCurrent && <span className="ml-auto text-xs text-muted">collapse ▴</span>}
-              </button>
+                  <h3
+                    className={
+                      isCurrent
+                        ? "text-xl font-bold tracking-tight"
+                        : "text-base font-semibold"
+                    }
+                  >
+                    {exercise?.name ?? block.exerciseId}
+                  </h3>
+                  <ModalityChip modalityId={block.modalityId} />
+                  {blockDone && (
+                    <span className="font-mono text-xs text-success-text">✓ done</span>
+                  )}
+                  {!isCurrent && <span className="text-xs text-muted">▴</span>}
+                </button>
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSwapBlock(block)}
+                  aria-label="Replace exercise"
+                  title="Replace exercise"
+                >
+                  <PencilIcon />
+                </IconButton>
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (confirm(`Remove ${exercise?.name ?? "this exercise"} from the session?`)) {
+                      editor.removeBlock(block);
+                    }
+                  }}
+                  aria-label="Remove exercise from session"
+                  title="Remove exercise from session"
+                >
+                  <TrashIcon />
+                </IconButton>
+              </div>
               {rx && <p className="mt-0.5 text-xs text-muted">{rxLabel(rx)}</p>}
 
               {/* LOG hero — only where the workout actually is */}
               {isCurrent && current && (
                 <div className="mt-2 flex items-stretch gap-2">
-                  <div className="flex min-h-12 flex-1 items-center rounded-md bg-background px-3">
+                  <div className="flex min-h-10 flex-1 items-center rounded-md border-2 border-warning/70 bg-warning/5 px-3">
                     <span className="text-xs text-muted">
                       Set {current.setNumber}&nbsp;·&nbsp;
                     </span>
@@ -294,7 +280,7 @@ export function GroupPersonCard({
                     type="button"
                     onClick={logCurrent}
                     disabled={editor.busy}
-                    className="min-h-12 cursor-pointer rounded-md bg-accent-strong px-6 text-sm font-bold tracking-wide text-accent-fg hover:opacity-90 disabled:opacity-50"
+                    className="min-h-10 cursor-pointer rounded-md border border-accent/50 px-4 text-sm font-bold tracking-wide text-accent-text hover:bg-accent/10 disabled:opacity-50"
                   >
                     LOG
                   </button>
@@ -313,18 +299,10 @@ export function GroupPersonCard({
                     onRemove={() => editor.removeSet(set.id)}
                   />
                 ))}
-                <div className="mt-1 flex gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => editor.addSet(block)}>
+                <div className="mt-1 flex justify-end">
+                  <Button size="sm" onClick={() => editor.addSet(block)}>
                     + Add set
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setSwapBlock(block)}>
-                    Replace
-                  </Button>
-                  {isCurrent && (
-                    <Button size="sm" variant="ghost" onClick={skipCurrent} className="ml-auto">
-                      Skip set
-                    </Button>
-                  )}
                 </div>
               </div>
             </li>
@@ -343,9 +321,10 @@ export function GroupPersonCard({
         )}
         <Button
           size="sm"
+          variant="primary"
           onClick={() => setFinishing((v) => !v)}
           aria-expanded={finishing}
-          className="ml-auto"
+          className="ml-auto mt-2"
         >
           Finish {finishing ? "▴" : "…"}
         </Button>

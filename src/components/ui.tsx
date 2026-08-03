@@ -96,7 +96,7 @@ export function Field({ label, children }: { label: string; children: React.Reac
 }
 
 const buttonVariant = {
-  primary: "bg-accent-strong text-accent-fg hover:opacity-90",
+  primary: "border border-accent/50 text-accent-text hover:bg-accent/10",
   secondary: "border border-border-strong bg-surface hover:bg-current/5",
   ghost: "text-muted hover:text-foreground hover:bg-current/5",
   danger: "border border-danger/40 text-danger-text hover:bg-danger/10",
@@ -180,15 +180,47 @@ export function PageShell({
   );
 }
 
-export function Section({ title, children }: { title: string; children: React.ReactNode }) {
+export function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  /** Optional control (e.g. a create form) rendered flex-end in the header. */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section className="mt-10">
-      <h2 className="mb-3 border-b border-border pb-1 text-lg font-semibold">
-        {title}
-      </h2>
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-2 border-b border-border pb-1">
+        <h2 className="text-lg font-semibold">{title}</h2>
+        {action}
+      </div>
       {children}
     </section>
   );
+}
+
+/** Standard mobile-safe wrapper for wide tables — full-bleed scroll on phones. */
+export function TableScroll({ children }: { children: React.ReactNode }) {
+  return <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">{children}</div>;
+}
+
+/** The app's selected/unselected chip-button vocabulary — tabs, filters,
+ *  person switchers. */
+export function chipClass(selected: boolean, extra = "min-h-10 px-3 text-xs"): string {
+  return `inline-flex cursor-pointer items-center gap-1.5 rounded-md ${extra} ${
+    selected
+      ? "bg-accent-soft font-semibold text-accent-text"
+      : "text-muted hover:bg-current/5 hover:text-foreground"
+  }`;
+}
+
+/** Border tint for person-colored cards — one blend everywhere. */
+export function clientBorderStyle(color: string | null): React.CSSProperties | undefined {
+  return color
+    ? { borderColor: `color-mix(in oklab, ${color} 50%, var(--border))` }
+    : undefined;
 }
 
 export function Th({ children, numeric }: { children: React.ReactNode; numeric?: boolean }) {
@@ -211,11 +243,19 @@ export function Td({ children, numeric }: { children: React.ReactNode; numeric?:
   );
 }
 
-export function Stat({ label, value }: { label: string; value: string }) {
+export function Stat({
+  label,
+  value,
+  valueClassName = "",
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+}) {
   return (
     <div>
       <dt className="text-xs uppercase tracking-wide text-muted">{label}</dt>
-      <dd className="font-mono text-xs">{value}</dd>
+      <dd className={`font-mono text-xs ${valueClassName}`}>{value}</dd>
     </div>
   );
 }

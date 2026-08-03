@@ -1,6 +1,13 @@
 import type { GymData } from "./gym-data";
 import type { ClientId } from "./types";
 
+/**
+ * THE date module. Two blessed forms only: display/storage dates are LOCAL
+ * ISO strings (yyyy-mm-dd via en-CA), regression math uses UTC day numbers
+ * (utcDay) — never mix them, and never round-trip a yyyy-mm-dd string
+ * through `new Date(...)` for display (it shifts a day west of UTC).
+ */
+
 export type PeriodKind = "day" | "week" | "program" | "custom";
 
 export type ResolvedPeriod = {
@@ -28,6 +35,17 @@ export function mondayOf(iso: string): string {
 
 export function localTodayIso(): string {
   return new Date().toLocaleDateString("en-CA");
+}
+
+/** Today's weekday in the schema's numbering: 1 = Monday .. 7 = Sunday. */
+export function todayDow(): number {
+  return ((new Date().getDay() + 6) % 7) + 1;
+}
+
+/** Days since epoch, in UTC — immune to DST and local offsets. For trend
+ *  math only, never display. */
+export function utcDay(date: string): number {
+  return new Date(`${date}T00:00:00Z`).getTime() / 86_400_000;
 }
 
 export function resolvePeriod(

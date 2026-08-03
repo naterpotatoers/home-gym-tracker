@@ -1,4 +1,5 @@
 import type {
+  Client,
   Assignment,
   Program,
   ProgramDay,
@@ -187,6 +188,40 @@ export function setLogToRow(s: SetLog) {
     is_warmup: s.isWarmup,
     completed: s.completed,
     notes: s.notes,
+  };
+}
+
+export function rowToClient(r: any): Client {
+  return {
+    id: r.id,
+    firstName: r.first_name,
+    lastName: r.last_name,
+    status: r.status,
+    joinDate: r.join_date,
+    dateOfBirth: r.date_of_birth,
+    heightInches: r.height_inches,
+    experienceLevel: r.experience_level,
+    goal: r.goal,
+    isTrainer: r.is_trainer,
+    color: r.color,
+    notes: r.notes,
+  };
+}
+
+export function clientToRow(c: Client) {
+  return {
+    id: c.id,
+    first_name: c.firstName,
+    last_name: c.lastName,
+    status: c.status,
+    join_date: c.joinDate,
+    date_of_birth: c.dateOfBirth,
+    height_inches: c.heightInches,
+    experience_level: c.experienceLevel,
+    goal: c.goal,
+    is_trainer: c.isTrainer,
+    color: c.color,
+    notes: c.notes,
   };
 }
 

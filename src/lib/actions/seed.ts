@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { weighIns } from "../data/clients";
+import { clients, weighIns } from "../data/clients";
 import {
   assignments,
   programDays,
@@ -13,6 +13,7 @@ import { sessions, setLogs } from "../data/sessions";
 import { supabase } from "../db/client";
 import {
   assignmentToRow,
+  clientToRow,
   programDayToRow,
   programToRow,
   routineExerciseToRow,
@@ -45,13 +46,17 @@ export async function seedDatabase(): Promise<void> {
       `Tables missing (${missing.map((s) => s.table).join(", ")}) — run supabase/migrations/001_init.sql in the Supabase SQL editor first.`,
     );
   }
-  const nonEmpty = statuses.filter((s) => (s.count ?? 0) > 0);
+  // Migration 002 seeds the clients table itself, so rows there are expected
+  // and must not block a fresh bootstrap of everything else.
+  const nonEmpty = statuses.filter((s) => s.table !== "clients" && (s.count ?? 0) > 0);
   if (nonEmpty.length > 0) {
     throw new Error(
       `Refusing to seed: ${nonEmpty.map((s) => `${s.table} has ${s.count} rows`).join(", ")}.`,
     );
   }
 
+  const clientsEmpty = statuses.find((s) => s.table === "clients")?.count === 0;
+  if (clientsEmpty) await insertAll("clients", clients.map(clientToRow));
   await insertAll("routines", routines.map(routineToRow));
   await insertAll("routine_exercises", routineExercises.map(routineExerciseToRow));
   await insertAll("programs", programs.map(programToRow));

@@ -1,5 +1,5 @@
 import { barById, plates } from "./data/equipment";
-import type { Bar, EquipmentId } from "./types";
+import type { Bar,} from "./types";
 
 /**
  * Plate math. Everything here is pure and derived from `plates` in
@@ -45,21 +45,6 @@ export function loadableWeights(barId: BarId): number[] {
   return perSideSumUnits.map((side) => toLbs(barUnits + side * 2));
 }
 
-/** Smallest buildable weight >= target, or null if it exceeds your plates. */
-export function nextLoadableWeight(
-  target: number,
-  barId: BarId = "ohio_bar",
-): number | null {
-  const targetUnits = toUnits(target);
-  const bar = barById.get(barId);
-  if (!bar) throw new Error(`Unknown bar: ${barId}`);
-  const barUnits = toUnits(bar.weightLbs);
-  for (const side of perSideSumUnits) {
-    const total = barUnits + side * 2;
-    if (total >= targetUnits) return toLbs(total);
-  }
-  return null;
-}
 
 /** Closest buildable weight in either direction. Ties round down — a load you
  *  can definitely complete beats one you might miss. */
@@ -149,4 +134,3 @@ export function smallestIncrement(barId: BarId = "ohio_bar"): number | null {
   return min;
 }
 
-export const BAR_EQUIPMENT_IDS: readonly EquipmentId[] = ["ohio_bar", "bella_bar"];

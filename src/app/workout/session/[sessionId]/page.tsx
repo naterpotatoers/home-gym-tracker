@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
 import { WorkoutRunner } from "@/components/workout-runner";
 import { Chip, PageShell, SeedBanner } from "@/components/ui";
-import { clientById } from "@/lib/data/clients";
 import { exerciseById } from "@/lib/data/exercises";
-import { modalityById } from "@/lib/data/modalities";
+import { ModalityChip } from "@/components/modality-chip";
 import { loadGymData } from "@/lib/db/snapshot";
 import { availableVariants, blocksFor, describeSet } from "@/lib/queries";
 
@@ -17,7 +16,7 @@ export default async function SessionPage({
   const session = data.sessionById.get(sessionId);
   if (!session) notFound();
 
-  const client = clientById.get(session.clientId);
+  const client = data.clientById.get(session.clientId);
 
   // Completed or skipped: read-only recap.
   if (session.status !== "planned") {
@@ -31,19 +30,21 @@ export default async function SessionPage({
           {session.rpe !== null && <Chip>RPE {session.rpe}</Chip>}
           {session.condition && <Chip>felt {session.condition}</Chip>}
           {session.durationMinutes !== null && (
-            <span className="text-sm opacity-60">{session.durationMinutes} min</span>
+            <span className="text-sm text-muted">{session.durationMinutes} min</span>
           )}
         </div>
-        {session.notes && <p className="mt-2 text-sm opacity-70">{session.notes}</p>}
+        {session.notes && <p className="mt-2 text-sm text-muted">{session.notes}</p>}
 
         <div className="mt-6 space-y-4">
           {blocksFor(data, session.id).map((block, i) => (
             <div key={i}>
               <h2 className="text-sm font-semibold">
                 {exerciseById.get(block.exerciseId)?.name}
-                <span className="ml-2 rounded bg-current/10 px-1.5 py-0.5 text-xs font-normal">
-                  {modalityById.get(block.modalityId)?.name}
-                  {block.sets[0].bandRole === "assistance" && " · assisted"}
+                <span className="ml-2 inline-flex items-center gap-1.5 font-normal">
+                  <ModalityChip modalityId={block.modalityId} />
+                  {block.sets[0].bandRole === "assistance" && (
+                    <span className="text-xs text-muted">assisted</span>
+                  )}
                 </span>
               </h2>
               <ul className="mt-1 space-y-0.5 text-sm opacity-80">

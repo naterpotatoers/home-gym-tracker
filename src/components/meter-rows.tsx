@@ -1,4 +1,7 @@
 import type { CoverageStatus } from "@/lib/coverage";
+import type { MeterGroup, MeterRow } from "@/lib/meters";
+
+export type { MeterGroup, MeterRow };
 
 /**
  * Shared status-colored muscle meters — used by the routine/program coverage
@@ -8,20 +11,7 @@ import type { CoverageStatus } from "@/lib/coverage";
  * indicator, never as length in a pounds bar.
  */
 
-export type MeterRow = {
-  id: string;
-  name: string;
-  peakScore: number;
-  /** Drives bar length, relative to the group set's max. */
-  value: number;
-  /** Right-hand value text — "4.5" hard sets or "12,340 lb". */
-  display: string;
-  status: CoverageStatus;
-  /** Extra annotation for ordinal work, e.g. "+120 ord". */
-  ordinalNote?: string;
-};
 
-export type MeterGroup = { groupId: string; label: string; rows: MeterRow[] };
 
 const FILL: Record<CoverageStatus, string> = {
   solid: "bg-success",

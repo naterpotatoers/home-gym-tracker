@@ -1,10 +1,6 @@
-import { clients } from "./data/clients";
-import { bands } from "./data/equipment";
 import { exercises } from "./data/exercises";
 import { modalities } from "./data/modalities";
 import type {
-  BandId,
-  ClientId,
   ExerciseId,
   ModalityId,
   SessionCondition,
@@ -17,8 +13,6 @@ import type {
  */
 const exerciseIds = new Set<string>(exercises.map((e) => e.id));
 const modalityIds = new Set<string>(modalities.map((m) => m.id));
-const clientIds = new Set<string>(clients.map((c) => c.id));
-const bandIds = new Set<string>(bands.map((b) => b.id));
 
 export function isExerciseId(id: string): id is ExerciseId {
   return exerciseIds.has(id);
@@ -26,14 +20,6 @@ export function isExerciseId(id: string): id is ExerciseId {
 
 export function isModalityId(id: string): id is ModalityId {
   return modalityIds.has(id);
-}
-
-export function isClientId(id: string): id is ClientId {
-  return clientIds.has(id);
-}
-
-export function isBandId(id: string): id is BandId {
-  return bandIds.has(id);
 }
 
 const conditions = new Set<string>(["rough", "tired", "normal", "good", "great"]);

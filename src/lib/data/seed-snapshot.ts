@@ -1,5 +1,5 @@
 import { buildGymData, type GymData } from "../gym-data";
-import { weighIns } from "./clients";
+import { clients, weighIns } from "./clients";
 import {
   assignments,
   programDays,
@@ -25,5 +25,7 @@ export function seedSnapshot(): GymData {
     sessions,
     setLogs,
     weighIns,
+    clientsSource: "seed",
+    clients,
   });
 }

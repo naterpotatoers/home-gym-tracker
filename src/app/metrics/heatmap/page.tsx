@@ -2,7 +2,6 @@ import { BodyHeatmap } from "@/components/body-heatmap";
 import { HeatmapControls, type HeatmapParams } from "@/components/heatmap-controls";
 import { Note, PageShell, SeedBanner } from "@/components/ui";
 import { weekCoverage } from "@/lib/coverage";
-import { clientById } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
 import {
   heatMax,
@@ -14,7 +13,6 @@ import {
 import { resolvePeriod, type PeriodKind } from "@/lib/periods";
 import { muscleVolume } from "@/lib/queries";
 import type { ClientId, MuscleId } from "@/lib/types";
-import { isClientId } from "@/lib/validate";
 
 type Panel = { title: string; values: Map<MuscleId, HeatValue> };
 
@@ -27,7 +25,7 @@ export default async function HeatmapPage({
   const data = await loadGymData();
 
   const clientId: ClientId =
-    raw.client && isClientId(raw.client) ? raw.client : "nate";
+    raw.client && data.clientById.has(raw.client) ? raw.client : "nate";
   const mode = raw.mode === "prescribed" ? "prescribed" : "logged";
   const period: PeriodKind = ["day", "week", "program", "custom"].includes(
     raw.period ?? "",
@@ -60,7 +58,7 @@ export default async function HeatmapPage({
   let nextAnchor: string | null = null;
 
   if (mode === "logged") {
-    const clientName = clientById.get(clientId)?.firstName ?? clientId;
+    const clientName = data.clientById.get(clientId)?.firstName ?? clientId;
     const periodA = resolvePeriod(data, clientId, {
       period,
       date: raw.date,
@@ -142,13 +140,14 @@ export default async function HeatmapPage({
     <PageShell>
       {data.source === "seed" && <SeedBanner />}
       <h1 className="text-3xl font-bold tracking-tight">Muscle heat map</h1>
-      <p className="mt-2 text-sm opacity-70">
+      <p className="mt-2 text-sm text-muted">
         {mode === "logged"
           ? "Trained volume per muscle, from logged sets."
           : "Prescribed weekly coverage per muscle, from the program's routines."}
       </p>
 
       <HeatmapControls
+        people={data.clients.map((c) => ({ id: c.id, firstName: c.firstName }))}
         params={params}
         programs={[...data.programs]}
         prevAnchor={prevAnchor}
@@ -156,7 +155,7 @@ export default async function HeatmapPage({
       />
 
       {panels.length === 0 ? (
-        <p className="mt-8 text-sm opacity-60">No programs to show yet.</p>
+        <p className="mt-8 text-sm text-muted">No programs to show yet.</p>
       ) : (
         <div className={`mt-8 grid gap-8 ${panels.length > 1 ? "sm:grid-cols-2" : ""}`}>
           {panels.map((panel) => (

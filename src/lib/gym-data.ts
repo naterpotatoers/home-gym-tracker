@@ -1,5 +1,6 @@
 import type {
   Assignment,
+  Client,
   Program,
   ProgramDay,
   Routine,
@@ -21,6 +22,10 @@ export type GymData = {
    *  exist yet and the app is running read-only off the TypeScript seed — the
    *  UI shows a setup banner and writes will fail until the migration runs. */
   source: "database" | "seed";
+  /** Clients fall back to the TypeScript seed separately, so a database that
+   *  ran migration 001 but not 002 keeps working (read-only roster). */
+  clientsSource: "database" | "seed";
+  clients: readonly Client[];
   routines: readonly Routine[];
   routineExercises: readonly RoutineExercise[];
   programs: readonly Program[];
@@ -37,11 +42,14 @@ export type GymData = {
   /** Prescriptions per routine, sorted by order. */
   exercisesByRoutine: ReadonlyMap<string, RoutineExercise[]>;
   programById: ReadonlyMap<string, Program>;
+  clientById: ReadonlyMap<string, Client>;
 };
 
 export type GymTables = Pick<
   GymData,
   | "source"
+  | "clientsSource"
+  | "clients"
   | "routines"
   | "routineExercises"
   | "programs"
@@ -80,5 +88,6 @@ export function buildGymData(tables: GymTables): GymData {
     routineById: new Map(tables.routines.map((r) => [r.id, r])),
     exercisesByRoutine,
     programById: new Map(tables.programs.map((p) => [p.id, p])),
+    clientById: new Map(tables.clients.map((c) => [c.id, c])),
   };
 }

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "../db/client";
 import { newId, slugId } from "../ids";
-import { isClientId } from "../validate";
+import { assertClientId } from "./clients";
 
 export async function createProgram(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
@@ -206,7 +206,7 @@ export async function createAssignment(formData: FormData): Promise<void> {
   const programId = String(formData.get("programId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
   const startDate = String(formData.get("startDate") ?? "");
-  if (!isClientId(clientId)) throw new Error(`bad client id ${clientId}`);
+  await assertClientId(clientId);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) throw new Error("Pick a start date.");
   const { error } = await supabase.from("assignments").insert({
     id: newId("a"),

@@ -10,7 +10,7 @@ Known Next 16 gotchas already honored in this codebase: `params`/`searchParams` 
 
 ## Architecture (don't fight it)
 
-- **Hybrid storage.** Reference data (muscles, modalities, equipment, exercises, clients) is TypeScript in `src/lib/data/` with id unions — never move it to the DB. Mutable data (routines, programs, program_days, assignments, sessions, set_logs, weigh_ins) is Supabase; schema lives in `supabase/migrations/001_init.sql`.
+- **Hybrid storage.** Reference data (muscles, modalities, equipment, exercises) is TypeScript in `src/lib/data/` with id unions — never move it to the DB. Mutable data (clients, routines, programs, program_days, assignments, sessions, set_logs, weigh_ins) is Supabase; schema lives in `supabase/migrations/`. Clients graduated to the DB in `002_clients.sql` (so people can be added/edited at `/users`): `ClientId` is an open string, the TS roster in `src/lib/data/clients.ts` is seed + read-only fallback (`GymData.clientsSource === "seed"` while 002 hasn't run), and client ids are validated at write time via `assertClientId` in `src/lib/actions/clients.ts`, not a compile-time union. Client card colors come from the `CLIENT_COLORS` presets only — never free hex.
 - **Reads = snapshot.** Server pages call `loadGymData()` (`src/lib/db/snapshot.ts`, server-only, per-request `cache()`); it falls back to the TS seed (`GymData.source === "seed"`) only while the migration hasn't run. Query functions in `queries.ts`/`modality.ts`/`coverage.ts` are pure and synchronous over `(data: GymData, ...)` — keep new ones that way; never fetch inside them.
 - **Writes = server actions** in `src/lib/actions/`. The browser never imports the Supabase client. Every action validates text FKs against the unions via `src/lib/validate.ts` and ends with `revalidatePath("/", "layout")`.
 - **snake_case rows ↔ camelCase types** map only in `src/lib/db/mappers.ts`. `RoutineExercise.order` ↔ column `sort_order`; both mapper directions must stay complete when a type changes.
@@ -22,6 +22,7 @@ Known Next 16 gotchas already honored in this codebase: `params`/`searchParams` 
 - `SetLog.position` is session-wide performed order and must survive every structural edit — `blocksFor`/`toBlocks` group consecutive sets by it. Renumber via `renumber()` in `src/lib/set-blocks.ts`.
 - Muscle work derives from `exerciseMuscleScores` × modality modifiers (`effectiveScores`); exercises deliberately have no muscleGroup field. A modality modifier adjusts, never introduces, a muscle.
 - Ids are readable slugs (`newId`/`slugId` in `src/lib/ids.ts`), never numbers.
+- Date/time helpers live ONLY in `src/lib/periods.ts` (local ISO strings for display/storage, UTC day numbers for trend math — never mix). Meter view-model types live in `src/lib/meters.ts`; session card label/cursor helpers in `src/lib/session-labels.ts`.
 
 ## UI conventions
 
@@ -34,4 +35,4 @@ Known Next 16 gotchas already honored in this codebase: `params`/`searchParams` 
 
 ## Verify before done
 
-`npx tsc --noEmit && npm run lint && npm run build`, then render-check touched routes against the dev server (usually already running on :3000 — don't kill it, don't start a second one on the same project). Write-path changes need the live DB (`/dev/seed` shows its state). For SVG/visual work: extract the SSR'd markup, rasterize with `qlmanage -t`, and actually look at it.
+`npm run verify` (typecheck + lint + unit tests + build; the pure query layer is tested with vitest against `seedSnapshot()` — add tests beside the module as `src/lib/*.test.ts` when touching domain math), then render-check touched routes against the dev server (usually already running on :3000 — don't kill it, don't start a second one on the same project). Write-path changes need the live DB (`/dev/seed` shows its state). For SVG/visual work: extract the SSR'd markup, rasterize with `qlmanage -t`, and actually look at it.

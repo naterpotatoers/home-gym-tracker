@@ -138,12 +138,12 @@ export function BodyHeatmap({
       </div>
 
       {/* Fixed-height detail row — tap a muscle to pin it. */}
-      <p className="mt-2 min-h-5 font-mono text-xs opacity-80">
+      <p className="mt-2 min-h-5 font-mono text-xs">
         {active ? (
           (activeValue?.detail ??
             `${muscleById.get(active)?.name ?? active} — no work in this view`)
         ) : (
-          <span className="opacity-60">tap a muscle for numbers</span>
+          <span className="text-muted">tap a muscle for numbers</span>
         )}
       </p>
 

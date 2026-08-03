@@ -1,21 +1,24 @@
 import Link from "next/link";
-import { PageShell, SeedBanner } from "@/components/ui";
-import { clientById } from "@/lib/data/clients";
+import { Note, PageShell, SeedBanner, Stat } from "@/components/ui";
+import { bars, dumbbells } from "@/lib/data/equipment";
+import { modalities } from "@/lib/data/modalities";
 import { loadGymData } from "@/lib/db/snapshot";
-import { routineForDay } from "@/lib/queries";
+import { todayDow } from "@/lib/periods";
+import { loadableWeights, smallestIncrement } from "@/lib/loading";
+import { availableVariants, hipBandLadder, routineForDay } from "@/lib/queries";
 
 const FLOWS = [
   {
     href: "/programs",
-    title: "Program Builder",
+    title: "Plan",
     blurb:
       "Build daily routines, arrange them into weekly programs, and see which muscles a week neglects.",
   },
   {
     href: "/metrics",
-    title: "Historical Metrics",
+    title: "Progress",
     blurb:
-      "Compare PRs across everyone, and ask what weight fits a rep range — or what reps fit a weight.",
+      "Pick a person and a lift — history, PRs, trends, and whether the number is actually going up.",
   },
   {
     href: "/workout",
@@ -28,22 +31,53 @@ const FLOWS = [
 export default async function Home() {
   const data = await loadGymData();
 
-  // JS Sunday-first day → the schema's 1 = Monday .. 7 = Sunday.
-  const todayDow = ((new Date().getDay() + 6) % 7) + 1;
+  const dow = todayDow();
   const today = data.assignments
     .filter((a) => a.status === "active")
     .map((a) => ({
       clientId: a.clientId,
-      prescribed: routineForDay(data, a.clientId, todayDow),
+      prescribed: routineForDay(data, a.clientId, dow),
     }))
     .filter((t) => t.prescribed !== null);
 
   const inProgress = data.sessions.filter((s) => s.status === "planned");
 
+  const ohioLoads = loadableWeights("ohio_bar");
+  const ownedModalities = modalities.filter((m) => m.owned);
+
   return (
     <PageShell>
       {data.source === "seed" && <SeedBanner />}
       <h1 className="text-3xl font-bold tracking-tight">Home Gym</h1>
+
+      {/* At a glance — the garage in five numbers, and how progress is scored. */}
+      <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        <Stat
+          label="Exercise variants"
+          value={`${availableVariants().length} across ${ownedModalities.length} modalities`}
+        />
+        <Stat
+          label="Barbell"
+          value={`${bars.map((b) => b.name).join(" · ")} — ${ohioLoads[0]}–${ohioLoads.at(-1)} lb in ${smallestIncrement("ohio_bar")} lb steps`}
+        />
+        <Stat
+          label="Dumbbells"
+          value={`${dumbbells.map((d) => d.weightLbs).join(", ")} lb`}
+        />
+        <Stat
+          label="Hip bands (easy → hard)"
+          value={hipBandLadder()
+            .map(({ band }) => band.label)
+            .join(" → ")}
+        />
+        <Stat label="People" value={`${data.clients.length} training`} />
+      </dl>
+      <Note>
+        Strength is scored as estimated 1RM (Epley) over completed working sets
+        — warmups never count. Muscle volume is score-weighted: every set
+        credits each muscle by how directly it trains it. Hip-band work is
+        tracked honestly as band rank + reps, never converted to pounds.
+      </Note>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
         {FLOWS.map((flow) => (
@@ -53,7 +87,7 @@ export default async function Home() {
             className="rounded-xl border border-border bg-surface p-5 hover:border-accent/50"
           >
             <h2 className="text-lg font-semibold">{flow.title}</h2>
-            <p className="mt-2 text-sm leading-relaxed opacity-70">{flow.blurb}</p>
+            <p className="mt-2 text-sm leading-relaxed text-muted">{flow.blurb}</p>
           </Link>
         ))}
       </div>
@@ -70,7 +104,7 @@ export default async function Home() {
                   href={`/workout/session/${session.id}`}
                   className="text-accent-text underline underline-offset-2"
                 >
-                  Resume {clientById.get(session.clientId)?.firstName} —{" "}
+                  Resume {data.clientById.get(session.clientId)?.firstName} —{" "}
                   {data.routineById.get(session.routineId ?? "")?.name ?? "session"}{" "}
                   ({session.date})
                 </Link>
@@ -85,7 +119,7 @@ export default async function Home() {
           Today
         </h2>
         {today.length === 0 ? (
-          <p className="text-sm opacity-60">
+          <p className="text-sm text-muted">
             No program prescribes training today. Rest day — or start an ad-hoc
             routine from{" "}
             <Link href="/workout" className="text-accent-text underline underline-offset-2">
@@ -98,7 +132,7 @@ export default async function Home() {
             {today.map(({ clientId, prescribed }) => (
               <li key={clientId} className="flex items-baseline gap-3">
                 <span className="font-semibold">
-                  {clientById.get(clientId)?.firstName}
+                  {data.clientById.get(clientId)?.firstName}
                 </span>
                 <span className="opacity-70">
                   {data.routineById.get(prescribed!.routineId)?.name} ·{" "}

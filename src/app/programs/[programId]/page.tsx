@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BodyHeatmap } from "@/components/body-heatmap";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
-import { Button, Input, PageShell, Section, SeedBanner, Select } from "@/components/ui";
+import { Button, Input, PageShell, Section, SeedBanner, Select, chipClass } from "@/components/ui";
 import { ProgramEditor } from "@/components/week-grid";
 import {
   createAssignment,
@@ -10,7 +10,6 @@ import {
   updateAssignmentStatus,
 } from "@/lib/actions/programs";
 import { coverageByGroup, neglectedMuscles, weekCoverage } from "@/lib/coverage";
-import { clients } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
 import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
 
@@ -56,11 +55,7 @@ export default async function ProgramPage({
             <Link
               key={w}
               href={`/programs/${programId}?week=${w}`}
-              className={`inline-flex min-h-10 min-w-10 items-center justify-center rounded-md px-2 font-mono text-xs ${
-                w === week
-                  ? "bg-accent-soft font-semibold text-accent-text"
-                  : "text-muted hover:bg-current/5 hover:text-foreground"
-              }`}
+              className={chipClass(w === week, "min-h-10 min-w-10 justify-center px-2 font-mono text-xs")}
             >
               {w}
             </Link>
@@ -92,10 +87,10 @@ export default async function ProgramPage({
             {assignments.map((assignment) => (
               <li key={assignment.id} className="flex flex-wrap items-center gap-3">
                 <span className="font-semibold">
-                  {clients.find((c) => c.id === assignment.clientId)?.firstName ??
+                  {data.clients.find((c) => c.id === assignment.clientId)?.firstName ??
                     assignment.clientId}
                 </span>
-                <span className="text-xs opacity-60">
+                <span className="text-xs text-muted">
                   since {assignment.startDate}
                 </span>
                 <form
@@ -119,7 +114,7 @@ export default async function ProgramPage({
         <form action={createAssignment} className="flex flex-wrap items-center gap-2 text-sm">
           <input type="hidden" name="programId" value={programId} />
           <Select name="clientId">
-            {clients.map((client) => (
+            {data.clients.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.firstName}
               </option>

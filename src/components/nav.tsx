@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { iconProps } from "@/components/icons";
 
 const LINKS = [
-  { href: "/programs", label: "Programs", short: "Programs", icon: CalendarIcon },
-  { href: "/routines", label: "Routines", short: "Routines", icon: ListIcon },
-  { href: "/metrics", label: "Metrics", short: "Metrics", icon: ChartIcon },
+  { href: "/programs", label: "Plan", short: "Plan", icon: CalendarIcon },
+  { href: "/metrics", label: "Progress", short: "Progress", icon: ChartIcon },
   { href: "/workout", label: "Start Workout", short: "Workout", icon: PlayIcon },
-  { href: "/library", label: "Library", short: "Library", icon: BookIcon },
+  { href: "/users", label: "Users", short: "Users", icon: PersonIcon },
 ] as const;
 
 export function Nav() {
@@ -63,39 +63,18 @@ export function Nav() {
   );
 }
 
-function iconProps() {
-  return {
-    width: 20,
-    height: 20,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-  } as const;
-}
-
 function CalendarIcon() {
   return (
-    <svg {...iconProps()} aria-hidden>
+    <svg {...iconProps(20)} aria-hidden>
       <rect x="3" y="5" width="18" height="16" rx="2" />
       <path d="M3 10h18M8 3v4M16 3v4" />
     </svg>
   );
 }
 
-function ListIcon() {
-  return (
-    <svg {...iconProps()} aria-hidden>
-      <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
-    </svg>
-  );
-}
-
 function ChartIcon() {
   return (
-    <svg {...iconProps()} aria-hidden>
+    <svg {...iconProps(20)} aria-hidden>
       <path d="M4 20V10M10 20V4M16 20v-7M21 20H3" />
     </svg>
   );
@@ -103,17 +82,18 @@ function ChartIcon() {
 
 function PlayIcon() {
   return (
-    <svg {...iconProps()} aria-hidden>
+    <svg {...iconProps(20)} aria-hidden>
       <circle cx="12" cy="12" r="9" />
       <path d="M10 9l5 3-5 3z" />
     </svg>
   );
 }
 
-function BookIcon() {
+function PersonIcon() {
   return (
-    <svg {...iconProps()} aria-hidden>
-      <path d="M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zm0 0a2 2 0 0 0 2 2h13" />
+    <svg {...iconProps(20)} aria-hidden>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4 3.5-6.5 8-6.5s8 2.5 8 6.5" />
     </svg>
   );
 }

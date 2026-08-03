@@ -1,57 +1,25 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Select } from "@/components/ui";
-import { clients } from "@/lib/data/clients";
+import { chipClass } from "@/components/ui";
+import { progressHref, type ProgressParams } from "@/lib/progress-url";
 
 export type VolumeSort = "group" | "volume" | "status";
 export type VolumeFilter = "all" | "needs-work";
 
-/** URL-state controls for the library's per-muscle volume section — the
- *  server page reads the same searchParams and computes everything. */
-export function VolumeControls({
-  clientId,
-  sort,
-  filter,
-}: {
-  clientId: string;
-  sort: VolumeSort;
-  filter: VolumeFilter;
-}) {
+/** Sort/filter chips for the Progress page's per-muscle volume section.
+ *  Person is page-level state now, so there's no person select here. */
+export function VolumeControls({ params }: { params: ProgressParams }) {
   const router = useRouter();
 
-  function navigate(patch: Partial<{ client: string; sort: string; filter: string }>) {
-    const merged = { client: clientId, sort, filter, ...patch };
-    const params = new URLSearchParams();
-    if (merged.client !== "nate") params.set("client", merged.client);
-    if (merged.sort !== "group") params.set("sort", merged.sort);
-    if (merged.filter !== "all") params.set("filter", merged.filter);
-    const qs = params.toString();
-    router.replace(`/library${qs ? `?${qs}` : ""}`, { scroll: false });
+  function navigate(patch: Partial<ProgressParams>) {
+    router.replace(progressHref({ ...params, ...patch }), { scroll: false });
   }
 
-  const chip = (selected: boolean) =>
-    `min-h-10 rounded-md px-3 text-xs ${
-      selected
-        ? "bg-accent-soft font-semibold text-accent-text"
-        : "text-muted hover:bg-current/5 hover:text-foreground"
-    }`;
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
-      <Select
-        value={clientId}
-        onChange={(e) => navigate({ client: e.target.value })}
-        aria-label="Person"
-      >
-        {clients.map((client) => (
-          <option key={client.id} value={client.id}>
-            {client.firstName}
-          </option>
-        ))}
-      </Select>
-
-      <span className="ml-2 flex gap-1">
+      <span className="flex gap-1">
         {(
           [
             ["group", "by group"],
@@ -62,7 +30,7 @@ export function VolumeControls({
           <button
             key={id}
             type="button"
-            className={chip(sort === id)}
+            className={chipClass(params.sort === id)}
             onClick={() => navigate({ sort: id })}
           >
             {label}
@@ -70,17 +38,17 @@ export function VolumeControls({
         ))}
       </span>
 
-      <span className="flex gap-1 sm:ml-2">
+      <span className="ml-2 flex gap-1">
         <button
           type="button"
-          className={chip(filter === "all")}
+          className={chipClass(params.filter === "all")}
           onClick={() => navigate({ filter: "all" })}
         >
           all
         </button>
         <button
           type="button"
-          className={chip(filter === "needs-work")}
+          className={chipClass(params.filter === "needs-work")}
           onClick={() => navigate({ filter: "needs-work" })}
         >
           needs work

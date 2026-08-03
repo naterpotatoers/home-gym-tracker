@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ModalityChip } from "@/components/modality-chip";
 import { Button, Input } from "@/components/ui";
 import { exerciseById } from "@/lib/data/exercises";
 import type { Variant } from "@/lib/queries";
@@ -101,14 +102,12 @@ export function ExercisePicker({
                     className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-current/5"
                   >
                     <span>{variant.exerciseName}</span>
-                    <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">
-                      {variant.modalityName}
-                    </span>
+                    <ModalityChip modalityId={variant.exerciseModality.modalityId} />
                     {!variant.allowsFailure && (
-                      <span className="text-xs opacity-50">no fail-safe</span>
+                      <span className="text-xs text-muted">no fail-safe</span>
                     )}
                     {variant.exerciseModality.isDefault && (
-                      <span className="text-xs opacity-40">default</span>
+                      <span className="text-xs text-muted">default</span>
                     )}
                   </button>
                 </li>

@@ -469,7 +469,6 @@ function em(
 export const exerciseById = new Map(exercises.map((e) => [e.id, e]));
 
 export const scoresByExercise = groupBy(exerciseMuscleScores, (r) => r.exerciseId);
-export const modalitiesByExercise = groupBy(exerciseModalities, (r) => r.exerciseId);
 
 function groupBy<T, K>(rows: readonly T[], key: (row: T) => K): Map<K, T[]> {
   const out = new Map<K, T[]>();

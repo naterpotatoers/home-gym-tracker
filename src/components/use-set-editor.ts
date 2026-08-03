@@ -28,24 +28,61 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
     setError(e instanceof Error ? e.message : "Save failed.");
   }
 
-  /** Field edit: optimistic local update, debounced single-row save. */
+  /** Load fields cascade forward when edited — "update once, rolls out". */
+  const LOAD_KEYS = ["weightLbs", "addedWeightLbs", "bandId", "bandRole"] as const;
+
+  /**
+   * Field edit: optimistic local update, debounced single-row save. Editing a
+   * load field on an INCOMPLETE set also applies it to every later incomplete
+   * set of the same exercise block; completed sets are never touched, and
+   * fixing a completed set never cascades.
+   */
   function patchSet(id: string, changes: Partial<SetLog>) {
-    let updated: SetLog | undefined;
+    const target = sets.find((s) => s.id === id);
+    const loadPatch: Partial<SetLog> = {};
+    for (const key of LOAD_KEYS) {
+      if (key in changes) (loadPatch as Record<string, unknown>)[key] = changes[key];
+    }
+    let cascadeIds: ReadonlySet<string> = new Set();
+    if (target && !target.completed && Object.keys(loadPatch).length > 0) {
+      const block = blocks.find((b) => b.sets.some((s) => s.id === id));
+      if (block) {
+        cascadeIds = new Set(
+          block.sets
+            .filter((s) => s.position > target.position && !s.completed)
+            .map((s) => s.id),
+        );
+      }
+    }
+
+    const updated = new Map<string, SetLog>();
     setSets((prev) =>
       prev.map((set) => {
-        if (set.id !== id) return set;
-        updated = { ...set, ...changes };
-        return updated;
+        if (set.id === id) {
+          const next = { ...set, ...changes };
+          updated.set(set.id, next);
+          return next;
+        }
+        if (cascadeIds.has(set.id)) {
+          const next = { ...set, ...loadPatch };
+          updated.set(set.id, next);
+          return next;
+        }
+        return set;
       }),
     );
+
     const timers = saveTimers.current;
-    clearTimeout(timers.get(id));
-    timers.set(
-      id,
-      setTimeout(() => {
-        if (updated) updateSetLog(updated).catch(report);
-      }, 600),
-    );
+    for (const [setId] of updated) {
+      clearTimeout(timers.get(setId));
+      timers.set(
+        setId,
+        setTimeout(() => {
+          const row = updated.get(setId);
+          if (row) updateSetLog(row).catch(report);
+        }, 600),
+      );
+    }
   }
 
   /** Structural change: renumber locally, then sync the whole list. */
@@ -68,6 +105,12 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
 
   function removeSet(id: string) {
     restructure(sets.filter((s) => s.id !== id));
+  }
+
+  /** Drop an entire exercise from the session — one structural sync. */
+  function removeBlock(block: Block) {
+    const ids = new Set(block.sets.map((s) => s.id));
+    restructure(sets.filter((s) => !ids.has(s.id)));
   }
 
   /** Replace a block's exercise: incomplete sets move to the new variant with
@@ -116,6 +159,7 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
     restructure,
     addSet,
     removeSet,
+    removeBlock,
     swapExercise,
     flush,
   };

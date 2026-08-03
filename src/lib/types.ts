@@ -150,7 +150,9 @@ export type ExerciseId =
   // mobility
   | "stretch";
 
-export type ClientId = "lidia" | "gabriel" | "vivica" | "nate";
+/** Clients live in the database now (migration 002), so ids are open
+ *  strings — the readable-slug convention still applies (`c_maria_x1`). */
+export type ClientId = string;
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -386,6 +388,8 @@ export type Client = {
   goal: Goal;
   /** True for you. Clients are records you manage, not users who log in. */
   isTrainer: boolean;
+  /** Preset swatch hex for this person's group-board card outline, or null. */
+  color: string | null;
   notes: string;
 };
 

@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { localTodayIso } from "../periods";
 import { supabase } from "../db/client";
 import { sessionToRow, setLogToRow } from "../db/mappers";
 import { loadGymData } from "../db/snapshot";
-import { localToday, plannedSessionFromRoutine } from "../planning";
+import { plannedSessionFromRoutine } from "../planning";
 import type { ClientId, Session, SetLog } from "../types";
-import { isClientId } from "../validate";
+import { assertClientId } from "./clients";
 
 export type GroupEntry =
   | { clientId: ClientId; routineId: string; assignmentId: string | null }
@@ -34,13 +35,13 @@ export async function startGroupSessions(entries: GroupEntry[]): Promise<void> {
       sessionIds.push(session.id);
       continue;
     }
-    if (!isClientId(entry.clientId)) throw new Error(`bad client id ${entry.clientId}`);
+    await assertClientId(entry.clientId);
     const { session, sets } = plannedSessionFromRoutine(
       data,
       entry.clientId,
       entry.routineId,
       entry.assignmentId,
-      localToday(),
+      localTodayIso(),
     );
     newSessions.push(session);
     newSets.push(...sets);
@@ -59,6 +60,8 @@ export async function startGroupSessions(entries: GroupEntry[]): Promise<void> {
   }
 
   revalidatePath("/", "layout");
+  // Solo detection: one person means no board — straight into the runner.
+  if (sessionIds.length === 1) redirect(`/workout/session/${sessionIds[0]}`);
   redirect(`/workout/group/board?s=${sessionIds.join(",")}`);
 }
 
@@ -72,7 +75,7 @@ export async function startGroupFromForm(formData: FormData): Promise<void> {
   for (const key of formData.keys()) {
     if (!key.startsWith("include_")) continue;
     const clientId = key.slice("include_".length);
-    if (!isClientId(clientId)) throw new Error(`bad client id ${clientId}`);
+    await assertClientId(clientId);
     const plan = String(formData.get(`plan_${clientId}`) ?? "");
     if (!plan) continue;
     if (plan.startsWith("resume:")) {

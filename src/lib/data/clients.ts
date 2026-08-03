@@ -7,6 +7,20 @@ import type { Client, WeighIn } from "../types";
  * history and makes both bodyweight trends and relative-strength stats
  * impossible.
  */
+/** Preset card colors — curated so none collides with the status hues
+ *  (success/warning/danger) that carry meaning elsewhere in the UI. */
+export const CLIENT_COLORS = [
+  { id: "blue", hex: "#3987e5" },
+  { id: "violet", hex: "#8b5cf6" },
+  { id: "pink", hex: "#ec4899" },
+  { id: "orange", hex: "#f97316" },
+  { id: "teal", hex: "#14b8a6" },
+  { id: "cyan", hex: "#06b6d4" },
+] as const;
+
+/** Seed roster: loaded into the clients table by migration 002 (and by
+ *  /dev/seed on a fresh database); the app falls back to this list read-only
+ *  while the table doesn't exist. */
 export const clients: readonly Client[] = [
   {
     id: "lidia",
@@ -19,6 +33,7 @@ export const clients: readonly Client[] = [
     experienceLevel: "beginner",
     goal: "general-fitness",
     isTrainer: false,
+    color: "#ec4899",
     notes: "",
   },
   {
@@ -32,6 +47,7 @@ export const clients: readonly Client[] = [
     experienceLevel: "beginner",
     goal: "strength",
     isTrainer: false,
+    color: "#14b8a6",
     notes: "",
   },
   {
@@ -45,6 +61,7 @@ export const clients: readonly Client[] = [
     experienceLevel: "beginner",
     goal: "hypertrophy",
     isTrainer: false,
+    color: "#8b5cf6",
     notes: "",
   },
   {
@@ -58,6 +75,7 @@ export const clients: readonly Client[] = [
     experienceLevel: "intermediate",
     goal: "strength",
     isTrainer: true,
+    color: "#3987e5",
     notes: "",
   },
 ];
