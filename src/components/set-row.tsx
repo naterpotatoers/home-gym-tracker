@@ -37,7 +37,7 @@ export function SetRow({
   return (
     <div
       className={`grid grid-cols-[auto_1fr] gap-x-2 rounded-lg py-1.5 ${
-        dense ? "px-1" : "px-2"
+        dense ? "px-1" : "px-1 sm:px-2"
       } ${set.completed ? "bg-success/10" : ""} ${set.isWarmup ? "opacity-70" : ""}`}
     >
       <span className="flex flex-col items-center">
@@ -171,45 +171,41 @@ export function SetRow({
             </>
           ) : (
             <>
-              <IconButton
-                size="sm"
-                aria-label="Decrease reps"
-                onClick={() => onChange({ reps: Math.max(0, (set.reps ?? 0) - 1) })}
-              >
-                −
-              </IconButton>
+              {/* Steppers are the iPad nudge affordance; phones don't have the
+                  width for them — typing opens the decimal keypad instead.
+                  `sm:contents` keeps the flex layout identical when shown. */}
+              <span className="hidden sm:contents">
+                <IconButton
+                  size="sm"
+                  aria-label="Decrease reps"
+                  onClick={() => onChange({ reps: Math.max(0, (set.reps ?? 0) - 1) })}
+                >
+                  −
+                </IconButton>
+              </span>
               <NumberInput
                 size={controlSize}
                 value={set.reps}
                 onChange={(v) => onChange({ reps: v })}
                 className={dense ? "w-14" : "w-16"}
               />
-              <IconButton
-                size="sm"
-                aria-label="Increase reps"
-                onClick={() => onChange({ reps: (set.reps ?? 0) + 1 })}
-              >
-                +
-              </IconButton>
+              <span className="hidden sm:contents">
+                <IconButton
+                  size="sm"
+                  aria-label="Increase reps"
+                  onClick={() => onChange({ reps: (set.reps ?? 0) + 1 })}
+                >
+                  +
+                </IconButton>
+              </span>
               <span className="shrink-0 text-xs text-muted">
                 reps{set.unilateralMode !== "bilateral" ? "/side" : ""}
               </span>
             </>
           )}
-
-          <IconButton
-            variant="ghost"
-            size="sm"
-            onClick={onRemove}
-            className="ml-auto shrink-0"
-            aria-label="Delete set"
-            title="Delete set"
-          >
-            <TrashIcon />
-          </IconButton>
         </div>
 
-        {/* Line 2: RIR — same slot on every row */}
+        {/* Line 2: RIR + delete — same slots on every row */}
         <div className="mt-1 flex items-center">
           <button
             type="button"
@@ -225,6 +221,16 @@ export function SetRow({
           >
             RIR {set.rir ?? "–"}
           </button>
+          <IconButton
+            variant="ghost"
+            size="sm"
+            onClick={onRemove}
+            className="ml-auto shrink-0"
+            aria-label="Delete set"
+            title="Delete set"
+          >
+            <TrashIcon />
+          </IconButton>
         </div>
 
         {plateHint && (

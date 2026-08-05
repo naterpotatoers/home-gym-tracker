@@ -2,19 +2,29 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeftIcon } from "@/components/icons";
 import { WorkoutRunner } from "@/components/workout-runner";
-import { Chip, PageShell, Stat, chipClass, clientBorderStyle } from "@/components/ui";
+import {
+  Chip,
+  chipClass,
+  clientBorderStyle,
+  ColorDot,
+  PageShell,
+  recapSetClass,
+  Stat,
+} from "@/components/ui";
 import { exerciseById } from "@/lib/data/exercises";
 import { ModalityChip } from "@/components/modality-chip";
 import { localDayLabel } from "@/lib/periods";
 import { loadGymData } from "@/lib/db/snapshot";
-import { bestE1rm, setLoad } from "@/lib/modality";
+import { bestE1rm } from "@/lib/modality";
 import {
   availableVariants,
   blocksFor,
   describeSet,
   priorBestE1rm,
   recentVariantKeys,
+  sessionVolumeLbs,
 } from "@/lib/queries";
+import { lbs } from "@/lib/format";
 
 export default async function SessionPage({
   params,
@@ -34,10 +44,7 @@ export default async function SessionPage({
     const completedSets = blocks
       .flatMap((b) => b.sets)
       .filter((s) => s.completed && !s.isWarmup);
-    const volumeLbs = completedSets.reduce((sum, set) => {
-      const load = setLoad(data, set);
-      return load.lbs === null ? sum : sum + load.lbs * load.totalReps;
-    }, 0);
+    const volumeLbs = sessionVolumeLbs(data, session.id);
 
     return (
       <PageShell className="max-w-3xl">
@@ -50,12 +57,7 @@ export default async function SessionPage({
 
         {/* Who / when / how it went */}
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          {client?.color && (
-            <span
-              className="size-3.5 shrink-0 rounded-full"
-              style={{ backgroundColor: client.color }}
-            />
-          )}
+          <ColorDot color={client?.color} size="lg" />
           <h1 className="text-2xl font-bold tracking-tight">
             {client?.firstName ?? session.clientId}
           </h1>
@@ -79,7 +81,7 @@ export default async function SessionPage({
           <Stat label="Working sets" value={String(completedSets.length)} />
           <Stat
             label="Volume"
-            value={volumeLbs > 0 ? `${Math.round(volumeLbs).toLocaleString()} lb` : "—"}
+            value={volumeLbs > 0 ? lbs(volumeLbs) : "—"}
           />
           <Stat
             label="Duration"
@@ -126,7 +128,7 @@ export default async function SessionPage({
                   )}
                   {isPr && (
                     <span className="rounded bg-success/15 px-1.5 py-0.5 text-xs font-semibold text-success-text">
-                      PR · e1RM {Math.round(sessionBest)} lb (prev {Math.round(prior)})
+                      PR · e1RM {lbs(sessionBest)} (prev {Math.round(prior)})
                     </span>
                   )}
                   <span className="ml-auto font-mono text-xs text-muted">
@@ -137,9 +139,7 @@ export default async function SessionPage({
                   {block.sets.map((set) => (
                     <li
                       key={set.id}
-                      className={`font-mono text-xs ${
-                        set.completed ? "opacity-80" : "text-muted line-through decoration-current/40"
-                      }`}
+                      className={`font-mono text-xs ${recapSetClass(set.completed)}`}
                     >
                       {set.setNumber}. {describeSet(data, set)}
                       {!set.completed && " · skipped"}

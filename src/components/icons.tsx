@@ -59,14 +59,6 @@ export function PlusIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-export function HistoryIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg {...iconProps(size)} aria-hidden>
-      <path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4M12 7v5l3 3" />
-    </svg>
-  );
-}
-
 export function PlayIcon({ size = 18 }: { size?: number }) {
   return (
     <svg {...iconProps(size)} aria-hidden>
@@ -157,22 +149,6 @@ export function DumbbellIcon({ size = 18 }: { size?: number }) {
   return (
     <svg {...iconProps(size)} aria-hidden>
       <path d="M7 6.5v11M3.5 9.5v5M17 6.5v11M20.5 9.5v5M7 12h10" />
-    </svg>
-  );
-}
-
-export function BarbellIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg {...iconProps(size)} aria-hidden>
-      <path d="M2 12h20M5.5 9v6M8.5 7v10M15.5 7v10M18.5 9v6" />
-    </svg>
-  );
-}
-
-export function BandIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg {...iconProps(size)} aria-hidden>
-      <ellipse cx="12" cy="12" rx="8.5" ry="5.5" transform="rotate(-25 12 12)" />
     </svg>
   );
 }

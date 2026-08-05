@@ -18,7 +18,7 @@ import type {
  * `RoutineExercise.order` maps to the `sort_order` column — "order" is a
  * reserved word in SQL.
  *
- * The Row types below mirror `supabase/migrations/*.sql` column-for-column,
+ * The Row types below mirror `supabase/schema.sql` column-for-column,
  * with field types borrowed from the domain types so a change to either side
  * (renamed column, retyped field, new column) is a compile error in BOTH
  * mapper directions rather than a silent `undefined` at runtime.

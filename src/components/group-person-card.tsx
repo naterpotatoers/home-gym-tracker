@@ -5,8 +5,8 @@ import { useState } from "react";
 import { ExercisePicker } from "@/components/exercise-picker";
 import { FinishPanel, type FinishPayload } from "@/components/finish-panel";
 import { CheckIcon } from "@/components/icons";
-import { SessionBlockList } from "@/components/session-block-list";
-import { Button, clientBorderStyle } from "@/components/ui";
+import { RestReadyChips, SessionBlockList } from "@/components/session-block-list";
+import { Button, clientBorderStyle, ColorDot, ErrorText } from "@/components/ui";
 import type { BoardPerson } from "@/components/group-board";
 import { useSessionFlow } from "@/components/use-session-flow";
 import { useSetEditor } from "@/components/use-set-editor";
@@ -14,6 +14,7 @@ import { finishSession } from "@/lib/actions/workout";
 import { exerciseById } from "@/lib/data/exercises";
 import type { Variant } from "@/lib/queries";
 import type { Block } from "@/lib/set-blocks";
+import { errorMessage } from "@/lib/format";
 
 type PickerTarget = { mode: "add" } | { mode: "replace"; block: Block };
 
@@ -62,7 +63,7 @@ export function GroupPersonCard({
       setFinishedAs(payload);
       onFinished();
     } catch (e) {
-      editor.setError(e instanceof Error ? e.message : "Save failed.");
+      editor.setError(errorMessage(e, "Save failed."));
     } finally {
       setFinishBusy(false);
     }
@@ -71,9 +72,7 @@ export function GroupPersonCard({
   if (finishedAs) {
     return (
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-sm">
-        {color && (
-          <span className="size-3 rounded-full" style={{ backgroundColor: color }} />
-        )}
+        <ColorDot color={color} size="md" />
         <span className="font-semibold">{clientName}</span>
         <span className="text-muted">done · {doneCount} sets</span>
         {finishedAs.rpe !== null && (
@@ -98,28 +97,20 @@ export function GroupPersonCard({
 
   return (
     <div
-      className={`flex h-full flex-col rounded-xl border bg-surface p-3 transition-opacity ${
+      className={`flex h-full flex-col rounded-xl border bg-surface p-2 transition-opacity sm:p-3 ${
         ready ? "border-accent ring-1 ring-accent" : "border-border"
       } ${resting ? "opacity-70" : ""}`}
       style={ready ? undefined : clientBorderStyle(color)}
     >
       {/* Who + progress */}
       <div className="flex flex-wrap items-center gap-2 pb-2">
-        {color && (
-          <span className="size-3 rounded-full" style={{ backgroundColor: color }} />
-        )}
+        <ColorDot color={color} size="md" />
         <span className="font-semibold">{clientName}</span>
         <span className="text-xs text-muted">{routineName}</span>
         <span className="ml-auto font-mono text-xs text-muted">
           {doneCount}/{editor.sets.length}
         </span>
-        {resting && flow.restSecondsLeft !== null && (
-          <span className="font-mono text-xs text-warning-text">
-            rest {Math.floor(flow.restSecondsLeft / 60)}:
-            {String(flow.restSecondsLeft % 60).padStart(2, "0")}
-          </span>
-        )}
-        {ready && <span className="text-xs font-semibold text-success-text">ready</span>}
+        <RestReadyChips flow={flow} />
       </div>
 
       <SessionBlockList
@@ -134,7 +125,7 @@ export function GroupPersonCard({
       {/* Footer — pinned to the card bottom so cards in a row line up */}
       <div className="mt-auto flex items-center gap-2 border-t border-border pt-2">
         {editor.error && !finishing && (
-          <span className="text-xs font-semibold text-danger-text">{editor.error}</span>
+          <ErrorText>{editor.error}</ErrorText>
         )}
         <Button
           size="sm"

@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabase } from "../db/client";
 import { newId, slugId } from "../ids";
+import { assertNoRefs, revalidateAll, run } from "./_helpers";
 import { assertClientId } from "./clients";
 
 export async function createProgram(formData: FormData): Promise<void> {
@@ -11,40 +11,60 @@ export async function createProgram(formData: FormData): Promise<void> {
   if (!name) throw new Error("Program needs a name.");
   const id = slugId("p", name);
   // Programs start at one week; the editor grows them row by row.
-  const { error } = await supabase
-    .from("programs")
-    .insert({ id, name, weeks: 1, notes: "" });
-  if (error) throw new Error(`creating program: ${error.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "creating program",
+    supabase.from("programs").insert({ id, name, weeks: 1, notes: "" }),
+  );
+  revalidateAll();
   redirect(`/programs/${id}`);
+}
+
+/** The program_days row shape, shared by every week-structure rewrite. */
+function programDayRow(
+  programId: string,
+  week: number,
+  d: { day_of_week: number; routine_id: string },
+) {
+  return {
+    program_id: programId,
+    week,
+    day_of_week: d.day_of_week,
+    routine_id: d.routine_id,
+  };
 }
 
 /** Copy a program and its full week/day schedule — starting a new block is
  *  usually "last block with tweaks". */
 export async function duplicateProgram(programId: string): Promise<void> {
-  const [{ data: program, error }, { data: days, error: daysError }] =
-    await Promise.all([
+  const [program, days] = await Promise.all([
+    run(
+      "duplicating program",
       supabase.from("programs").select("*").eq("id", programId).single(),
+    ),
+    run(
+      "duplicating program",
       supabase.from("program_days").select("*").eq("program_id", programId),
-    ]);
-  if (error || !program) throw new Error(`duplicating program: ${error?.message ?? "not found"}`);
-  if (daysError) throw new Error(`duplicating program: ${daysError.message}`);
+    ),
+  ]);
 
   const name = `${program.name} (copy)`;
   const newProgramId = slugId("p", name);
-  const { error: insertError } = await supabase
-    .from("programs")
-    .insert({ id: newProgramId, name, weeks: program.weeks, notes: program.notes });
-  if (insertError) throw new Error(`duplicating program: ${insertError.message}`);
-
+  await run(
+    "duplicating program",
+    supabase
+      .from("programs")
+      .insert({ id: newProgramId, name, weeks: program.weeks, notes: program.notes }),
+  );
   if (days && days.length > 0) {
-    const { error: daysInsertError } = await supabase
-      .from("program_days")
-      .insert(days.map((d) => ({ ...d, program_id: newProgramId })));
-    if (daysInsertError) throw new Error(`duplicating program: ${daysInsertError.message}`);
+    await run(
+      "duplicating program",
+      supabase
+        .from("program_days")
+        .insert(days.map((d) => ({ ...d, program_id: newProgramId }))),
+    );
   }
 
-  revalidatePath("/", "layout");
+  revalidateAll();
   redirect(`/programs/${newProgramId}`);
 }
 
@@ -53,27 +73,33 @@ export async function updateProgramInfo(
   patch: { name: string; notes: string },
 ): Promise<void> {
   if (!patch.name.trim()) throw new Error("Program needs a name.");
-  const { error } = await supabase
-    .from("programs")
-    .update({ name: patch.name.trim(), notes: patch.notes })
-    .eq("id", programId);
-  if (error) throw new Error(`updating program: ${error.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "updating program",
+    supabase
+      .from("programs")
+      .update({ name: patch.name.trim(), notes: patch.notes })
+      .eq("id", programId),
+  );
+  revalidateAll();
 }
 
 /** Current week count plus that week's day rows — the shared read for the
  *  week-structure actions below. */
 async function weekState(programId: string, week?: number) {
-  const [{ data: program, error: programError }, { data: days, error: daysError }] =
-    await Promise.all([
+  const [program, days] = await Promise.all([
+    run(
+      "reading program",
       supabase.from("programs").select("weeks").eq("id", programId).single(),
+    ),
+    run(
+      "reading program days",
       supabase.from("program_days").select("*").eq("program_id", programId),
-    ]);
-  if (programError) throw new Error(`reading program: ${programError.message}`);
-  if (daysError) throw new Error(`reading program days: ${daysError.message}`);
+    ),
+  ]);
   const all = days ?? [];
   return {
-    weeks: program.weeks as number,
+    // .single() errors (and run throws) when the row is missing.
+    weeks: program!.weeks as number,
     all,
     ofWeek: week === undefined ? [] : all.filter((d) => d.week === week),
   };
@@ -88,24 +114,19 @@ export async function addWeek(
   if (state.weeks >= 52) throw new Error("Programs cap at 52 weeks.");
   const newWeek = state.weeks + 1;
 
-  const { error } = await supabase
-    .from("programs")
-    .update({ weeks: newWeek })
-    .eq("id", programId);
-  if (error) throw new Error(`adding week: ${error.message}`);
-
+  await run(
+    "adding week",
+    supabase.from("programs").update({ weeks: newWeek }).eq("id", programId),
+  );
   if (state.ofWeek.length > 0) {
-    const { error: copyError } = await supabase.from("program_days").insert(
-      state.ofWeek.map((d) => ({
-        program_id: programId,
-        week: newWeek,
-        day_of_week: d.day_of_week,
-        routine_id: d.routine_id,
-      })),
+    await run(
+      "adding week",
+      supabase
+        .from("program_days")
+        .insert(state.ofWeek.map((d) => programDayRow(programId, newWeek, d))),
     );
-    if (copyError) throw new Error(`adding week: ${copyError.message}`);
   }
-  revalidatePath("/", "layout");
+  revalidateAll();
 }
 
 /** Insert a copy of `week` directly after it, shifting later weeks down. */
@@ -117,38 +138,24 @@ export async function duplicateWeek(programId: string, week: number): Promise<vo
   // Rewrite: delete everything after the source week, then reinsert shifted
   // +1 with the duplicate in between. Two steps because the composite PK
   // (program_id, week, day_of_week) forbids in-place shifts.
-  const { error: deleteError } = await supabase
-    .from("program_days")
-    .delete()
-    .eq("program_id", programId)
-    .gt("week", week);
-  if (deleteError) throw new Error(`duplicating week: ${deleteError.message}`);
+  await run(
+    "duplicating week",
+    supabase.from("program_days").delete().eq("program_id", programId).gt("week", week),
+  );
 
   const rows = [
-    ...state.ofWeek.map((d) => ({
-      program_id: programId,
-      week: week + 1,
-      day_of_week: d.day_of_week,
-      routine_id: d.routine_id,
-    })),
-    ...later.map((d) => ({
-      program_id: programId,
-      week: d.week + 1,
-      day_of_week: d.day_of_week,
-      routine_id: d.routine_id,
-    })),
+    ...state.ofWeek.map((d) => programDayRow(programId, week + 1, d)),
+    ...later.map((d) => programDayRow(programId, d.week + 1, d)),
   ];
   if (rows.length > 0) {
-    const { error } = await supabase.from("program_days").insert(rows);
-    if (error) throw new Error(`duplicating week: ${error.message}`);
+    await run("duplicating week", supabase.from("program_days").insert(rows));
   }
 
-  const { error: weeksError } = await supabase
-    .from("programs")
-    .update({ weeks: state.weeks + 1 })
-    .eq("id", programId);
-  if (weeksError) throw new Error(`duplicating week: ${weeksError.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "duplicating week",
+    supabase.from("programs").update({ weeks: state.weeks + 1 }).eq("id", programId),
+  );
+  revalidateAll();
 }
 
 /** Delete a week and close the gap; later weeks shift up. */
@@ -157,31 +164,24 @@ export async function removeWeek(programId: string, week: number): Promise<void>
   if (state.weeks <= 1) throw new Error("A program keeps at least one week.");
   const later = state.all.filter((d) => d.week > week);
 
-  const { error: deleteError } = await supabase
-    .from("program_days")
-    .delete()
-    .eq("program_id", programId)
-    .gte("week", week);
-  if (deleteError) throw new Error(`removing week: ${deleteError.message}`);
-
+  await run(
+    "removing week",
+    supabase.from("program_days").delete().eq("program_id", programId).gte("week", week),
+  );
   if (later.length > 0) {
-    const { error } = await supabase.from("program_days").insert(
-      later.map((d) => ({
-        program_id: programId,
-        week: d.week - 1,
-        day_of_week: d.day_of_week,
-        routine_id: d.routine_id,
-      })),
+    await run(
+      "removing week",
+      supabase
+        .from("program_days")
+        .insert(later.map((d) => programDayRow(programId, d.week - 1, d))),
     );
-    if (error) throw new Error(`removing week: ${error.message}`);
   }
 
-  const { error: weeksError } = await supabase
-    .from("programs")
-    .update({ weeks: state.weeks - 1 })
-    .eq("id", programId);
-  if (weeksError) throw new Error(`removing week: ${weeksError.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "removing week",
+    supabase.from("programs").update({ weeks: state.weeks - 1 }).eq("id", programId),
+  );
+  revalidateAll();
 }
 
 export async function setProgramDay(
@@ -190,14 +190,16 @@ export async function setProgramDay(
   dayOfWeek: number,
   routineId: string,
 ): Promise<void> {
-  const { error } = await supabase.from("program_days").upsert({
-    program_id: programId,
-    week,
-    day_of_week: dayOfWeek,
-    routine_id: routineId,
-  });
-  if (error) throw new Error(`scheduling day: ${error.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "scheduling day",
+    supabase.from("program_days").upsert({
+      program_id: programId,
+      week,
+      day_of_week: dayOfWeek,
+      routine_id: routineId,
+    }),
+  );
+  revalidateAll();
 }
 
 export async function clearProgramDay(
@@ -205,29 +207,27 @@ export async function clearProgramDay(
   week: number,
   dayOfWeek: number,
 ): Promise<void> {
-  const { error } = await supabase
-    .from("program_days")
-    .delete()
-    .eq("program_id", programId)
-    .eq("week", week)
-    .eq("day_of_week", dayOfWeek);
-  if (error) throw new Error(`clearing day: ${error.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "clearing day",
+    supabase
+      .from("program_days")
+      .delete()
+      .eq("program_id", programId)
+      .eq("week", week)
+      .eq("day_of_week", dayOfWeek),
+  );
+  revalidateAll();
 }
 
 export async function deleteProgram(programId: string): Promise<void> {
-  const { count, error: refError } = await supabase
-    .from("assignments")
-    .select("id", { count: "exact" })
-    .eq("program_id", programId)
-    .limit(1);
-  if (refError) throw new Error(`deleting program: ${refError.message}`);
-  if ((count ?? 0) > 0) {
-    throw new Error("Program has assignments — remove those first.");
-  }
-  const { error } = await supabase.from("programs").delete().eq("id", programId);
-  if (error) throw new Error(`deleting program: ${error.message}`);
-  revalidatePath("/", "layout");
+  await assertNoRefs(
+    "assignments",
+    "program_id",
+    programId,
+    "Program has assignments — remove those first.",
+  );
+  await run("deleting program", supabase.from("programs").delete().eq("id", programId));
+  revalidateAll();
   redirect("/programs");
 }
 
@@ -237,15 +237,17 @@ export async function createAssignment(formData: FormData): Promise<void> {
   const startDate = String(formData.get("startDate") ?? "");
   await assertClientId(clientId);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) throw new Error("Pick a start date.");
-  const { error } = await supabase.from("assignments").insert({
-    id: newId("a"),
-    program_id: programId,
-    client_id: clientId,
-    start_date: startDate,
-    status: "active",
-  });
-  if (error) throw new Error(`assigning program: ${error.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "assigning program",
+    supabase.from("assignments").insert({
+      id: newId("a"),
+      program_id: programId,
+      client_id: clientId,
+      start_date: startDate,
+      status: "active",
+    }),
+  );
+  revalidateAll();
 }
 
 export async function updateAssignmentStatus(
@@ -256,10 +258,9 @@ export async function updateAssignmentStatus(
   if (!["active", "completed", "paused"].includes(status)) {
     throw new Error(`bad status ${status}`);
   }
-  const { error } = await supabase
-    .from("assignments")
-    .update({ status })
-    .eq("id", assignmentId);
-  if (error) throw new Error(`updating assignment: ${error.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "updating assignment",
+    supabase.from("assignments").update({ status }).eq("id", assignmentId),
+  );
+  revalidateAll();
 }

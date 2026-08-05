@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { ModalityChip } from "@/components/modality-chip";
 import { Button, Input } from "@/components/ui";
 import { exerciseById } from "@/lib/data/exercises";
@@ -81,7 +82,10 @@ export function ExercisePicker({
       .map((p) => ({ pattern: p, variants: byPattern.get(p)! }));
   }, [variants, search, emphasizePattern]);
 
-  return (
+  // Portaled to <body>: a group-board card dims itself with opacity while its
+  // person rests, and opacity < 1 creates a stacking context that would trap
+  // this "fixed" overlay beneath the neighboring card.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 sm:p-4 sm:pt-16"
       onClick={onClose}
@@ -157,6 +161,7 @@ export function ExercisePicker({
           <p className="mt-4 text-sm text-muted">No variants match.</p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

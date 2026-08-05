@@ -57,6 +57,14 @@ export function todayDow(): number {
   return ((new Date().getDay() + 6) % 7) + 1;
 }
 
+/** Weekday labels in the schema's numbering — index with `dayOfWeek - 1`. */
+export const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+/** "3:07" — countdown/elapsed display for whole seconds. */
+export function mmss(totalSeconds: number): string {
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
+}
+
 /** Days since epoch, in UTC — immune to DST and local offsets. For trend
  *  math only, never display. */
 export function utcDay(date: string): number {

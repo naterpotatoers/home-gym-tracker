@@ -8,6 +8,8 @@ import { ModalityChip } from "@/components/modality-chip";
 import { useDebouncedSave } from "@/components/use-debounced-save";
 import {
   Button,
+  ColorDot,
+  ErrorText,
   Field,
   IconButton,
   Input,
@@ -23,6 +25,7 @@ import { MUSCLE_GROUP_COLORS, muscleById } from "@/lib/data/muscles";
 import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
 import { bandRolesFor, type Variant } from "@/lib/queries";
 import type { Routine, RoutineExercise, UnilateralMode } from "@/lib/types";
+import { errorMessage } from "@/lib/format";
 
 type PickerTarget = { mode: "add" } | { mode: "replace"; index: number };
 
@@ -235,7 +238,7 @@ export function RoutineEditor({
     try {
       await deleteRoutine(routine.id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed.");
+      setError(errorMessage(e, "Delete failed."));
     }
   }
 
@@ -258,7 +261,7 @@ export function RoutineEditor({
         <span className="text-xs text-muted">
           {saveState === "saving" ? "saving…" : saveState === "saved" ? "saved" : ""}
         </span>
-        {error && <span className="text-xs font-semibold text-danger-text">{error}</span>}
+        {error && <ErrorText>{error}</ErrorText>}
       </div>
 
       {/* Card edges + dots below are colored by primary muscle group. */}
@@ -304,12 +307,7 @@ export function RoutineEditor({
                   ⠿
                 </span>
                 <span className="font-mono text-xs text-muted">{index + 1}.</span>
-                {color && (
-                  <span
-                    className="size-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: color }}
-                  />
-                )}
+                <ColorDot color={color} />
                 <span className="text-sm font-semibold">
                   {exercise?.name ?? row.exerciseId}
                 </span>
@@ -417,7 +415,7 @@ export function RoutineEditor({
             try {
               await duplicateRoutine(routine.id);
             } catch (e) {
-              setError(e instanceof Error ? e.message : "Duplicate failed.");
+              setError(errorMessage(e, "Duplicate failed."));
             }
           }}
         >

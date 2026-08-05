@@ -1,8 +1,7 @@
--- Blank-slate reset. NOT a migration — run pieces of this by hand in the
--- Supabase SQL editor. Deletes are permanent; there is no undo.
+-- Blank-slate reset. NOT part of the schema — run pieces of this by hand in
+-- the Supabase SQL editor. Deletes are permanent; there is no undo.
 --
--- The app tolerates empty tables everywhere. Note: /dev/seed can restore the
--- demo data, but only when ALL tables are empty (clients excepted).
+-- The app tolerates empty tables everywhere.
 
 -- ---------------------------------------------------------------------------
 -- 1. ALWAYS: wipe workout history — sessions, logged sets, and program
@@ -29,6 +28,6 @@ truncate table set_logs, sessions, assignments;
 -- ---------------------------------------------------------------------------
 -- 4. OPTIONAL: also wipe people. Skip this — you just set them up with
 --    colors at /users. (Wiping makes the app fall back to the read-only
---    seed roster until you re-run 002's inserts or add people at /users.)
+--    seed roster until you add people back at /users.)
 -- ---------------------------------------------------------------------------
 -- truncate table clients;

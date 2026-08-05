@@ -1,8 +1,9 @@
 import type { ExerciseId, ModalityId, Session, SetLog } from "../types";
 
 /**
- * SEED DATA — inserted into Supabase once by /dev/seed, then dormant. The live
- * app reads sessions and set logs from the database snapshot, not from here.
+ * SEED DATA — demo history for the read-only fallback and the vitest
+ * fixtures (`seedSnapshot()`). The live app reads sessions and set logs from
+ * the database snapshot, not from here.
  *
  * Logged work. Two tables instead of the old flat `workoutLogs`: a session says
  * who trained, when, and how it went; a set log is one row per set, ordered,
@@ -485,16 +486,4 @@ export const setLogs: readonly SetLog[] = (() => {
       position,
     };
   });
-})();
-
-export const sessionById = new Map(sessions.map((s) => [s.id, s]));
-
-export const setsBySession = (() => {
-  const out = new Map<string, SetLog[]>();
-  for (const set of setLogs) {
-    const existing = out.get(set.sessionId);
-    if (existing) existing.push(set);
-    else out.set(set.sessionId, [set]);
-  }
-  return out;
 })();

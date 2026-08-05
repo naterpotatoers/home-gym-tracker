@@ -295,6 +295,23 @@ export function TableScroll({ children }: { children: React.ReactNode }) {
   return <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">{children}</div>;
 }
 
+/** Summary row for a `<details className="group">` disclosure — pair with
+ *  `<Caret />` as its first child. `extra` carries the padding/rounding that
+ *  differs per context. */
+export function summaryClass(extra = "px-4 py-2"): string {
+  return `flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-2 hover:bg-current/5 [&::-webkit-details-marker]:hidden ${extra}`;
+}
+
+/** Open/closed indicator for disclosure summaries — CSS-only via group-open. */
+export function Caret() {
+  return (
+    <>
+      <span className="text-[10px] text-muted group-open:hidden">▸</span>
+      <span className="hidden text-[10px] text-muted group-open:inline">▾</span>
+    </>
+  );
+}
+
 /** The app's selected/unselected chip-button vocabulary — tabs, filters,
  *  person switchers. */
 export function chipClass(selected: boolean, extra = "min-h-10 px-3 text-xs"): string {
@@ -303,6 +320,40 @@ export function chipClass(selected: boolean, extra = "min-h-10 px-3 text-xs"): s
       ? "bg-accent-soft font-semibold text-accent-text"
       : "text-muted hover:bg-current/5 hover:text-foreground"
   }`;
+}
+
+const dotSize = {
+  sm: "size-2.5",
+  md: "size-3",
+  lg: "size-3.5",
+} as const;
+
+/** Identity dot — person card colors and muscle-group hues. Renders nothing
+ *  when there's no color, so call sites don't need the `color &&` dance. */
+export function ColorDot({
+  color,
+  size = "sm",
+  title,
+}: {
+  color: string | null | undefined;
+  size?: keyof typeof dotSize;
+  title?: string;
+}) {
+  if (!color) return null;
+  return (
+    <span
+      className={`${dotSize[size]} shrink-0 rounded-full`}
+      style={{ backgroundColor: color }}
+      title={title}
+    />
+  );
+}
+
+/** Recap line treatment for a logged set: completed dims slightly, a skipped
+ *  set is struck through — same reading on the session page and the
+ *  recent-workouts accordion. */
+export function recapSetClass(completed: boolean): string {
+  return completed ? "opacity-80" : "text-muted line-through decoration-current/40";
 }
 
 /** Border tint for person-colored cards — one blend everywhere. */
@@ -353,6 +404,11 @@ export function Note({ children }: { children: React.ReactNode }) {
   return <p className="mt-3 text-xs leading-relaxed text-muted">{children}</p>;
 }
 
+/** Inline action-failure message — always paired with the failing control. */
+export function ErrorText({ children }: { children: React.ReactNode }) {
+  return <span className="text-xs font-semibold text-danger-text">{children}</span>;
+}
+
 /** Small inline tag — modality names, statuses, "trainer". */
 export function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -367,9 +423,10 @@ export function SeedBanner() {
   return (
     <p className="mb-6 rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted">
       Running read-only from seed data — the Supabase tables don&apos;t exist
-      yet. Run the migration, then seed at{" "}
-      <a href="/dev/seed" className="text-accent-text underline">
-        /dev/seed
+      yet. Run supabase/schema.sql in the Supabase SQL editor, then add people
+      at{" "}
+      <a href="/users" className="text-accent-text underline">
+        /users
       </a>
       . Saving anything will fail until then.
     </p>

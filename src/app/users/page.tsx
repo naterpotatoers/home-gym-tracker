@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { DeleteWeighInButton } from "@/components/delete-weigh-in-button";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { PlusIcon, SaveIcon } from "@/components/icons";
-import { Button, Card, Field, Input, Note, PageShell, Stat } from "@/components/ui";
-import { createClient, updateClient } from "@/lib/actions/clients";
-import { createWeighIn } from "@/lib/actions/weigh-ins";
+import { Button, Card, ColorDot, Field, Input, Note, PageShell, Stat } from "@/components/ui";
+import { createClient, deleteClient, updateClient } from "@/lib/actions/clients";
+import { createWeighIn, deleteWeighIn } from "@/lib/actions/weigh-ins";
 import { loadGymData } from "@/lib/db/snapshot";
 import { localTodayIso } from "@/lib/periods";
 import { parseProgressParams } from "@/lib/progress-url";
@@ -34,8 +34,8 @@ export default async function UsersPage({
   const migrationNote = data.clientsSource === "seed" && (
     <p className="mb-6 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
       The clients table doesn&apos;t exist yet — run{" "}
-      <code className="font-mono">supabase/migrations/002_clients.sql</code> in the
-      Supabase SQL editor. Until then this page is read-only.
+      <code className="font-mono">supabase/schema.sql</code> in the Supabase
+      SQL editor. Until then this page is read-only.
     </p>
   );
 
@@ -84,12 +84,7 @@ export default async function UsersPage({
           ) : params.view === "profile" ? (
             <Card className="mt-4">
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                {person.color && (
-                  <span
-                    className="size-3.5 rounded-full"
-                    style={{ backgroundColor: person.color }}
-                  />
-                )}
+                <ColorDot color={person.color} size="lg" />
                 <h2 className="text-lg font-semibold">{person.firstName}</h2>
                 {person.isTrainer && (
                   <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">trainer</span>
@@ -103,9 +98,17 @@ export default async function UsersPage({
               </div>
               <form action={updateClient.bind(null, person.id)} className="space-y-3">
                 <ProfileFields client={person} />
-                <Button type="submit" variant="primary" size="sm">
-                  <SaveIcon size={16} /> Save {person.firstName}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button type="submit" variant="primary" size="sm">
+                    <SaveIcon size={16} /> Save {person.firstName}
+                  </Button>
+                  <ConfirmDeleteButton
+                    action={deleteClient.bind(null, person.id)}
+                    confirmText={`Delete ${person.firstName}? Only possible while they have no sessions, assignments, or weigh-ins.`}
+                    ariaLabel={`Delete ${person.firstName}`}
+                    className="ml-auto text-danger-text"
+                  />
+                </div>
               </form>
             </Card>
           ) : params.view === "tracking" ? (
@@ -147,9 +150,11 @@ export default async function UsersPage({
                       <li key={w.id} className="flex items-center gap-3 py-1">
                         <span className="font-mono text-xs text-muted">{w.date}</span>
                         <span className="font-mono">{w.bodyweightLbs} lb</span>
-                        <DeleteWeighInButton
-                          weighInId={w.id}
-                          label={`${w.date} (${w.bodyweightLbs} lb)`}
+                        <ConfirmDeleteButton
+                          action={deleteWeighIn.bind(null, w.id)}
+                          confirmText={`Delete the ${w.date} (${w.bodyweightLbs} lb) weigh-in?`}
+                          ariaLabel={`Delete weigh-in: ${w.date} (${w.bodyweightLbs} lb)`}
+                          title="Delete weigh-in"
                         />
                       </li>
                     ))}

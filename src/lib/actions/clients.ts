@@ -1,10 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { CLIENT_COLORS } from "../data/clients";
 import { supabase } from "../db/client";
 import { slugId } from "../ids";
 import { localTodayIso } from "../periods";
+import { assertNoRefs, revalidateAll, run } from "./_helpers";
 
 const LEVELS = new Set(["beginner", "intermediate", "advanced"]);
 const GOALS = new Set(["general-fitness", "strength", "hypertrophy", "fat-loss"]);
@@ -13,12 +14,10 @@ const COLORS = new Set<string>(CLIENT_COLORS.map((c) => c.hex));
 /** Client ids used to be a compile-time union; now they're rows, so actions
  *  that take one verify it exists before writing. */
 export async function assertClientId(id: string): Promise<void> {
-  const { data, error } = await supabase
-    .from("clients")
-    .select("id")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(`checking client: ${error.message}`);
+  const data = await run(
+    "checking client",
+    supabase.from("clients").select("id").eq("id", id).maybeSingle(),
+  );
   if (!data) throw new Error(`bad client id ${id}`);
 }
 
@@ -53,16 +52,18 @@ function parseProfile(formData: FormData) {
 
 export async function createClient(formData: FormData): Promise<void> {
   const profile = parseProfile(formData);
-  const { error } = await supabase.from("clients").insert({
-    id: slugId("c", profile.first_name),
-    ...profile,
-    last_name: "",
-    status: "active",
-    join_date: localTodayIso(),
-    is_trainer: false,
-  });
-  if (error) throw new Error(`adding person: ${error.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "adding person",
+    supabase.from("clients").insert({
+      id: slugId("c", profile.first_name),
+      ...profile,
+      last_name: "",
+      status: "active",
+      join_date: localTodayIso(),
+      is_trainer: false,
+    }),
+  );
+  revalidateAll();
 }
 
 export async function updateClient(
@@ -70,10 +71,36 @@ export async function updateClient(
   formData: FormData,
 ): Promise<void> {
   const profile = parseProfile(formData);
-  const { error } = await supabase
-    .from("clients")
-    .update(profile)
-    .eq("id", clientId);
-  if (error) throw new Error(`updating person: ${error.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "updating person",
+    supabase.from("clients").update(profile).eq("id", clientId),
+  );
+  revalidateAll();
+}
+
+/** Remove a person with no history — the "throwaway test user" path. Anyone
+ *  with logged data is refused; discard/delete that first (or keep them and
+ *  set status inactive). */
+export async function deleteClient(clientId: string): Promise<void> {
+  await assertNoRefs(
+    "sessions",
+    "client_id",
+    clientId,
+    "This person has workout sessions — discard those first.",
+  );
+  await assertNoRefs(
+    "assignments",
+    "client_id",
+    clientId,
+    "This person has program assignments — remove those first.",
+  );
+  await assertNoRefs(
+    "weigh_ins",
+    "client_id",
+    clientId,
+    "This person has weigh-ins — delete those first.",
+  );
+  await run("deleting person", supabase.from("clients").delete().eq("id", clientId));
+  revalidateAll();
+  redirect("/users");
 }

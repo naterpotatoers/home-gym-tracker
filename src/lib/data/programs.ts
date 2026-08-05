@@ -137,21 +137,3 @@ function weeklyPattern(
   }
   return out;
 }
-
-// ---------------------------------------------------------------------------
-// Lookups
-// ---------------------------------------------------------------------------
-
-export const routineById = new Map(routines.map((r) => [r.id, r]));
-export const programById = new Map(programs.map((p) => [p.id, p]));
-
-export const exercisesByRoutine = (() => {
-  const out = new Map<string, RoutineExercise[]>();
-  for (const row of routineExercises) {
-    const existing = out.get(row.routineId);
-    if (existing) existing.push(row);
-    else out.set(row.routineId, [row]);
-  }
-  for (const list of out.values()) list.sort((a, b) => a.order - b.order);
-  return out;
-})();

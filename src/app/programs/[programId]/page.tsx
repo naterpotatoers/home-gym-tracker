@@ -5,6 +5,8 @@ import { PlusIcon, SaveIcon, TrashIcon } from "@/components/icons";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
 import {
   Button,
+  chipClass,
+  ColorDot,
   Input,
   Note,
   PageShell,
@@ -13,7 +15,6 @@ import {
   TableScroll,
   Td,
   Th,
-  chipClass,
 } from "@/components/ui";
 import { ProgramEditor } from "@/components/week-grid";
 import {
@@ -133,12 +134,7 @@ export default async function ProgramPage({
                     <tr key={assignment.id} className="border-b border-border">
                       <Td>
                         <span className="inline-flex items-center gap-1.5 font-semibold">
-                          {client?.color && (
-                            <span
-                              className="size-2.5 shrink-0 rounded-full"
-                              style={{ backgroundColor: client.color }}
-                            />
-                          )}
+                          <ColorDot color={client?.color} />
                           {client?.firstName ?? assignment.clientId}
                         </span>
                       </Td>

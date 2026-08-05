@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { EyeIcon } from "@/components/icons";
 import { ModalityChip } from "@/components/modality-chip";
-import { Chip, Note, Section } from "@/components/ui";
+import { Caret, Chip, Note, recapSetClass, Section, summaryClass } from "@/components/ui";
 import { exerciseById } from "@/lib/data/exercises";
 import type { GymData } from "@/lib/gym-data";
 import { sessionTopLifts } from "@/lib/progress";
@@ -13,17 +13,9 @@ import type { ClientId } from "@/lib/types";
  * the Users Metrics view and the per-person workout page. Native <details>:
  * every body is server-rendered (just the set lines), so opening is instant.
  */
-export function RecentWorkouts({
-  data,
-  client,
-  limit = 10,
-}: {
-  data: GymData;
-  client: ClientId;
-  limit?: number;
-}) {
+export function RecentWorkouts({ data, client }: { data: GymData; client: ClientId }) {
   const completed = sessionsFor(data, client).filter((s) => s.status === "completed");
-  const recent = completed.slice(0, limit);
+  const recent = completed.slice(0, 10);
 
   return (
     <Section title="Recent workouts">
@@ -36,9 +28,8 @@ export function RecentWorkouts({
             return (
               <li key={session.id}>
                 <details className="group">
-                  <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-2 rounded-md px-1 py-1.5 hover:bg-current/5 [&::-webkit-details-marker]:hidden">
-                    <span className="text-[10px] text-muted group-open:hidden">▸</span>
-                    <span className="hidden text-[10px] text-muted group-open:inline">▾</span>
+                  <summary className={summaryClass("rounded-md px-1 py-1.5")}>
+                    <Caret />
                     <span className="font-mono text-xs text-muted">{session.date}</span>
                     <span className="font-semibold">
                       {data.routineById.get(session.routineId ?? "")?.name ?? "Session"}
@@ -80,13 +71,7 @@ export function RecentWorkouts({
                                   <span className="w-4 shrink-0 text-right text-muted">
                                     {set.setNumber}.
                                   </span>
-                                  <span
-                                    className={
-                                      set.completed
-                                        ? "opacity-80"
-                                        : "text-muted line-through decoration-current/40"
-                                    }
-                                  >
+                                  <span className={recapSetClass(set.completed)}>
                                     {describeSet(data, set)}
                                     {!set.completed && " · skipped"}
                                   </span>

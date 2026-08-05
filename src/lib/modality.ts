@@ -60,8 +60,6 @@ export type SetLoad = {
   precision: LoadPrecision;
   /** Total reps across both sides. */
   totalReps: number;
-  /** Why lbs is null, when it is. */
-  note: string;
 };
 
 const MAX_DUMBBELL_LBS = Math.max(...dumbbells.map((d) => d.weightLbs));
@@ -90,70 +88,46 @@ export function setLoad(data: GymData, set: SetLog): SetLoad {
   const bodyweight = bodyweightOn(data, set);
 
   if (set.modalityId === "barbell" || set.modalityId === "machine") {
-    return { lbs: set.weightLbs, precision: "exact", totalReps, note: "" };
+    return { lbs: set.weightLbs, precision: "exact", totalReps };
   }
 
   if (set.modalityId === "dumbbell") {
     const lbs =
       set.weightLbs === null ? null : set.weightLbs * implementsPerRep(set);
-    return { lbs, precision: "exact", totalReps, note: "" };
+    return { lbs, precision: "exact", totalReps };
   }
 
   if (set.modalityId === "bodyweight") {
     if (bodyweight === null) {
-      return {
-        lbs: null,
-        precision: "exact",
-        totalReps,
-        note: "no weigh-in on or before this date",
-      };
+      return { lbs: null, precision: "exact", totalReps };
     }
-    return {
-      lbs: bodyweight + (set.addedWeightLbs ?? 0),
-      precision: "exact",
-      totalReps,
-      note: "",
-    };
+    return { lbs: bodyweight + (set.addedWeightLbs ?? 0), precision: "exact", totalReps };
   }
 
   // Band. Precision comes from the specific band, not the modality: loop bands
   // publish a tension range, hip bands publish nothing at all.
   const band = set.bandId ? bandById.get(set.bandId) : undefined;
   if (!band) {
-    return { lbs: null, precision: "approximate", totalReps, note: "no band recorded" };
+    return { lbs: null, precision: "approximate", totalReps };
   }
 
   if (band.family === "hip") {
-    return {
-      lbs: null,
-      precision: "ordinal",
-      totalReps,
-      note: "hip bands have no lb rating — rank only",
-    };
+    // Hip bands have no lb rating — rank only.
+    return { lbs: null, precision: "ordinal", totalReps };
   }
 
   const midpoint = (band.minLbs + band.maxLbs) / 2;
 
   if (set.bandRole === "assistance") {
     if (bodyweight === null) {
-      return {
-        lbs: null,
-        precision: "approximate",
-        totalReps,
-        note: "no weigh-in on or before this date",
-      };
+      return { lbs: null, precision: "approximate", totalReps };
     }
     // The band takes load OFF. Ascending tension is an advantage here: most
     // help at the bottom, where the lifter is weakest.
-    return {
-      lbs: Math.max(0, bodyweight - midpoint),
-      precision: "approximate",
-      totalReps,
-      note: "bodyweight minus band assistance",
-    };
+    return { lbs: Math.max(0, bodyweight - midpoint), precision: "approximate", totalReps };
   }
 
-  return { lbs: midpoint, precision: "approximate", totalReps, note: "" };
+  return { lbs: midpoint, precision: "approximate", totalReps };
 }
 
 /** Bodyweight from the most recent weigh-in on or before the set's session. */
@@ -334,4 +308,3 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-export { MAX_DUMBBELL_LBS };

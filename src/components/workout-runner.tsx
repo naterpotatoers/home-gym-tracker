@@ -4,8 +4,8 @@ import { useState } from "react";
 import { ExercisePicker } from "@/components/exercise-picker";
 import { CheckIcon, TrashIcon } from "@/components/icons";
 import { FinishPanel, type FinishPayload } from "@/components/finish-panel";
-import { SessionBlockList } from "@/components/session-block-list";
-import { Button, NumberInput } from "@/components/ui";
+import { RestReadyChips, SessionBlockList } from "@/components/session-block-list";
+import { Button, ErrorText, NumberInput } from "@/components/ui";
 import { useSessionClock } from "@/components/use-session-clock";
 import { useSessionFlow } from "@/components/use-session-flow";
 import { useSetEditor } from "@/components/use-set-editor";
@@ -14,6 +14,7 @@ import { discardSession, finishSession } from "@/lib/actions/workout";
 import { exerciseById } from "@/lib/data/exercises";
 import type { Variant } from "@/lib/queries";
 import type { RoutineExercise, Session, SetLog } from "@/lib/types";
+import { errorMessage } from "@/lib/format";
 
 type PickerTarget = { mode: "add" } | { mode: "replace"; index: number };
 
@@ -61,7 +62,7 @@ export function WorkoutRunner({
         ...payload,
       });
     } catch (e) {
-      editor.setError(e instanceof Error ? e.message : "Save failed.");
+      editor.setError(errorMessage(e, "Save failed."));
       setFinishBusy(false);
     }
   }
@@ -72,7 +73,7 @@ export function WorkoutRunner({
       clock.clear();
       await discardSession(session.id);
     } catch (e) {
-      editor.setError(e instanceof Error ? e.message : "Discard failed.");
+      editor.setError(errorMessage(e, "Discard failed."));
     }
   }
 
@@ -84,21 +85,13 @@ export function WorkoutRunner({
         <span className="font-mono text-xs text-muted">
           {doneCount}/{editor.sets.length} sets · {clock.elapsedMinutes} min
         </span>
-        {flow.resting && flow.restSecondsLeft !== null && (
-          <span className="font-mono text-xs font-semibold text-warning-text">
-            rest {Math.floor(flow.restSecondsLeft / 60)}:
-            {String(flow.restSecondsLeft % 60).padStart(2, "0")}
-          </span>
-        )}
-        {flow.ready && (
-          <span className="text-xs font-semibold text-success-text">ready</span>
-        )}
+        <RestReadyChips flow={flow} />
         {editor.error && (
-          <span className="text-xs font-semibold text-danger-text">{editor.error}</span>
+          <ErrorText>{editor.error}</ErrorText>
         )}
       </div>
 
-      <div className="mt-6 rounded-xl border border-border bg-surface p-3">
+      <div className="mt-6 rounded-xl border border-border bg-surface p-2 sm:p-3">
         <SessionBlockList
           editor={editor}
           flow={flow}

@@ -4,7 +4,7 @@ import { ModalityChip } from "@/components/modality-chip";
 import { LiftListControls } from "@/components/progress-controls";
 import { RecentWorkouts } from "@/components/recent-workouts";
 import { SortableTable, type SortableRow } from "@/components/sortable-table";
-import { Note, Section } from "@/components/ui";
+import { ColorDot, Note, Section } from "@/components/ui";
 import { exerciseById } from "@/lib/data/exercises";
 import { MUSCLE_GROUP_COLORS } from "@/lib/data/muscles";
 import { modalityById } from "@/lib/data/modalities";
@@ -16,6 +16,7 @@ import { muscleVolume } from "@/lib/queries";
 import { isExerciseId, isModalityId } from "@/lib/validate";
 import type { ClientId, MuscleGroupId } from "@/lib/types";
 import { ExerciseDetail } from "./exercise-view";
+import { dash, lbs } from "@/lib/format";
 
 export function Overview({
   data,
@@ -59,11 +60,7 @@ export function Overview({
       exercise: (
         <span className="inline-flex items-center gap-1.5">
           {row.groupId && (
-            <span
-              className="size-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: MUSCLE_GROUP_COLORS[row.groupId] }}
-              title={row.groupId}
-            />
+            <ColorDot color={MUSCLE_GROUP_COLORS[row.groupId]} title={row.groupId} />
           )}
           <Link
             scroll={false}
@@ -86,7 +83,7 @@ export function Overview({
       ),
       modality: <ModalityChip modalityId={row.modalityId} />,
       sessions: row.sessionCount,
-      best: row.bestE1rmLbs === null ? "—" : `${Math.round(row.bestE1rmLbs)} lb`,
+      best: dash(row.bestE1rmLbs, lbs),
       trend:
         row.trendPerWeek === null ? (
           <span className="text-muted">—</span>

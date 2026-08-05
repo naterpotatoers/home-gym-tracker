@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { EffortPicker } from "@/components/effort-picker";
 import { CheckIcon } from "@/components/icons";
-import { Button, Input } from "@/components/ui";
+import { Button, ErrorText, Input } from "@/components/ui";
 import type { SessionCondition } from "@/lib/types";
 
 export type FinishPayload = {
@@ -64,7 +64,7 @@ export function FinishPanel({
           {busy ? "Saving…" : <><CheckIcon size={16} /> {label}</>}
         </Button>
         {error && (
-          <span className="text-xs font-semibold text-danger-text">{error}</span>
+          <ErrorText>{error}</ErrorText>
         )}
       </div>
     </div>

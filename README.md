@@ -6,8 +6,8 @@ an honest data model that never fakes a number it doesn't have.
 
 ## Features
 
-- **Program builder** (`/routines`, `/programs`) — author daily routines
-  (exercise + implement, sets, rep range, rest, RIR, supersets) with a live
+- **Program builder** (`/programs`) — author daily routines (exercise +
+  implement, sets, rep range, rest, RIR, supersets) with a live
   muscle-coverage preview; arrange them on a weeks × days grid; see which
   muscles a week neglects; assign programs to people.
 - **Workout runner** (`/workout`) — start today's program day or any routine.
@@ -17,13 +17,12 @@ an honest data model that never fakes a number it doesn't have.
 - **Group board** (`/workout/group`) — several people training at once,
   staggered across equipment, all logged from one shared device. One tap logs
   a set as prefilled; rest countdowns show whose turn it is.
-- **Metrics** (`/metrics`) — cross-client PR comparisons, "what weight fits
-  8–10 reps," and the reverse, with plate-loadable suggestions.
+- **People** (`/users`) — per-person hub: profile, weigh-ins, recent
+  workouts, e1RM progress charts, cross-client PR comparisons, "what weight
+  fits 8–10 reps," and the reverse, with plate-loadable suggestions.
 - **Muscle heat map** (`/metrics/heatmap`) — front/back body figures colored
   by per-muscle training intensity; compare day/week/program periods on one
   shared scale. Band-only work is hatched (rank-based, no fake pounds).
-- **Library** (`/library`) — inventory, modality tradeoffs, and worked
-  examples of the data-model decisions.
 
 ## Setup
 
@@ -38,11 +37,10 @@ NEXT_PUBLIC_SUPABASE_URL=<your project url>
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<your publishable key>
 ```
 
-**Database (one time):** run `supabase/migrations/001_init.sql` in the
-Supabase SQL editor (the publishable key can't create tables), then start the
-app and visit `/dev/seed` to load the seed data. Until then the app runs
-read-only off the TypeScript seed and shows a banner. `002_effort.sql` is only
-for databases created from a pre-effort-columns version of 001.
+**Database (one time):** run `supabase/schema.sql` in the Supabase SQL
+editor (the publishable key can't create tables), then start the app and add
+people at `/users`. Until then the app runs read-only off the TypeScript seed
+and shows a banner.
 
 ```bash
 npm run dev    # http://localhost:3000
@@ -53,9 +51,10 @@ npm run lint
 ## Architecture
 
 **Hybrid storage.** Hand-curated reference data lives in TypeScript
-(`src/lib/data/`: muscles, modalities, equipment, exercises, clients) where
-union types make a typo'd id a compile error. Data that grows — routines,
-programs, assignments, sessions, set logs, weigh-ins — lives in Supabase.
+(`src/lib/data/`: muscles, modalities, equipment, exercises) where union
+types make a typo'd id a compile error. Data that grows or gets edited —
+clients, routines, programs, assignments, sessions, set logs, weigh-ins —
+lives in Supabase; the schema is `supabase/schema.sql`.
 
 **Snapshot reads.** `loadGymData()` (`src/lib/db/snapshot.ts`, server-only)
 fetches all mutable tables per request into a `GymData` object. Every query

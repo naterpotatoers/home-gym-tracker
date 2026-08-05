@@ -1,17 +1,13 @@
 import type { CoverageStatus } from "@/lib/coverage";
-import type { MeterGroup, MeterRow } from "@/lib/meters";
-
-export type { MeterGroup, MeterRow };
+import type { MeterGroup } from "@/lib/meters";
 
 /**
- * Shared status-colored muscle meters — used by the routine/program coverage
- * bars (client + server) and the library volume section. Status color is
- * never the only encoding: the text label and legend always accompany it
- * (red/green colorblind safety), and ordinal (band) work renders as a hatched
- * indicator, never as length in a pounds bar.
+ * Shared status-colored muscle meters — the routine/program coverage bars
+ * (client + server). Status color is never the only encoding: the text label
+ * and legend always accompany it (red/green colorblind safety). Ordinal
+ * (band) work never renders as length in a pounds bar — the body heat map
+ * owns that hatched treatment.
  */
-
-
 
 const FILL: Record<CoverageStatus, string> = {
   solid: "bg-success",
@@ -19,22 +15,14 @@ const FILL: Record<CoverageStatus, string> = {
   neglected: "bg-danger",
 };
 
-const HATCH = {
-  backgroundImage:
-    "repeating-linear-gradient(45deg, var(--muted) 0 3px, transparent 3px 6px)",
-} as const;
-
-export function MeterBar({
+function MeterBar({
   value,
   max,
   status,
-  ordinal = false,
 }: {
   value: number;
   max: number;
   status: CoverageStatus;
-  /** Appends a fixed-width hatched stub — band work happened here. */
-  ordinal?: boolean;
 }) {
   const pct = Math.max(value > 0 ? 2 : 0, (value / Math.max(max, 1)) * 100);
   return (
@@ -44,9 +32,6 @@ export function MeterBar({
           className={`h-2.5 rounded-full ${FILL[status]}`}
           style={{ width: `${pct}%` }}
         />
-      )}
-      {ordinal && (
-        <div className="h-2.5 w-4 shrink-0 rounded-full opacity-70" style={HATCH} />
       )}
     </div>
   );
@@ -62,28 +47,17 @@ export function StatusLabel({ status }: { status: CoverageStatus }) {
   return null;
 }
 
-export function MeterLegend({ mode }: { mode: "coverage" | "volume" }) {
-  const items: { className?: string; style?: React.CSSProperties; label: string }[] =
-    mode === "coverage"
-      ? [
-          { className: "bg-success", label: "solid — 6+ hard sets" },
-          { className: "bg-warning", label: "light — under 6" },
-          { className: "bg-danger", label: "neglected — under 2, or nothing direct" },
-        ]
-      : [
-          { className: "bg-success", label: "solid" },
-          { className: "bg-warning", label: "light — under 25% of max, or band-only" },
-          { className: "bg-danger", label: "neglected — untrained" },
-          { style: HATCH, label: "band work — reps, no lbs" },
-        ];
+export function MeterLegend() {
+  const items = [
+    { className: "bg-success", label: "solid — 6+ hard sets" },
+    { className: "bg-warning", label: "light — under 6" },
+    { className: "bg-danger", label: "neglected — under 2, or nothing direct" },
+  ];
   return (
     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
       {items.map((item) => (
         <span key={item.label} className="flex items-center gap-1.5">
-          <span
-            className={`h-2.5 w-4 rounded-full ${item.className ?? "opacity-70"}`}
-            style={item.style}
-          />
+          <span className={`h-2.5 w-4 rounded-full ${item.className}`} />
           {item.label}
         </span>
       ))}
@@ -113,18 +87,10 @@ export function MuscleMeterGroups({ groups }: { groups: MeterGroup[] }) {
                   {row.peakScore}/10
                 </span>
                 <div className="order-4 col-span-3 sm:order-3 sm:col-span-1">
-                  <MeterBar
-                    value={row.value}
-                    max={max}
-                    status={row.status}
-                    ordinal={Boolean(row.ordinalNote)}
-                  />
+                  <MeterBar value={row.value} max={max} status={row.status} />
                 </div>
                 <span className="order-2 text-right font-mono text-xs sm:order-4">
                   {row.display}
-                  {row.ordinalNote && (
-                    <span className="ml-1 text-muted">{row.ordinalNote}</span>
-                  )}
                 </span>
                 <span className="order-3 text-right sm:order-5 sm:pl-2 sm:text-left">
                   <StatusLabel status={row.status} />

@@ -7,6 +7,7 @@ import { randomSuffix } from "@/lib/ids";
 import type { Variant } from "@/lib/queries";
 import { renumber, toBlocks, type Block } from "@/lib/set-blocks";
 import type { Session, SetLog } from "@/lib/types";
+import { errorMessage } from "@/lib/format";
 
 function clientSetId(): string {
   return `sl_${randomSuffix(8)}`;
@@ -26,7 +27,7 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
   const blocks = useMemo(() => toBlocks(sets), [sets]);
 
   function report(e: unknown) {
-    setError(e instanceof Error ? e.message : "Save failed.");
+    setError(errorMessage(e, "Save failed."));
   }
 
   /** Load fields cascade forward when edited — "update once, rolls out". */

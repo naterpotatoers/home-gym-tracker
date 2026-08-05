@@ -3,12 +3,14 @@ import { seedSnapshot } from "./data/seed-snapshot";
 import { buildGymData } from "./gym-data";
 import {
   muscleVolume,
+  openBoardGroups,
   prComparison,
   priorBestE1rm,
   recentVariantKeys,
   repRangeForWeight,
   repsForWeight,
   routineForDay,
+  sessionVolumeLbs,
   suggestedLoad,
   weightForReps,
   workingWeightForRepRange,
@@ -194,5 +196,103 @@ describe("muscleVolume honesty", () => {
       (v) => v.weightedVolumeLbs === 0 && v.ordinalReps === 0,
     );
     expect(untouched.every((v) => v.sets === 0 && v.peakScore === 0)).toBe(true);
+  });
+});
+
+describe("openBoardGroups", () => {
+  const session = (id: string, date: string, status: "planned" | "completed") => ({
+    id,
+    clientId: "nate" as const,
+    date,
+    assignmentId: null,
+    routineId: null,
+    durationMinutes: null,
+    rpe: null,
+    condition: null,
+    status,
+    notes: "",
+  });
+
+  it("groups ≥2 planned sessions per date, newest date first", () => {
+    const custom = buildGymData({
+      ...data,
+      sessions: [
+        session("s1", "2026-08-01", "planned"),
+        session("s2", "2026-08-01", "planned"),
+        session("s3", "2026-08-03", "planned"),
+        session("s4", "2026-08-04", "planned"),
+        session("s5", "2026-08-04", "planned"),
+        session("s6", "2026-08-04", "completed"),
+      ],
+      setLogs: [],
+    });
+    expect(openBoardGroups(custom)).toEqual([
+      { date: "2026-08-04", sessionIds: ["s4", "s5"] },
+      { date: "2026-08-01", sessionIds: ["s1", "s2"] },
+    ]);
+  });
+
+  it("is empty when no date has two planned sessions", () => {
+    expect(openBoardGroups(data)).toEqual([]);
+  });
+});
+
+describe("sessionVolumeLbs", () => {
+  const stubSet = (overrides: Partial<import("./types").SetLog>) => ({
+    id: "sl_x",
+    sessionId: "s_vol",
+    exerciseId: "squat" as const,
+    modalityId: "barbell" as const,
+    position: 1,
+    setNumber: 1,
+    unilateralMode: "bilateral" as const,
+    side: null,
+    reps: 5,
+    weightLbs: 100,
+    addedWeightLbs: null,
+    bandId: null,
+    bandRole: null,
+    durationSeconds: null,
+    distanceFeet: null,
+    rir: null,
+    isWarmup: false,
+    completed: true,
+    notes: "",
+    ...overrides,
+  });
+
+  it("sums completed working sets only, and never counts ordinal work", () => {
+    const custom = buildGymData({
+      ...data,
+      sessions: [
+        {
+          id: "s_vol",
+          clientId: "nate",
+          date: "2026-08-01",
+          assignmentId: null,
+          routineId: null,
+          durationMinutes: null,
+          rpe: null,
+          condition: null,
+          status: "completed",
+          notes: "",
+        },
+      ],
+      setLogs: [
+        stubSet({ id: "a", position: 1 }), // 100 × 5 = 500
+        stubSet({ id: "b", position: 2, isWarmup: true }), // warmup: out
+        stubSet({ id: "c", position: 3, completed: false }), // skipped: out
+        stubSet({
+          id: "d",
+          position: 4,
+          exerciseId: "lateral_walk",
+          modalityId: "band",
+          bandId: "hip_band_small",
+          bandRole: "resistance",
+          weightLbs: null,
+        }), // ordinal: no lbs
+      ],
+    });
+    expect(sessionVolumeLbs(custom, "s_vol")).toBe(500);
   });
 });

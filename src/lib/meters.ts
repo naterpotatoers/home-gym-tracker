@@ -11,8 +11,6 @@ export type MeterRow = {
   /** Right-hand value text — "4.5" hard sets or "12,340 lb". */
   display: string;
   status: CoverageStatus;
-  /** Extra annotation for ordinal work, e.g. "+120 ord". */
-  ordinalNote?: string;
 };
 
 export type MeterGroup = { groupId: string; label: string; rows: MeterRow[] };

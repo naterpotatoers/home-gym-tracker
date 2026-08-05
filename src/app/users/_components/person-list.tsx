@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChartIcon, ClipboardIcon, PersonIcon, PlusIcon } from "@/components/icons";
-import { chipClass } from "@/components/ui";
+import { chipClass, ColorDot } from "@/components/ui";
 import { progressHref, type ProgressParams } from "@/lib/progress-url";
 import type { ClientSummary } from "@/lib/queries";
 
@@ -46,12 +46,7 @@ export function PersonList({
                     selected ? "font-semibold text-accent-text" : ""
                   }`}
                 >
-                  {client.color && (
-                    <span
-                      className="size-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: client.color }}
-                    />
-                  )}
+                  <ColorDot color={client.color} />
                   {client.firstName}
                   {client.isTrainer && (
                     <span className="rounded bg-current/10 px-1 py-0.5 text-[10px] font-normal">
@@ -86,12 +81,7 @@ export function PersonList({
               href={personHref(client.id)}
               className={chipClass(client.id === params.client, "min-h-11 px-3 text-sm")}
             >
-              {client.color && (
-                <span
-                  className="size-2.5 rounded-full"
-                  style={{ backgroundColor: client.color }}
-                />
-              )}
+              <ColorDot color={client.color} />
               {client.firstName}
             </Link>
           ))}

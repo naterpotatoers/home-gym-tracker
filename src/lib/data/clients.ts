@@ -18,9 +18,8 @@ export const CLIENT_COLORS = [
   { id: "cyan", hex: "#06b6d4" },
 ] as const;
 
-/** Seed roster: loaded into the clients table by migration 002 (and by
- *  /dev/seed on a fresh database); the app falls back to this list read-only
- *  while the table doesn't exist. */
+/** Seed roster: the app falls back to this list read-only while the clients
+ *  table doesn't exist; on a live database people are managed at /users. */
 export const clients: readonly Client[] = [
   {
     id: "lidia",
@@ -99,5 +98,3 @@ export const weighIns: readonly WeighIn[] = [
   { id: "wi_nate_3", clientId: "nate", date: "2026-07-01", bodyweightLbs: 184 },
   { id: "wi_nate_4", clientId: "nate", date: "2026-07-27", bodyweightLbs: 185 },
 ];
-
-export const clientById = new Map(clients.map((c) => [c.id, c]));

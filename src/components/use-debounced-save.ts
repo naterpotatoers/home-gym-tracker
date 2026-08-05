@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { errorMessage } from "@/lib/format";
 
 /**
  * Debounced autosave: run `save` ~1s after the last change to `deps`,
@@ -42,7 +43,7 @@ export function useDebouncedSave(
       } catch (e) {
         pendingRef.current = false;
         setSaveState("idle");
-        setError(e instanceof Error ? e.message : "Save failed.");
+        setError(errorMessage(e, "Save failed."));
       }
     }, delayMs);
     return () => clearTimeout(timer);

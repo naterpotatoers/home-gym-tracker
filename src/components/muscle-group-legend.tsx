@@ -1,4 +1,5 @@
 import { MUSCLE_GROUP_COLORS, muscleGroups } from "@/lib/data/muscles";
+import { ColorDot } from "@/components/ui";
 
 /** Compact dot-per-muscle-group key — for any view that colors things by
  *  primary muscle group (routine builder cards, the Clients lift table). */
@@ -9,10 +10,7 @@ export function MuscleGroupLegend() {
         .sort((a, b) => a.order - b.order)
         .map((group) => (
           <span key={group.id} className="inline-flex items-center gap-1.5">
-            <span
-              className="size-2.5 rounded-full"
-              style={{ backgroundColor: MUSCLE_GROUP_COLORS[group.id] }}
-            />
+            <ColorDot color={MUSCLE_GROUP_COLORS[group.id]} />
             {group.label.toLowerCase()}
           </span>
         ))}

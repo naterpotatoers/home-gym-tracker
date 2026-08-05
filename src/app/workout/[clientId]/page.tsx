@@ -5,9 +5,8 @@ import { RecentWorkouts } from "@/components/recent-workouts";
 import { Button, Note, PageShell, Section, TableScroll, Td, Th } from "@/components/ui";
 import { startSession } from "@/lib/actions/workout";
 import { loadGymData } from "@/lib/db/snapshot";
-import { addDaysIso, currentProgramWeek, localTodayIso } from "@/lib/periods";
+import { addDaysIso, currentProgramWeek, DAY_LABELS, localTodayIso } from "@/lib/periods";
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /**
  * One person's program page: their assigned program's current week front and

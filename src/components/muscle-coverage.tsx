@@ -24,7 +24,7 @@ export function MuscleCoverageBars({ groups }: { groups: GroupedCoverage[] }) {
           })),
         }))}
       />
-      <MeterLegend mode="coverage" />
+      <MeterLegend />
     </div>
   );
 }

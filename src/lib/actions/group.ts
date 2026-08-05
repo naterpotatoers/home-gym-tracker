@@ -1,13 +1,13 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { localTodayIso } from "../periods";
 import { supabase } from "../db/client";
 import { sessionToRow, setLogToRow } from "../db/mappers";
 import { loadGymData } from "../db/snapshot";
+import { localTodayIso } from "../periods";
 import { plannedSessionFromRoutine } from "../planning";
 import type { ClientId, Session, SetLog } from "../types";
+import { revalidateAll, run } from "./_helpers";
 import { assertClientId } from "./clients";
 
 export type GroupEntry =
@@ -51,17 +51,17 @@ async function startGroupSessions(entries: GroupEntry[]): Promise<void> {
   }
 
   if (newSessions.length > 0) {
-    const { error: sessionError } = await supabase
-      .from("sessions")
-      .insert(newSessions.map(sessionToRow));
-    if (sessionError) throw new Error(`starting group: ${sessionError.message}`);
-    const { error: setsError } = await supabase
-      .from("set_logs")
-      .insert(newSets.map(setLogToRow));
-    if (setsError) throw new Error(`starting group: ${setsError.message}`);
+    await run(
+      "starting group",
+      supabase.from("sessions").insert(newSessions.map(sessionToRow)),
+    );
+    await run(
+      "starting group",
+      supabase.from("set_logs").insert(newSets.map(setLogToRow)),
+    );
   }
 
-  revalidatePath("/", "layout");
+  revalidateAll();
   // Solo detection: one person means no board — straight into the runner.
   if (sessionIds.length === 1) redirect(`/workout/session/${sessionIds[0]}`);
   redirect(`/workout/group/board?s=${sessionIds.join(",")}`);

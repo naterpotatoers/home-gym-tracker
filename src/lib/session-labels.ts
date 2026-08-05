@@ -24,15 +24,18 @@ export function describeTarget(set: SetLog): string {
   }
 }
 
-/** "3×10 @ RIR 2 · rest 90s" — collapses equal rep ranges to one number. */
+/** "3×10", "3×8–12", or "1×30s" — the high-level scheme, no RIR/rest. */
+export function schemeLabel(rx: RoutineExercise): string {
+  if (rx.durationSeconds !== null) return `${rx.sets}×${rx.durationSeconds}s`;
+  if (rx.repMin !== null && rx.repMax !== null && rx.repMin !== rx.repMax) {
+    return `${rx.sets}×${rx.repMin}–${rx.repMax}`;
+  }
+  return `${rx.sets}×${rx.repMax ?? rx.repMin ?? "?"}`;
+}
+
+/** "3×10 @ RIR 2 · rest 90s" — the scheme plus intensity and rest. */
 export function rxLabel(rx: RoutineExercise): string {
-  const scheme =
-    rx.durationSeconds !== null
-      ? `${rx.sets}×${rx.durationSeconds}s`
-      : rx.repMin === rx.repMax
-        ? `${rx.sets}×${rx.repMax ?? "?"}`
-        : `${rx.sets}×${rx.repMin ?? "?"}–${rx.repMax ?? "?"}`;
-  return `${scheme}${rx.targetRir !== null ? ` @ RIR ${rx.targetRir}` : ""} · rest ${rx.restSeconds}s`;
+  return `${schemeLabel(rx)}${rx.targetRir !== null ? ` @ RIR ${rx.targetRir}` : ""} · rest ${rx.restSeconds}s`;
 }
 
 /** First index at or after `from` that isn't completed. Forward-only: never

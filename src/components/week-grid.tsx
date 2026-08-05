@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { CopyIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import { useDebouncedSave } from "@/components/use-debounced-save";
-import { Button, Card, IconButton, Input, Select } from "@/components/ui";
+import { Button, Card, ErrorText, IconButton, Input, Select } from "@/components/ui";
 import {
   addWeek,
   clearProgramDay,
@@ -13,8 +13,9 @@ import {
   updateProgramInfo,
 } from "@/lib/actions/programs";
 import type { Program, ProgramDay, Routine } from "@/lib/types";
+import { errorMessage } from "@/lib/format";
+import { DAY_LABELS } from "@/lib/periods";
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /**
  * Editable program header + week rows. Weeks are managed structurally —
@@ -52,7 +53,7 @@ export function ProgramEditor({
       try {
         await action();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Update failed.");
+        setError(errorMessage(e, "Update failed."));
       }
     });
   }
@@ -145,7 +146,7 @@ export function ProgramEditor({
           {saveState === "saving" && " · saving…"}
           {saveState === "saved" && " · saved"}
         </span>
-        {error && <span className="text-xs font-semibold text-danger-text">{error}</span>}
+        {error && <ErrorText>{error}</ErrorText>}
       </div>
 
       {/* md+: the weeks × days grid */}

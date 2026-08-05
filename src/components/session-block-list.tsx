@@ -6,9 +6,27 @@ import { SetRow } from "@/components/set-row";
 import { Button, IconButton } from "@/components/ui";
 import type { SessionFlow, SetEditor } from "@/components/use-session-flow";
 import { exerciseById } from "@/lib/data/exercises";
+import { mmss } from "@/lib/periods";
 import { describeTarget, rxLabel } from "@/lib/session-labels";
 import type { Block } from "@/lib/set-blocks";
 import type { RoutineExercise } from "@/lib/types";
+
+/** The "rest m:ss" / "ready" status pair — same chips on the solo runner's
+ *  header and each group-board card. */
+export function RestReadyChips({ flow }: { flow: SessionFlow }) {
+  return (
+    <>
+      {flow.resting && flow.restSecondsLeft !== null && (
+        <span className="font-mono text-xs font-semibold text-warning-text">
+          rest {mmss(flow.restSecondsLeft)}
+        </span>
+      )}
+      {flow.ready && (
+        <span className="text-xs font-semibold text-success-text">ready</span>
+      )}
+    </>
+  );
+}
 
 /**
  * The session as a list you work down — shared by the solo runner and each

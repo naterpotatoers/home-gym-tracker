@@ -1,9 +1,10 @@
-import { ProgressChart, type ChartPoint } from "@/components/progress-chart";
+import { ProgressChart } from "@/components/progress-chart";
 import { LoadExplorerControls } from "@/components/progress-controls";
-import { Note, Stat } from "@/components/ui";
+import { ColorDot, Note, Stat } from "@/components/ui";
 import { exerciseById } from "@/lib/data/exercises";
 import { modalityById } from "@/lib/data/modalities";
 import type { GymData } from "@/lib/gym-data";
+import type { ChartPoint } from "@/lib/meters";
 import { e1rmTrend, exerciseHistory, trendSegment } from "@/lib/progress";
 import type { ProgressParams } from "@/lib/progress-url";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/lib/queries";
 import type { ClientId, ExerciseId, ModalityId } from "@/lib/types";
 import { HistoryTable } from "./history-table";
+import { dash, lbs } from "@/lib/format";
 
 /** One lift's full detail — rendered as the Lifts table's accordion row. */
 export function ExerciseDetail({
@@ -45,8 +47,8 @@ export function ExerciseDetail({
       y: p.bestE1rmLbs!,
       sessionId: p.sessionId,
       detail: `${p.date} · ${
-        p.topSet ? `${Math.round(p.topSet.weightLbs)} lb × ${p.topSet.reps}` : "—"
-      } · e1RM ${Math.round(p.bestE1rmLbs!)} lb`,
+        p.topSet ? `${lbs(p.topSet.weightLbs)} × ${p.topSet.reps}` : "—"
+      } · e1RM ${lbs(p.bestE1rmLbs!)}`,
     }));
 
   const bestAll = points.reduce((max, p) => Math.max(max, p.y), 0);
@@ -79,7 +81,7 @@ export function ExerciseDetail({
       ) : (
         <>
           <dl className="mb-4 flex flex-wrap gap-x-8 gap-y-2">
-            <Stat label="Best e1RM" value={`${Math.round(bestAll)} lb`} />
+            <Stat label="Best e1RM" value={lbs(bestAll)} />
             <Stat label="Sessions" value={String(history.length)} />
             <Stat
               label="Trend"
@@ -100,11 +102,11 @@ export function ExerciseDetail({
             />
             <Stat
               label="Projected 4 wk"
-              value={trend === null ? "—" : `${Math.round(trend.projected4wkLbs)} lb`}
+              value={trend === null ? "—" : lbs(trend.projected4wkLbs)}
             />
             <Stat
               label="Projected 8 wk"
-              value={trend === null ? "—" : `${Math.round(trend.projected8wkLbs)} lb`}
+              value={trend === null ? "—" : lbs(trend.projected8wkLbs)}
             />
           </dl>
 
@@ -126,7 +128,7 @@ export function ExerciseDetail({
               <span className="font-mono font-semibold">
                 {rangeAnswer.predicted === null
                   ? "—"
-                  : `${Math.round(rangeAnswer.predicted)} lb`}
+                  : lbs(rangeAnswer.predicted)}
               </span>
               {rangeAnswer.suggestedBarLoad !== null && (
                 <span className="text-xs text-muted">
@@ -135,7 +137,7 @@ export function ExerciseDetail({
               )}
               {rangeAnswer.bestActual && (
                 <span className="text-xs text-muted">
-                  best actual: {Math.round(rangeAnswer.bestActual.weightLbs)} lb ×{" "}
+                  best actual: {lbs(rangeAnswer.bestActual.weightLbs)} ×{" "}
                   {rangeAnswer.bestActual.reps} ({rangeAnswer.bestActual.date})
                 </span>
               )}
@@ -152,7 +154,7 @@ export function ExerciseDetail({
               {weightAnswer.bestActual && (
                 <span className="text-xs text-muted">
                   best actual: {weightAnswer.bestActual.reps} ×{" "}
-                  {Math.round(weightAnswer.bestActual.weightLbs)} lb (
+                  {lbs(weightAnswer.bestActual.weightLbs)} (
                   {weightAnswer.bestActual.date})
                 </span>
               )}
@@ -176,16 +178,11 @@ export function ExerciseDetail({
               }`}
             >
               <span className="inline-flex w-24 items-center gap-1.5">
-                {data.clientById.get(row.clientId)?.color && (
-                  <span
-                    className="size-2.5 rounded-full"
-                    style={{ backgroundColor: data.clientById.get(row.clientId)!.color! }}
-                  />
-                )}
+                <ColorDot color={data.clientById.get(row.clientId)?.color} />
                 {data.clientById.get(row.clientId)?.firstName ?? row.clientId}
               </span>
               <span className="font-mono">
-                {row.bestE1rmLbs === null ? "—" : `${Math.round(row.bestE1rmLbs)} lb`}
+                {dash(row.bestE1rmLbs, lbs)}
               </span>
               {row.relative !== null && (
                 <span className="font-mono text-xs text-muted">

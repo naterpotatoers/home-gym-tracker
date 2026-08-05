@@ -1,12 +1,21 @@
 import Link from "next/link";
-import { DiscardSessionButton } from "@/components/discard-session-button";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { CalendarIcon } from "@/components/icons";
 import { StartWorkoutSubmit } from "@/components/start-workout-submit";
-import { Checkbox, chipClass, clientBorderStyle, Note, PageShell, Select } from "@/components/ui";
+import {
+  Checkbox,
+  chipClass,
+  clientBorderStyle,
+  ColorDot,
+  Note,
+  PageShell,
+  Select,
+} from "@/components/ui";
 import { startGroupFromForm } from "@/lib/actions/group";
+import { discardSession } from "@/lib/actions/workout";
 import { loadGymData } from "@/lib/db/snapshot";
 import { localTodayIso, todayDow } from "@/lib/periods";
-import { clientSummaries, routineForDay } from "@/lib/queries";
+import { clientSummaries, openBoardGroups, routineForDay } from "@/lib/queries";
 
 /**
  * The one workout entry point: check who's training, confirm each person's
@@ -22,18 +31,7 @@ export default async function WorkoutPage() {
     clientSummaries(data).map((s) => [s.client.id, s]),
   );
 
-  // Unfinished sessions sharing a date were (probably) a group workout —
-  // offer the shared board back, since nothing else links to it.
-  const plannedByDate = new Map<string, string[]>();
-  for (const s of data.sessions) {
-    if (s.status !== "planned") continue;
-    const ids = plannedByDate.get(s.date);
-    if (ids) ids.push(s.id);
-    else plannedByDate.set(s.date, [s.id]);
-  }
-  const boardGroups = [...plannedByDate]
-    .filter(([, ids]) => ids.length >= 2)
-    .sort(([a], [b]) => b.localeCompare(a));
+  const boardGroups = openBoardGroups(data);
 
   const rows = data.clients.map((client) => {
     const planned = data.sessions
@@ -71,12 +69,7 @@ export default async function WorkoutPage() {
               <Checkbox name={`include_${client.id}`} />
               <span className="min-w-0">
                 <span className="flex items-center gap-1.5 font-semibold">
-                  {client.color && (
-                    <span
-                      className="size-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: client.color }}
-                    />
-                  )}
+                  <ColorDot color={client.color} />
                   {client.firstName}
                 </span>
                 <span className="block text-xs text-muted">
@@ -128,9 +121,11 @@ export default async function WorkoutPage() {
                       <div key={s.id} className="flex min-h-9 items-center gap-2 text-sm">
                         <span className="truncate">{name}</span>
                         <span className="font-mono text-xs text-muted">{s.date}</span>
-                        <DiscardSessionButton
-                          sessionId={s.id}
-                          label={`${name} (${s.date})`}
+                        <ConfirmDeleteButton
+                          action={discardSession.bind(null, s.id)}
+                          confirmText={`Discard ${name} (${s.date})? Any sets already logged in it are deleted.`}
+                          ariaLabel={`Discard ${name} (${s.date})`}
+                          className="ml-auto text-danger-text"
                         />
                       </div>
                     );
@@ -146,13 +141,13 @@ export default async function WorkoutPage() {
 
       {boardGroups.length > 0 && (
         <div className="mt-6 space-y-1">
-          {boardGroups.map(([date, ids]) => (
+          {boardGroups.map(({ date, sessionIds }) => (
             <Link
               key={date}
-              href={`/workout/group/board?s=${ids.join(",")}`}
+              href={`/workout/group/board?s=${sessionIds.join(",")}`}
               className="block text-sm font-semibold text-accent-text underline underline-offset-2"
             >
-              Resume group board — {date} ({ids.length} people) →
+              Resume group board — {date} ({sessionIds.length} people) →
             </Link>
           ))}
         </div>

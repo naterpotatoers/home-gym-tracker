@@ -203,15 +203,6 @@ export type MovementPattern =
 /** What the reps column means for this exercise. */
 export type MetricType = "reps" | "time" | "distance";
 
-/** Where in the range of motion the movement is hardest.
- *  `ascending` (bands) is hardest at end range and easiest at the stretch —
- *  a drawback under bandRole 'resistance', an advantage under 'assistance'. */
-export type ResistanceProfile =
-  | "constant"
-  | "ascending"
-  | "descending"
-  | "matched";
-
 /**
  * How trustworthy a recorded load is.
  * - `exact`       — a real number (plates, dumbbells)
@@ -289,7 +280,6 @@ export type LoopBand = {
   model: string;
   minLbs: number;
   maxLbs: number;
-  loadPrecision: Extract<LoadPrecision, "approximate">;
 };
 
 /** Rogue woven hip bands: no published lb value exists, so difficulty is
@@ -301,7 +291,6 @@ export type HipBand = {
   family: "hip";
   label: string;
   sizeInches: number;
-  loadPrecision: Extract<LoadPrecision, "ordinal">;
 };
 
 export type Band = LoopBand | HipBand;
@@ -317,30 +306,19 @@ export type MuscleModifier = {
 };
 
 /**
- * Metrics are seeded coaching heuristics, not measurements. The directions are
- * well supported (bilateral deficit is real; dumbbell pressing lands ~80-90% of
- * barbell; band tension rises through range) but no published figure transfers
- * cleanly to one lifter on one lift. `seedLoadFactor` is a placeholder that
- * `deriveLoadFactor()` replaces with the client's own measured ratio.
+ * `seedLoadFactor` is a seeded coaching heuristic, not a measurement. The
+ * direction is well supported (dumbbell pressing lands ~80-90% of barbell)
+ * but no published figure transfers cleanly to one lifter on one lift, so
+ * it's a placeholder that `deriveLoadFactor()` replaces with the client's
+ * own measured ratio.
  */
 export type Modality = {
   id: ModalityId;
   name: string;
   owned: boolean;
-  /** 0-10. Effort spent controlling the implement rather than moving load.
-   *  This is why dumbbells at 135 feel harder than a bar at 135. */
-  stabilityDemand: number;
   /** Load equivalence against a barbell baseline of 1.00. `null` where the
    *  concept doesn't apply (bodyweight, bands). */
   seedLoadFactor: number | null;
-  /** 0-10. Available range and stretch at the bottom. */
-  romQuality: number;
-  resistanceProfile: ResistanceProfile;
-  /** `null` for bands — precision comes from the specific band used, since
-   *  loop bands and hip bands sit on different measurement scales. */
-  defaultLoadPrecision: LoadPrecision | null;
-  /** 0-10. Technique floor, for matching variants to experience level. */
-  skillDemand: number;
   muscleModifiers: readonly MuscleModifier[];
 };
 

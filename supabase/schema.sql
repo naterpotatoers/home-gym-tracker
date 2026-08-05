@@ -1,13 +1,14 @@
--- Nates Gym — initial schema for mutable data.
+-- Nates Gym — the canonical schema. One shot, run in the Supabase SQL editor
+-- (the app's publishable key cannot DDL).
 --
 -- Reference data (muscles, modalities, equipment, exercises, muscle scores,
--- exercise modalities, clients) lives in TypeScript under src/lib/data/ where
--- the id unions make typos compile errors. Only data that grows or gets edited
--- at runtime lives here. FKs into reference data (exercise_id, modality_id,
--- client_id, band_id) are plain text validated in app code against those
--- unions.
+-- exercise modalities) lives in TypeScript under src/lib/data/ where the id
+-- unions make typos compile errors. Only data that grows or gets edited at
+-- runtime lives here. FKs into reference data (exercise_id, modality_id,
+-- band_id) are plain text validated in app code against those unions.
 --
--- Run this in the Supabase SQL editor (the app's publishable key cannot DDL).
+-- People are managed in the app at /users — this file creates empty tables
+-- and seeds nothing.
 
 create table routines (
   id text primary key,
@@ -108,32 +109,44 @@ create table weigh_ins (
   bodyweight_lbs double precision not null
 );
 
+-- Clients live in the database (not TS reference data) so people can be added
+-- and edited at /users, each with a card color. Ids stay readable text slugs;
+-- other tables keep referencing client_id as plain text.
+create table clients (
+  id text primary key,
+  first_name text not null,
+  last_name text not null default '',
+  status text not null default 'active' check (status in ('active', 'inactive')),
+  join_date date not null,
+  date_of_birth date not null,
+  height_inches numeric not null,
+  experience_level text not null check (experience_level in ('beginner', 'intermediate', 'advanced')),
+  goal text not null check (goal in ('general-fitness', 'strength', 'hypertrophy', 'fat-loss')),
+  is_trainer boolean not null default false,
+  color text,
+  notes text not null default ''
+);
+
 create index set_logs_session_idx on set_logs (session_id, position);
 create index sessions_client_idx on sessions (client_id, date);
 create index weigh_ins_client_idx on weigh_ins (client_id, date);
 
--- RLS: enabled with permissive anon policies. Single-household personal app
--- behind a publishable key; there is no per-user data to segregate.
-alter table routines enable row level security;
-create policy anon_all on routines for all to anon, authenticated using (true) with check (true);
-
-alter table routine_exercises enable row level security;
-create policy anon_all on routine_exercises for all to anon, authenticated using (true) with check (true);
-
-alter table programs enable row level security;
-create policy anon_all on programs for all to anon, authenticated using (true) with check (true);
-
-alter table program_days enable row level security;
-create policy anon_all on program_days for all to anon, authenticated using (true) with check (true);
-
-alter table assignments enable row level security;
-create policy anon_all on assignments for all to anon, authenticated using (true) with check (true);
-
-alter table sessions enable row level security;
-create policy anon_all on sessions for all to anon, authenticated using (true) with check (true);
-
-alter table set_logs enable row level security;
-create policy anon_all on set_logs for all to anon, authenticated using (true) with check (true);
-
-alter table weigh_ins enable row level security;
-create policy anon_all on weigh_ins for all to anon, authenticated using (true) with check (true);
+-- RLS: enabled with a permissive anon policy on every table. This is a
+-- single-household personal app behind a publishable key; there is no
+-- per-user data to segregate. The policy exists so the publishable key keeps
+-- working with RLS on — without one, RLS would silently return zero rows.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'routines', 'routine_exercises', 'programs', 'program_days',
+    'assignments', 'sessions', 'set_logs', 'weigh_ins', 'clients'
+  ] loop
+    execute format('alter table %I enable row level security', t);
+    execute format(
+      'create policy anon_all on %I for all to anon, authenticated using (true) with check (true)',
+      t
+    );
+  end loop;
+end $$;

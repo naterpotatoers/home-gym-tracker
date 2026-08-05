@@ -82,7 +82,6 @@ export const loopBands: readonly LoopBand[] = [
     model: "Micro #0",
     minLbs: 5,
     maxLbs: 15,
-    loadPrecision: "approximate",
   },
   {
     id: "band_red",
@@ -91,7 +90,6 @@ export const loopBands: readonly LoopBand[] = [
     model: "Mini #1",
     minLbs: 10,
     maxLbs: 25,
-    loadPrecision: "approximate",
   },
   {
     id: "band_blue",
@@ -100,7 +98,6 @@ export const loopBands: readonly LoopBand[] = [
     model: "Monster Mini #2",
     minLbs: 20,
     maxLbs: 40,
-    loadPrecision: "approximate",
   },
   {
     id: "band_green",
@@ -109,7 +106,6 @@ export const loopBands: readonly LoopBand[] = [
     model: "#3",
     minLbs: 30,
     maxLbs: 50,
-    loadPrecision: "approximate",
   },
 ];
 
@@ -127,14 +123,12 @@ export const hipBands: readonly HipBand[] = [
     family: "hip",
     label: "Green/Black",
     sizeInches: 12,
-    loadPrecision: "ordinal",
   },
   {
     id: "hip_band_medium",
     family: "hip",
     label: "Black/Red",
     sizeInches: 14,
-    loadPrecision: "ordinal",
   },
 ];
 

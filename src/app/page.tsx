@@ -1,13 +1,21 @@
 import Link from "next/link";
 import { PlayIcon } from "@/components/icons";
-import { clientBorderStyle, IconButton, Note, PageShell, Section, Stat } from "@/components/ui";
+import {
+  clientBorderStyle,
+  ColorDot,
+  IconButton,
+  Note,
+  PageShell,
+  Section,
+  Stat,
+} from "@/components/ui";
 import { startSession } from "@/lib/actions/workout";
 import { bars, dumbbells } from "@/lib/data/equipment";
 import { modalities } from "@/lib/data/modalities";
 import { loadGymData } from "@/lib/db/snapshot";
 import { localDayLabel, localTodayIso, todayDow } from "@/lib/periods";
 import { loadableWeights, smallestIncrement } from "@/lib/loading";
-import { availableVariants, hipBandLadder, routineForDay } from "@/lib/queries";
+import { availableVariants, hipBandLadder, openBoardGroups, routineForDay } from "@/lib/queries";
 
 const FLOWS = [
   {
@@ -45,15 +53,7 @@ export default async function Home() {
     .filter((t) => t.prescribed !== null);
 
   const inProgress = data.sessions.filter((s) => s.status === "planned");
-  // ≥2 unfinished sessions on one date = probably a group workout; the shared
-  // board is otherwise unreachable once you navigate away from it.
-  const boardDates = new Map<string, string[]>();
-  for (const s of inProgress) {
-    const ids = boardDates.get(s.date);
-    if (ids) ids.push(s.id);
-    else boardDates.set(s.date, [s.id]);
-  }
-  const boardGroups = [...boardDates].filter(([, ids]) => ids.length >= 2);
+  const boardGroups = openBoardGroups(data);
 
   const ohioLoads = loadableWeights("ohio_bar");
   const ownedModalities = modalities.filter((m) => m.owned);
@@ -88,12 +88,7 @@ export default async function Home() {
                   className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3"
                   style={clientBorderStyle(client?.color ?? null)}
                 >
-                  {client?.color && (
-                    <span
-                      className="size-3 shrink-0 rounded-full"
-                      style={{ backgroundColor: client.color }}
-                    />
-                  )}
+                  <ColorDot color={client?.color} size="md" />
                   <span className="min-w-0">
                     <span className="block font-semibold">{client?.firstName}</span>
                     <span className="block truncate text-xs text-muted">
@@ -124,13 +119,13 @@ export default async function Home() {
       {inProgress.length > 0 && (
         <Section title="In progress">
           <ul className="space-y-2 text-sm">
-            {boardGroups.map(([date, ids]) => (
+            {boardGroups.map(({ date, sessionIds }) => (
               <li key={date}>
                 <Link
-                  href={`/workout/group/board?s=${ids.join(",")}`}
+                  href={`/workout/group/board?s=${sessionIds.join(",")}`}
                   className="font-semibold text-accent-text underline underline-offset-2"
                 >
-                  Resume group board — {date} ({ids.length} people)
+                  Resume group board — {date} ({sessionIds.length} people)
                 </Link>
               </li>
             ))}

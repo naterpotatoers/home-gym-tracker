@@ -5,7 +5,7 @@ import {
 } from "./data/equipment";
 import { exerciseById, exerciseModalities } from "./data/exercises";
 import { modalityById } from "./data/modalities";
-import { muscleGroups, muscles } from "./data/muscles";
+import { muscles } from "./data/muscles";
 import type { GymData } from "./gym-data";
 import { nearestLoadableWeight } from "./loading";
 import { currentProgramWeek, localIso, localTodayIso } from "./periods";
@@ -94,6 +94,25 @@ export function sessionsFor(data: GymData, clientId: ClientId): Session[] {
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 
+/** ≥2 unfinished sessions sharing a date were (probably) a group workout —
+ *  the shared board is otherwise unreachable once you navigate away, so the
+ *  home and workout pages both offer it back. Newest date first. */
+export function openBoardGroups(
+  data: GymData,
+): { date: string; sessionIds: string[] }[] {
+  const byDate = new Map<string, string[]>();
+  for (const s of data.sessions) {
+    if (s.status !== "planned") continue;
+    const ids = byDate.get(s.date);
+    if (ids) ids.push(s.id);
+    else byDate.set(s.date, [s.id]);
+  }
+  return [...byDate]
+    .filter(([, ids]) => ids.length >= 2)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, sessionIds]) => ({ date, sessionIds }));
+}
+
 function setsFor(data: GymData, sessionId: string): SetLog[] {
   return [...(data.setsBySession.get(sessionId) ?? [])];
 }
@@ -105,6 +124,17 @@ export type SetBlock = Block;
 
 export function blocksFor(data: GymData, sessionId: string): SetBlock[] {
   return toBlocks(setsFor(data, sessionId));
+}
+
+/** Total honest pounds moved in a session's completed working sets. Warmups
+ *  and ordinal (band-rank) work stay out — no fake numbers in a lbs total. */
+export function sessionVolumeLbs(data: GymData, sessionId: string): number {
+  return setsFor(data, sessionId)
+    .filter((s) => s.completed && !s.isWarmup)
+    .reduce((sum, set) => {
+      const load = setLoad(data, set);
+      return load.lbs === null ? sum : sum + load.lbs * load.totalReps;
+    }, 0);
 }
 
 /** One-line description of a set, in the units that set was actually measured
@@ -495,33 +525,6 @@ export function muscleVolume(
 
   return [...totals.values()];
 }
-
-export type GroupedMuscleVolume = {
-  groupId: (typeof muscleGroups)[number]["id"];
-  label: string;
-  rows: (MuscleVolume & { name: string })[];
-};
-
-export function muscleVolumeByGroup(
-  data: GymData,
-  clientId: ClientId,
-  opts: { from?: string; to?: string } = {},
-): GroupedMuscleVolume[] {
-  const volume = new Map(muscleVolume(data, clientId, opts).map((v) => [v.muscleId, v]));
-  return [...muscleGroups]
-    .sort((a, b) => a.order - b.order)
-    .map((group) => ({
-      groupId: group.id,
-      label: group.label,
-      rows: muscles
-        .filter((m) => m.groupId === group.id)
-        .map((m) => ({
-          ...(volume.get(m.id) as MuscleVolume),
-          name: m.name,
-        })),
-    }));
-}
-
 
 // ---------------------------------------------------------------------------
 // Availability

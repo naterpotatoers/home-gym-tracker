@@ -1,35 +1,22 @@
 import Link from "next/link";
 import { CopyIcon, PencilIcon, PlusIcon } from "@/components/icons";
 import { ModalityChip } from "@/components/modality-chip";
-import { Button, Chip, IconButton, Input, PageShell, Section } from "@/components/ui";
+import {
+  Button,
+  Caret,
+  Chip,
+  IconButton,
+  Input,
+  PageShell,
+  Section,
+  summaryClass,
+} from "@/components/ui";
 import { createProgram, duplicateProgram } from "@/lib/actions/programs";
 import { createRoutine, duplicateRoutine } from "@/lib/actions/routines";
 import { exerciseById } from "@/lib/data/exercises";
 import { loadGymData } from "@/lib/db/snapshot";
-import type { RoutineExercise } from "@/lib/types";
-
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-/** "3×10", "3×8–12", or "1×30s" — the high-level scheme, no RIR/rest. */
-function schemeLabel(rx: RoutineExercise): string {
-  if (rx.durationSeconds !== null) return `${rx.sets}×${rx.durationSeconds}s`;
-  if (rx.repMin !== null && rx.repMax !== null && rx.repMin !== rx.repMax) {
-    return `${rx.sets}×${rx.repMin}–${rx.repMax}`;
-  }
-  return `${rx.sets}×${rx.repMax ?? rx.repMin ?? "?"}`;
-}
-
-const summaryClass =
-  "flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-2 px-4 py-2 hover:bg-current/5 [&::-webkit-details-marker]:hidden";
-
-function Caret() {
-  return (
-    <>
-      <span className="text-[10px] text-muted group-open:hidden">▸</span>
-      <span className="hidden text-[10px] text-muted group-open:inline">▾</span>
-    </>
-  );
-}
+import { DAY_LABELS } from "@/lib/periods";
+import { schemeLabel } from "@/lib/session-labels";
 
 /**
  * Planning hub: programs (weekly schedules) and the routines they're built
@@ -70,7 +57,7 @@ export default async function PlanPage() {
             return (
               <li key={program.id}>
                 <details className="group rounded-xl border border-border bg-surface">
-                  <summary className={summaryClass}>
+                  <summary className={summaryClass()}>
                     <Caret />
                     <span className="font-semibold">{program.name}</span>
                     <span className="text-xs text-muted">
@@ -154,7 +141,7 @@ export default async function PlanPage() {
             return (
               <li key={routine.id}>
                 <details className="group rounded-xl border border-border bg-surface">
-                  <summary className={summaryClass}>
+                  <summary className={summaryClass()}>
                     <Caret />
                     <span className="font-semibold">{routine.name}</span>
                     <span className="text-xs text-muted">

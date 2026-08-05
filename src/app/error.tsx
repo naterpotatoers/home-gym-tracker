@@ -16,8 +16,8 @@ export default function Error({
         {error.message || "An unexpected error occurred."}
       </p>
       <p className="mt-1 text-xs text-muted">
-        If this mentions a missing table, the database migration hasn&apos;t run —
-        see /dev/seed.
+        If this mentions a missing table, the database schema hasn&apos;t been
+        applied — run supabase/schema.sql in the Supabase SQL editor.
       </p>
       <button
         type="button"

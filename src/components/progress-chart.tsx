@@ -3,10 +3,6 @@
 import { useState } from "react";
 import type { ChartPoint, TrendSegment } from "@/lib/meters";
 
-// Re-exported so component-side importers keep one import; the definitions
-// live in lib (meters.ts) so the pure query layer never imports a component.
-export type { ChartPoint, TrendSegment };
-
 const W = 640;
 const H = 260;
 const L = 48;
@@ -27,12 +23,10 @@ function ms(date: string): number {
 export function ProgressChart({
   points,
   trend,
-  yUnit = "lb",
   label = "Estimated one-rep max over time",
 }: {
   points: ChartPoint[];
   trend: TrendSegment | null;
-  yUnit?: string;
   label?: string;
 }) {
   const [pinned, setPinned] = useState<number | null>(null);
@@ -90,7 +84,7 @@ export function ProgressChart({
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
         role="img"
-        aria-label={`${label}, in ${yUnit}`}
+        aria-label={`${label}, in lb`}
       >
         {gridValues.map((v) => (
           <g key={v}>

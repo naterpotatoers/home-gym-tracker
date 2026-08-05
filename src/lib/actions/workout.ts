@@ -1,12 +1,10 @@
 "use server";
 
-import { assertClientId } from "./clients";
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { localTodayIso } from "../periods";
 import { supabase } from "../db/client";
 import { sessionToRow, setLogToRow } from "../db/mappers";
 import { loadGymData } from "../db/snapshot";
+import { localTodayIso } from "../periods";
 import { plannedSessionFromRoutine } from "../planning";
 import { suggestedLoad } from "../queries";
 import type {
@@ -21,6 +19,8 @@ import {
   isModalityId,
   isSessionCondition,
 } from "../validate";
+import { revalidateAll, run } from "./_helpers";
+import { assertClientId } from "./clients";
 
 /**
  * Start a session from a routine: a planned Session plus one editable SetLog
@@ -42,16 +42,10 @@ export async function startSession(
     localTodayIso(),
   );
 
-  const { error: sessionError } = await supabase
-    .from("sessions")
-    .insert(sessionToRow(session));
-  if (sessionError) throw new Error(`starting session: ${sessionError.message}`);
-  const { error: setsError } = await supabase
-    .from("set_logs")
-    .insert(sets.map(setLogToRow));
-  if (setsError) throw new Error(`starting session: ${setsError.message}`);
+  await run("starting session", supabase.from("sessions").insert(sessionToRow(session)));
+  await run("starting session", supabase.from("set_logs").insert(sets.map(setLogToRow)));
 
-  revalidatePath("/", "layout");
+  revalidateAll();
   redirect(`/workout/session/${session.id}`);
 }
 
@@ -59,9 +53,8 @@ export async function startSession(
 export async function updateSetLog(set: SetLog): Promise<void> {
   if (!isExerciseId(set.exerciseId)) throw new Error(`bad exercise id ${set.exerciseId}`);
   if (!isModalityId(set.modalityId)) throw new Error(`bad modality id ${set.modalityId}`);
-  const { error } = await supabase.from("set_logs").upsert(setLogToRow(set));
-  if (error) throw new Error(`saving set: ${error.message}`);
-  revalidatePath("/", "layout");
+  await run("saving set", supabase.from("set_logs").upsert(setLogToRow(set)));
+  revalidateAll();
 }
 
 /**
@@ -79,20 +72,16 @@ export async function syncSetLogs(
     if (!isModalityId(set.modalityId)) throw new Error(`bad modality id ${set.modalityId}`);
   }
 
-  const { error: upsertError } = await supabase
-    .from("set_logs")
-    .upsert(sets.map(setLogToRow));
-  if (upsertError) throw new Error(`saving sets: ${upsertError.message}`);
+  await run("saving sets", supabase.from("set_logs").upsert(sets.map(setLogToRow)));
 
   const keep = sets.map((s) => s.id);
   let deletion = supabase.from("set_logs").delete().eq("session_id", sessionId);
   if (keep.length > 0) {
     deletion = deletion.not("id", "in", `(${keep.map((id) => `"${id}"`).join(",")})`);
   }
-  const { error: deleteError } = await deletion;
-  if (deleteError) throw new Error(`saving sets: ${deleteError.message}`);
+  await run("saving sets", deletion);
 
-  revalidatePath("/", "layout");
+  revalidateAll();
 }
 
 /** Prefill for a variant the client is swapping to mid-session. */
@@ -126,29 +115,29 @@ export async function finishSession(
   if (payload.condition !== null && !isSessionCondition(payload.condition)) {
     throw new Error(`bad condition ${payload.condition}`);
   }
-  const { error } = await supabase
-    .from("sessions")
-    .update({
-      status: "completed",
-      duration_minutes: payload.durationMinutes,
-      notes: payload.notes,
-      rpe: payload.rpe,
-      condition: payload.condition,
-    })
-    .eq("id", sessionId);
-  if (error) throw new Error(`finishing session: ${error.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "finishing session",
+    supabase
+      .from("sessions")
+      .update({
+        status: "completed",
+        duration_minutes: payload.durationMinutes,
+        notes: payload.notes,
+        rpe: payload.rpe,
+        condition: payload.condition,
+      })
+      .eq("id", sessionId),
+  );
+  revalidateAll();
   if (redirectTo !== null) redirect(redirectTo);
 }
 
 /** Delete a planned session that never happened. Cascades its set logs. */
 export async function discardSession(sessionId: string): Promise<void> {
-  const { error } = await supabase
-    .from("sessions")
-    .delete()
-    .eq("id", sessionId)
-    .eq("status", "planned");
-  if (error) throw new Error(`discarding session: ${error.message}`);
-  revalidatePath("/", "layout");
+  await run(
+    "discarding session",
+    supabase.from("sessions").delete().eq("id", sessionId).eq("status", "planned"),
+  );
+  revalidateAll();
   redirect("/workout");
 }
