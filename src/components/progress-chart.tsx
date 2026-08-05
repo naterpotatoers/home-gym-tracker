@@ -1,21 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import type { ChartPoint, TrendSegment } from "@/lib/meters";
 
-export type ChartPoint = {
-  date: string;
-  y: number;
-  sessionId: string;
-  /** Pinned-row line, e.g. "2026-06-15 · 185 lb × 5 · e1RM 216 lb". */
-  detail: string;
-};
-
-export type TrendSegment = {
-  fromDate: string;
-  fromY: number;
-  toDate: string;
-  toY: number;
-};
+// Re-exported so component-side importers keep one import; the definitions
+// live in lib (meters.ts) so the pure query layer never imports a component.
+export type { ChartPoint, TrendSegment };
 
 const W = 640;
 const H = 260;

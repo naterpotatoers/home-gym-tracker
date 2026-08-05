@@ -1,4 +1,4 @@
-# Home Gym
+# Nates Gym
 
 A training app for a household garage gym: build programs, run workouts (solo
 or everyone at once from one phone), and explore strength history — backed by

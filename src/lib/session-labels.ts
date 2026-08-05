@@ -1,4 +1,5 @@
 import { bandLabel } from "./queries";
+import { toBlocks } from "./set-blocks";
 import type { RoutineExercise, SetLog } from "./types";
 
 /** Pure label + cursor helpers for the live session cards — extracted so the
@@ -67,4 +68,60 @@ export function advanceCursor(sets: readonly SetLog[], fromId: string): string |
   if (at === -1) return null;
   const next = nextIncomplete(sets, at + 1);
   return next === -1 ? null : sets[next].id;
+}
+
+/** Variant key → superset label, for prescriptions that declare one. */
+export function supersetGroups(
+  prescriptions: readonly RoutineExercise[],
+): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const rx of prescriptions) {
+    if (rx.supersetGroup) {
+      out.set(`${rx.exerciseId}|${rx.modalityId}`, rx.supersetGroup);
+    }
+  }
+  return out;
+}
+
+/**
+ * The session's sets in intended PERFORMANCE order: adjacent blocks sharing a
+ * superset label interleave round by round (A1 B1 A2 B2 A3 — unequal set
+ * counts degrade naturally); everything else keeps list order. Storage stays
+ * grouped — only the cursor walks this ordering, so blocks, the load cascade,
+ * and renumbering are untouched. Identity when no labels are declared.
+ */
+export function performOrder(
+  sets: readonly SetLog[],
+  groups: ReadonlyMap<string, string>,
+): SetLog[] {
+  if (groups.size === 0) return [...sets];
+  const blocks = toBlocks(sets);
+  const out: SetLog[] = [];
+  let i = 0;
+  while (i < blocks.length) {
+    const label = groups.get(`${blocks[i].exerciseId}|${blocks[i].modalityId}`);
+    if (label === undefined) {
+      out.push(...blocks[i].sets);
+      i++;
+      continue;
+    }
+    // Gather the adjacent run sharing this label, then round-robin its sets.
+    let j = i;
+    while (
+      j < blocks.length &&
+      groups.get(`${blocks[j].exerciseId}|${blocks[j].modalityId}`) === label
+    ) {
+      j++;
+    }
+    const run = blocks.slice(i, j);
+    const rounds = Math.max(...run.map((b) => b.sets.length));
+    for (let round = 0; round < rounds; round++) {
+      for (const block of run) {
+        const set = block.sets[round];
+        if (set) out.push(set);
+      }
+    }
+    i = j;
+  }
+  return out;
 }

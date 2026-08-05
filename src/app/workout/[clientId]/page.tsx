@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button, PageShell, Section, SeedBanner, TableScroll, Td, Th } from "@/components/ui";
+import { PlayIcon } from "@/components/icons";
+import { RecentWorkouts } from "@/components/recent-workouts";
+import { Button, Note, PageShell, Section, TableScroll, Td, Th } from "@/components/ui";
 import { startSession } from "@/lib/actions/workout";
 import { loadGymData } from "@/lib/db/snapshot";
-import { addDaysIso, localTodayIso } from "@/lib/periods";
-import { sessionsFor } from "@/lib/queries";
+import { addDaysIso, currentProgramWeek, localTodayIso } from "@/lib/periods";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+/**
+ * One person's program page: their assigned program's current week front and
+ * center, unfinished sessions to resume, and their workout history. Ad-hoc
+ * routine starts live on the /workout screen, not here.
+ */
 export default async function ClientWorkoutPage({
   params,
 }: {
@@ -29,13 +35,7 @@ export default async function ClientWorkoutPage({
   let currentWeek = 1;
   let weekDays: { dayOfWeek: number; routineId: string; done: boolean }[] = [];
   if (assignment && program) {
-    const today = localTodayIso();
-    const elapsed = Math.floor(
-      (new Date(`${today}T00:00:00`).getTime() -
-        new Date(`${assignment.startDate}T00:00:00`).getTime()) /
-        (7 * 24 * 60 * 60 * 1000),
-    );
-    currentWeek = Math.min(Math.max(elapsed + 1, 1), program.weeks);
+    currentWeek = currentProgramWeek(assignment, program, localTodayIso());
     const weekStart = addDaysIso(assignment.startDate, (currentWeek - 1) * 7);
     const weekEnd = addDaysIso(assignment.startDate, currentWeek * 7);
     weekDays = data.programDays
@@ -55,51 +55,12 @@ export default async function ClientWorkoutPage({
       }));
   }
 
-  const routines = [...data.routines].sort((a, b) => a.name.localeCompare(b.name));
-  const recent = sessionsFor(data, clientId)
-    .filter((s) => s.status === "completed")
-    .slice(0, 8);
-
   return (
     <PageShell>
-      {data.source === "seed" && <SeedBanner />}
       <h1 className="text-3xl font-bold tracking-tight">{client.firstName}</h1>
 
-      {planned.length > 0 && (
-        <Section title="Resume">
-          <TableScroll>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border-strong text-left">
-                  <Th>Started</Th>
-                  <Th>Routine</Th>
-                  <Th>{""}</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {planned.map((session) => (
-                  <tr key={session.id} className="border-b border-border">
-                    <Td>
-                      <span className="font-mono text-xs">{session.date}</span>
-                    </Td>
-                    <Td>{data.routineById.get(session.routineId ?? "")?.name ?? "Session"}</Td>
-                    <Td>
-                      <Link
-                        href={`/workout/session/${session.id}`}
-                        className="text-accent-text underline underline-offset-2"
-                      >
-                        Resume →
-                      </Link>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </Section>
-      )}
-
-      {assignment && program && (
+      {/* The program is the headline of this page. */}
+      {assignment && program ? (
         <Section title={`${program.name} — week ${currentWeek} of ${program.weeks}`}>
           {weekDays.length === 0 ? (
             <p className="text-sm text-muted">Nothing scheduled this week.</p>
@@ -135,8 +96,8 @@ export default async function ClientWorkoutPage({
                           <form
                             action={startSession.bind(null, clientId, day.routineId, assignment.id)}
                           >
-                            <Button type="submit" size="sm">
-                              Start
+                            <Button type="submit" variant="primary" size="sm">
+                              <PlayIcon size={14} /> Start
                             </Button>
                           </form>
                         )}
@@ -147,73 +108,53 @@ export default async function ClientWorkoutPage({
               </table>
             </TableScroll>
           )}
+          <Note>
+            {client.firstName} is on {program.name}. Change or reassign programs
+            on the{" "}
+            <Link href="/programs" className="text-accent-text underline underline-offset-2">
+              Plan
+            </Link>{" "}
+            page.
+          </Note>
+        </Section>
+      ) : (
+        <Section title="Program">
+          <p className="text-sm text-muted">
+            No program assigned. Assign one on the{" "}
+            <Link href="/programs" className="text-accent-text underline underline-offset-2">
+              Plan
+            </Link>{" "}
+            page — or start any routine from the{" "}
+            <Link href="/workout" className="text-accent-text underline underline-offset-2">
+              Workout
+            </Link>{" "}
+            screen.
+          </p>
         </Section>
       )}
 
-      <Section title="Ad-hoc routine">
-        <TableScroll>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border-strong text-left">
-                <Th>Routine</Th>
-                <Th numeric>Exercises</Th>
-                <Th>{""}</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {routines.map((routine) => (
-                <tr key={routine.id} className="border-b border-border">
-                  <Td>{routine.name}</Td>
-                  <Td numeric>{data.exercisesByRoutine.get(routine.id)?.length ?? 0}</Td>
-                  <Td>
-                    <form action={startSession.bind(null, clientId, routine.id, null)}>
-                      <Button type="submit" size="sm">
-                        Start
-                      </Button>
-                    </form>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
-      </Section>
-
-      {recent.length > 0 && (
-        <Section title="Recent sessions">
-          <TableScroll>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border-strong text-left">
-                  <Th>Date</Th>
-                  <Th>Routine</Th>
-                  <Th numeric>RPE</Th>
-                  <Th>Felt</Th>
-                  <Th numeric>Min</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((session) => (
-                  <tr key={session.id} className="border-b border-border">
-                    <Td>
-                      <Link
-                        href={`/workout/session/${session.id}`}
-                        className="font-mono text-xs text-accent-text underline underline-offset-2"
-                      >
-                        {session.date}
-                      </Link>
-                    </Td>
-                    <Td>{data.routineById.get(session.routineId ?? "")?.name ?? "ad-hoc"}</Td>
-                    <Td numeric>{session.rpe ?? "—"}</Td>
-                    <Td>{session.condition ?? "—"}</Td>
-                    <Td numeric>{session.durationMinutes ?? "—"}</Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
+      {planned.length > 0 && (
+        <Section title="Resume">
+          <ul className="divide-y divide-border text-sm">
+            {planned.map((session) => (
+              <li key={session.id} className="flex min-h-11 items-center gap-3">
+                <span className="font-mono text-xs text-muted">{session.date}</span>
+                <span className="font-semibold">
+                  {data.routineById.get(session.routineId ?? "")?.name ?? "Session"}
+                </span>
+                <Link
+                  href={`/workout/session/${session.id}`}
+                  className="ml-auto text-accent-text underline underline-offset-2"
+                >
+                  Resume →
+                </Link>
+              </li>
+            ))}
+          </ul>
         </Section>
       )}
+
+      <RecentWorkouts data={data} client={clientId} />
     </PageShell>
   );
 }

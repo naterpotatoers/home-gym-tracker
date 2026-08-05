@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { TrashIcon } from "@/components/icons";
+import { IconButton } from "@/components/ui";
 import { discardSession } from "@/lib/actions/workout";
 
 /** Confirm-guarded discard for a planned session. A planned session can hold
@@ -15,9 +17,11 @@ export function DiscardSessionButton({
 }) {
   const [busy, setBusy] = useState(false);
   return (
-    <button
-      type="button"
+    <IconButton
+      variant="ghost"
+      size="sm"
       disabled={busy}
+      className="ml-auto text-danger-text"
       onClick={async () => {
         if (!confirm(`Discard ${label}? Any sets already logged in it are deleted.`)) return;
         setBusy(true);
@@ -27,9 +31,10 @@ export function DiscardSessionButton({
           setBusy(false);
         }
       }}
-      className="cursor-pointer whitespace-nowrap text-xs text-danger-text underline underline-offset-2 disabled:opacity-50"
+      aria-label={`Discard ${label}`}
+      title={`Discard ${label}`}
     >
-      {busy ? "discarding…" : "discard"}
-    </button>
+      <TrashIcon />
+    </IconButton>
   );
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
-import { addDaysIso, mondayOf, resolvePeriod } from "./periods";
+import { addDaysIso, currentProgramWeek, mondayOf, resolvePeriod } from "./periods";
 
 const data = seedSnapshot();
 
@@ -14,6 +14,26 @@ describe("date helpers", () => {
   it("mondayOf returns the Monday of the containing week", () => {
     expect(mondayOf("2026-08-02")).toBe("2026-07-27"); // a Sunday
     expect(mondayOf("2026-07-27")).toBe("2026-07-27"); // Monday is a fixed point
+  });
+});
+
+describe("currentProgramWeek", () => {
+  const assignment = { startDate: "2026-07-06" }; // a Monday
+  const program = { weeks: 4 };
+
+  it("is week 1 on the start date and through the first six days", () => {
+    expect(currentProgramWeek(assignment, program, "2026-07-06")).toBe(1);
+    expect(currentProgramWeek(assignment, program, "2026-07-12")).toBe(1);
+  });
+
+  it("rolls to week 2 exactly seven days in", () => {
+    expect(currentProgramWeek(assignment, program, "2026-07-13")).toBe(2);
+    expect(currentProgramWeek(assignment, program, "2026-07-19")).toBe(2);
+  });
+
+  it("clamps to week 1 before the start and the final week after the end", () => {
+    expect(currentProgramWeek(assignment, program, "2026-06-01")).toBe(1);
+    expect(currentProgramWeek(assignment, program, "2026-09-15")).toBe(4);
   });
 });
 

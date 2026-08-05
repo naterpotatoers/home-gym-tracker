@@ -67,7 +67,9 @@ export function NumberInput({
       step={step}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-      className={`${inputClass} ${inputSize[size]} text-right font-mono ${className}`}
+      // Native spinners are hidden — they'd eat the narrow field's width, and
+      // every numeric flow has its own +/- steppers or touch keypad.
+      className={`${inputClass} ${inputSize[size]} text-right font-mono [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${className}`}
     />
   );
 }
@@ -82,7 +84,7 @@ export function StepperInput({
   max,
   step = 1,
   size = "md",
-  className = "w-16",
+  className = "w-20",
 }: {
   value: number | null;
   onChange: (value: number | null) => void;
@@ -150,7 +152,9 @@ export function Field({ label, children }: { label: string; children: React.Reac
 }
 
 const buttonVariant = {
-  primary: "border border-accent/50 text-accent-text hover:bg-accent/10",
+  /* Warm-accent outline: the "do the thing" button — one per view, pops. */
+  primary:
+    "border border-accent-warm/60 text-accent-warm-text hover:bg-accent-warm/10",
   secondary: "border border-border-strong bg-surface hover:bg-current/5",
   ghost: "text-muted hover:text-foreground hover:bg-current/5",
   danger: "border border-danger/40 text-danger-text hover:bg-danger/10",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { CopyIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import { useDebouncedSave } from "@/components/use-debounced-save";
 import { Button, Card, IconButton, Input, Select } from "@/components/ui";
 import {
@@ -108,7 +109,7 @@ export function ProgramEditor({
           title={`Duplicate week ${week}`}
           aria-label={`Duplicate week ${week}`}
         >
-          ⧉
+          <CopyIcon />
         </IconButton>
         <IconButton
           variant="ghost"
@@ -117,7 +118,7 @@ export function ProgramEditor({
           title={`Remove week ${week}`}
           aria-label={`Remove week ${week}`}
         >
-          ✕
+          <TrashIcon />
         </IconButton>
       </span>
     );
@@ -214,14 +215,14 @@ export function ProgramEditor({
           disabled={pending || program.weeks >= 52}
           onClick={() => run(() => addWeek(program.id))}
         >
-          + Add week
+          <PlusIcon size={16} /> Add week
         </Button>
         <Button
           variant="ghost"
           disabled={pending || program.weeks >= 52}
           onClick={() => run(() => addWeek(program.id, program.weeks))}
         >
-          + Add week (copy last)
+          <CopyIcon size={16} /> Add week (copy last)
         </Button>
       </div>
     </div>

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { DiscardSessionButton } from "@/components/discard-session-button";
-import { Button, clientBorderStyle, Note, PageShell, SeedBanner, Select } from "@/components/ui";
+import { CalendarIcon } from "@/components/icons";
+import { StartWorkoutSubmit } from "@/components/start-workout-submit";
+import { chipClass, clientBorderStyle, Note, PageShell, Select } from "@/components/ui";
 import { startGroupFromForm } from "@/lib/actions/group";
 import { loadGymData } from "@/lib/db/snapshot";
-import { todayDow } from "@/lib/periods";
+import { localTodayIso, todayDow } from "@/lib/periods";
 import { clientSummaries, routineForDay } from "@/lib/queries";
 
 /**
@@ -14,10 +16,24 @@ import { clientSummaries, routineForDay } from "@/lib/queries";
 export default async function WorkoutPage() {
   const data = await loadGymData();
   const dow = todayDow();
+  const today = localTodayIso();
   const routines = [...data.routines].sort((a, b) => a.name.localeCompare(b.name));
   const summaries = new Map(
     clientSummaries(data).map((s) => [s.client.id, s]),
   );
+
+  // Unfinished sessions sharing a date were (probably) a group workout —
+  // offer the shared board back, since nothing else links to it.
+  const plannedByDate = new Map<string, string[]>();
+  for (const s of data.sessions) {
+    if (s.status !== "planned") continue;
+    const ids = plannedByDate.get(s.date);
+    if (ids) ids.push(s.id);
+    else plannedByDate.set(s.date, [s.id]);
+  }
+  const boardGroups = [...plannedByDate]
+    .filter(([, ids]) => ids.length >= 2)
+    .sort(([a], [b]) => b.localeCompare(a));
 
   const rows = data.clients.map((client) => {
     const planned = data.sessions
@@ -26,7 +42,7 @@ export default async function WorkoutPage() {
     const assignment = data.assignments.find(
       (a) => a.clientId === client.id && a.status === "active",
     );
-    const todaysRoutine = routineForDay(data, client.id, dow);
+    const todaysRoutine = routineForDay(data, client.id, dow, today);
     const defaultPlan = planned[0]
       ? `resume:${planned[0].id}`
       : todaysRoutine
@@ -37,7 +53,6 @@ export default async function WorkoutPage() {
 
   return (
     <PageShell className="max-w-4xl">
-      {data.source === "seed" && <SeedBanner />}
       <h1 className="text-3xl font-bold tracking-tight">Start a workout</h1>
       <p className="mt-2 text-sm text-muted">
         Check who&apos;s training and confirm their plan. One person goes
@@ -102,37 +117,51 @@ export default async function WorkoutPage() {
               </Select>
               <Link
                 href={`/workout/${client.id}`}
-                className="col-start-3 row-start-1 whitespace-nowrap text-xs text-accent-text underline underline-offset-2 sm:col-start-4"
+                className={`col-start-3 row-start-1 sm:col-start-4 ${chipClass(false, "min-h-9 whitespace-nowrap px-2.5 text-xs")}`}
               >
-                history →
+                <CalendarIcon size={14} /> Program
               </Link>
               {planned.length > 0 && (
-                <span className="col-span-3 flex flex-col gap-1 text-xs text-muted sm:col-span-4">
+                <div className="col-span-3 mt-1 rounded-lg bg-background px-3 py-2 sm:col-span-4">
+                  <span className="text-[11px] uppercase tracking-wide text-muted">
+                    Unfinished sessions
+                  </span>
                   {planned.map((s) => {
                     const name =
                       data.routineById.get(s.routineId ?? "")?.name ?? "session";
                     return (
-                      <span key={s.id} className="flex items-center gap-2">
-                        <span className="truncate">
-                          unfinished: {name} ({s.date})
-                        </span>
+                      <div key={s.id} className="flex min-h-9 items-center gap-2 text-sm">
+                        <span className="truncate">{name}</span>
+                        <span className="font-mono text-xs text-muted">{s.date}</span>
                         <DiscardSessionButton
                           sessionId={s.id}
                           label={`${name} (${s.date})`}
                         />
-                      </span>
+                      </div>
                     );
                   })}
-                </span>
+                </div>
               )}
             </label>
           );
         })}
 
-        <Button type="submit" variant="primary">
-          Start workout
-        </Button>
+        <StartWorkoutSubmit />
       </form>
+
+      {boardGroups.length > 0 && (
+        <div className="mt-6 space-y-1">
+          {boardGroups.map(([date, ids]) => (
+            <Link
+              key={date}
+              href={`/workout/group/board?s=${ids.join(",")}`}
+              className="block text-sm font-semibold text-accent-text underline underline-offset-2"
+            >
+              Resume group board — {date} ({ids.length} people) →
+            </Link>
+          ))}
+        </div>
+      )}
       <Note>
         Every unfinished session shows up as its own Resume option in the plan
         list — discard the ones that never really happened.

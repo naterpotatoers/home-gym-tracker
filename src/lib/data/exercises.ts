@@ -107,7 +107,27 @@ export const exercises: readonly Exercise[] = [
   // ---- mobility ----
   // No muscle scores on purpose. `mobility` is excluded from all volume math
   // rather than silently contributing a zero.
-  { id: "stretch", name: "Stretch", pattern: "mobility", metricType: "time", isCompound: false },
+  // Names carry the body part so picker search ("hamstring", "hip", "back")
+  // finds them. All timed holds/flows; single_side ones log per side.
+  { id: "stretch", name: "Stretch (general)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "standing_hamstring_stretch", name: "Standing Hamstring Stretch", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "standing_quad_stretch", name: "Standing Quad Stretch", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "calf_stretch", name: "Calf Stretch", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "butterfly_stretch", name: "Butterfly Stretch (Groin)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "figure_four_stretch", name: "Figure-Four Stretch (Glutes)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "pigeon_pose", name: "Pigeon Pose (Hips)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "ninety_ninety_stretch", name: "90/90 Hip Stretch", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "kneeling_hip_flexor_stretch", name: "Kneeling Hip-Flexor Stretch", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "worlds_greatest_stretch", name: "World's Greatest Stretch", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "childs_pose", name: "Child's Pose (Back)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "cat_cow", name: "Cat-Cow (Spine)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "cobra_stretch", name: "Cobra Stretch (Back)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "thread_the_needle", name: "Thread the Needle (T-Spine)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "downward_dog", name: "Downward Dog", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "doorway_chest_stretch", name: "Doorway Chest Stretch", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "cross_body_shoulder_stretch", name: "Cross-Body Shoulder Stretch", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "overhead_triceps_stretch", name: "Overhead Triceps Stretch", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "standing_lat_stretch", name: "Standing Lat Stretch", pattern: "mobility", metricType: "time", isCompound: false },
 ];
 
 /**
@@ -343,7 +363,8 @@ export const exerciseMuscleScores: readonly ExerciseMuscleScore[] = [
   s("bear_crawl", "hip_flexors", 5), s("bear_crawl", "serratus", 4),
   s("bear_crawl", "obliques", 4), s("bear_crawl", "triceps", 3),
 
-  // Stretch: intentionally none — see `pattern: 'mobility'`.
+  // Mobility (stretch/*_stretch/poses): intentionally none — the whole
+  // pattern is excluded from volume math; see `pattern: 'mobility'`.
 ];
 
 /**
@@ -482,6 +503,24 @@ export const exerciseModalities: readonly ExerciseModality[] = [
 
   // ---- mobility ----
   em("stretch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("standing_hamstring_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("standing_quad_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("calf_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("butterfly_stretch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("figure_four_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("pigeon_pose", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("ninety_ninety_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("kneeling_hip_flexor_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("worlds_greatest_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("childs_pose", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("cat_cow", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("cobra_stretch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("thread_the_needle", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("downward_dog", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("doorway_chest_stretch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"], notes: "Use the rack uprights if no doorway." }),
+  em("cross_body_shoulder_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("overhead_triceps_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("standing_lat_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
 ];
 
 // ---------------------------------------------------------------------------

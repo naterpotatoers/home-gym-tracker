@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { RoutineEditor } from "@/components/routine-editor";
-import { PageShell, SeedBanner } from "@/components/ui";
+import { PageShell } from "@/components/ui";
 import { loadGymData } from "@/lib/db/snapshot";
-import { availableVariants } from "@/lib/queries";
+import { availableVariants, recentVariantKeys } from "@/lib/queries";
 
 export default async function RoutinePage({
   params,
@@ -16,11 +16,11 @@ export default async function RoutinePage({
 
   return (
     <PageShell>
-      {data.source === "seed" && <SeedBanner />}
       <RoutineEditor
         routine={routine}
         initialRows={data.exercisesByRoutine.get(routineId) ?? []}
         variants={availableVariants()}
+        recentKeys={recentVariantKeys(data)}
       />
     </PageShell>
   );

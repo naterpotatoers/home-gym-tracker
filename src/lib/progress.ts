@@ -1,11 +1,9 @@
-import type { MeterGroup } from "./meters";
-import { volumeStatus } from "./coverage";
-import { scoresByExercise } from "./data/exercises";
+import { exerciseById, scoresByExercise } from "./data/exercises";
 import { muscleById } from "./data/muscles";
 import type { GymData } from "./gym-data";
 import { bestE1rm, e1rm, setLoad } from "./modality";
 import { addDaysIso, utcDay } from "./periods";
-import { blocksFor, muscleVolumeByGroup, workingSets } from "./queries";
+import { blocksFor, workingSets } from "./queries";
 import type { ClientId, ExerciseId, ModalityId, MuscleGroupId } from "./types";
 
 /**
@@ -226,9 +224,14 @@ export type LiftOverviewRow = LiftFrequency & {
 };
 
 /** The unified lift list: frequency + best + 90-day trend + primary muscle
- *  group, ready for the Progress overview's sort/filter controls. */
+ *  group, ready for the Progress overview's sort/filter controls. Mobility
+ *  work is filtered OUT here (18 stretches would pad the table with "—"
+ *  rows); `liftFrequency` itself keeps it — frequency stays honest, and any
+ *  future consumer wanting a mobility-free list must filter like this. */
 export function liftOverview(data: GymData, clientId: ClientId): LiftOverviewRow[] {
-  return liftFrequency(data, clientId).map((row) => {
+  return liftFrequency(data, clientId)
+    .filter((row) => exerciseById.get(row.exerciseId)?.pattern !== "mobility")
+    .map((row) => {
     const trend =
       row.bestE1rmLbs === null
         ? null
@@ -239,63 +242,6 @@ export function liftOverview(data: GymData, clientId: ClientId): LiftOverviewRow
       groupId: primaryMuscleGroup(row.exerciseId),
     };
   });
-}
-
-const STATUS_ORDER = { neglected: 0, light: 1, solid: 2 } as const;
-
-/** The per-muscle volume section's meter rows, shaped by the URL's sort and
- *  filter — moved from the library page when the section moved to Progress. */
-export function volumeMeterGroups(
-  data: GymData,
-  clientId: ClientId,
-  sort: "group" | "volume" | "status",
-  filter: "all" | "needs-work",
-): MeterGroup[] {
-  const volume = muscleVolumeByGroup(data, clientId);
-  const maxVolume = Math.max(
-    ...volume.flatMap((g) => g.rows.map((r) => r.weightedVolumeLbs)),
-  );
-  const grouped: MeterGroup[] = volume.map((group) => ({
-    groupId: group.groupId,
-    label: group.label,
-    rows: group.rows.map((row) => ({
-      id: row.muscleId,
-      name: row.name,
-      peakScore: row.peakScore,
-      value: row.weightedVolumeLbs,
-      display:
-        row.weightedVolumeLbs > 0
-          ? `${Math.round(row.weightedVolumeLbs).toLocaleString()} lb`
-          : "—",
-      status: volumeStatus(row, maxVolume),
-      ordinalNote:
-        row.ordinalReps > 0 ? `+${Math.round(row.ordinalReps)} ord` : undefined,
-    })),
-  }));
-  const flatRows = grouped.flatMap((g) => g.rows);
-  const sorted: MeterGroup[] =
-    sort === "volume"
-      ? [{
-          groupId: "all",
-          label: "All muscles — most to least volume",
-          rows: [...flatRows].sort((a, b) => b.value - a.value),
-        }]
-      : sort === "status"
-        ? [{
-            groupId: "all",
-            label: "All muscles — worst first",
-            rows: [...flatRows].sort(
-              (a, b) =>
-                STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.value - b.value,
-            ),
-          }]
-        : grouped;
-  return sorted
-    .map((g) => ({
-      ...g,
-      rows: filter === "needs-work" ? g.rows.filter((r) => r.status !== "solid") : g.rows,
-    }))
-    .filter((g) => g.rows.length > 0);
 }
 
 /** Best lifts inside one session, for the recent-workouts one-liners. */

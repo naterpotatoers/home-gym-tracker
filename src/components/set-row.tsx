@@ -40,20 +40,29 @@ export function SetRow({
         dense ? "px-1" : "px-2"
       } ${set.completed ? "bg-success/10" : ""} ${set.isWarmup ? "opacity-70" : ""}`}
     >
-      <span className="flex flex-col items-center gap-0.5 pt-1.5">
-        <input
-          type="checkbox"
-          checked={set.completed}
-          onChange={(e) => onChange({ completed: e.target.checked })}
-          className="size-4 accent-accent"
-        />
+      <span className="flex flex-col items-center">
+        {/* The checkbox is the primary control of the whole row — the label
+            gives it a full-size hit area around the small visual box. */}
+        <label
+          className={`flex cursor-pointer items-center justify-center ${
+            dense ? "size-9" : "size-11"
+          }`}
+        >
+          <input
+            type="checkbox"
+            checked={set.completed}
+            onChange={(e) => onChange({ completed: e.target.checked })}
+            aria-label="Set completed"
+            className="size-5 accent-accent"
+          />
+        </label>
         {/* Tap the set number to toggle warm-up — W replaces the number. */}
         <button
           type="button"
           onClick={() => onChange({ isWarmup: !set.isWarmup })}
           title="Toggle warm-up"
           aria-label={set.isWarmup ? "Warm-up set — tap for working set" : "Working set — tap for warm-up"}
-          className={`cursor-pointer rounded px-1.5 py-0.5 font-mono text-xs ${
+          className={`flex min-h-9 min-w-9 cursor-pointer items-center justify-center rounded font-mono text-xs ${
             set.isWarmup ? "font-semibold text-warning-text" : "text-muted"
           }`}
         >
@@ -210,7 +219,7 @@ export function SetRow({
               onChange({ rir: set.rir === null ? 0 : set.rir >= 4 ? null : set.rir + 1 })
             }
             aria-label={`Reps in reserve: ${set.rir ?? "not set"}, tap to change`}
-            className={`h-8 cursor-pointer rounded-md border px-2 font-mono text-xs ${
+            className={`${dense ? "min-h-9" : "min-h-11"} cursor-pointer rounded-md border px-3 font-mono text-xs ${
               set.rir !== null
                 ? "border-accent/40 bg-accent-soft text-accent-text"
                 : "border-border-strong text-muted"

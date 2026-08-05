@@ -4,6 +4,7 @@ import {
   e1rmTrend,
   exerciseHistory,
   liftFrequency,
+  liftOverview,
   trendSegment,
   type ExerciseHistoryPoint,
 } from "./progress";
@@ -96,5 +97,15 @@ describe("seed-data integration", () => {
     expect(bench!.sessionCount).toBe(
       exerciseHistory(data, "nate", "bench_press", "barbell").length,
     );
+  });
+
+  it("liftOverview filters mobility work that liftFrequency keeps", () => {
+    // Lidia's 2026-07-27 session logs a completed 300s stretch hold.
+    const frequency = liftFrequency(data, "lidia");
+    expect(frequency.some((r) => r.exerciseId === "stretch")).toBe(true);
+
+    const overview = liftOverview(data, "lidia");
+    expect(overview.some((r) => r.exerciseId === "stretch")).toBe(false);
+    expect(overview.some((r) => r.exerciseId === "squat")).toBe(true);
   });
 });

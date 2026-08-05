@@ -8,7 +8,7 @@ import { modalityById } from "./data/modalities";
 import { muscleGroups, muscles } from "./data/muscles";
 import type { GymData } from "./gym-data";
 import { nearestLoadableWeight } from "./loading";
-import { localIso, localTodayIso } from "./periods";
+import { currentProgramWeek, localIso, localTodayIso } from "./periods";
 import { toBlocks, type Block } from "./set-blocks";
 import {
   bestE1rm,
@@ -44,6 +44,13 @@ function ageOn(dateOfBirth: string, asOf: Date = new Date()): number {
   const monthDiff = asOf.getMonth() - dob.getMonth();
   if (monthDiff < 0 || (monthDiff === 0 && asOf.getDate() < dob.getDate())) age--;
   return age;
+}
+
+/** The roster's first client — the fallback wherever a page needs SOME
+ *  client and the URL didn't name one. Never hardcode a client id: they're
+ *  DB rows now and any given roster may lack it. */
+export function defaultClientId(data: GymData): string {
+  return data.clients[0]?.id ?? "";
 }
 
 export type ClientSummary = {
@@ -241,6 +248,40 @@ export function trainedVariants(data: GymData): TrainedVariant[] {
           exerciseById.get(b.exerciseId)?.name ?? "",
         ) || a.modalityId.localeCompare(b.modalityId),
     );
+}
+
+/** Best e1RM for a variant BEFORE a given session — the recap compares the
+ *  session's best against this to call out a PR honestly (the session's own
+ *  sets must not count toward the bar they're being measured against). */
+export function priorBestE1rm(
+  data: GymData,
+  clientId: ClientId,
+  exerciseId: ExerciseId,
+  modalityId: ModalityId,
+  excludeSessionId: string,
+  asOfDate: string,
+): number | null {
+  const sets = workingSets(data, clientId, exerciseId, modalityId).filter((s) => {
+    if (s.sessionId === excludeSessionId) return false;
+    const session = data.sessionById.get(s.sessionId);
+    return !!session && session.status === "completed" && session.date <= asOfDate;
+  });
+  return bestE1rm(data, sets);
+}
+
+/** The most recently trained variants, as picker keys — pins a "Recent"
+ *  group so mid-workout adds don't mean scrolling ~100 rows. No clientId =
+ *  household-wide (the routine editor has no person in scope). */
+export function recentVariantKeys(
+  data: GymData,
+  clientId?: ClientId,
+  limit = 8,
+): string[] {
+  return trainedVariants(data)
+    .filter((v) => (clientId ? v.clients.includes(clientId) : true))
+    .sort((a, b) => b.lastDate.localeCompare(a.lastDate))
+    .slice(0, limit)
+    .map((v) => `${v.exerciseId}|${v.modalityId}`);
 }
 
 /**
@@ -540,14 +581,26 @@ export function hipBandLadder(): { band: HipBand; rank: number }[] {
 // ---------------------------------------------------------------------------
 
 
-/** The routine prescribed for a client on a given weekday, if any. */
-export function routineForDay(data: GymData, clientId: ClientId, dayOfWeek: number) {
+/** The routine prescribed for a client on a given weekday of the program's
+ *  CURRENT week — multi-week programs schedule different routines per week,
+ *  so filtering by dayOfWeek alone would offer week 1 forever. */
+export function routineForDay(
+  data: GymData,
+  clientId: ClientId,
+  dayOfWeek: number,
+  todayIso: string,
+) {
   const assignment = data.assignments.find(
     (a) => a.clientId === clientId && a.status === "active",
   );
   if (!assignment) return null;
+  const program = data.programById.get(assignment.programId);
+  const week = program ? currentProgramWeek(assignment, program, todayIso) : 1;
   const day = data.programDays.find(
-    (d) => d.programId === assignment.programId && d.dayOfWeek === dayOfWeek,
+    (d) =>
+      d.programId === assignment.programId &&
+      d.week === week &&
+      d.dayOfWeek === dayOfWeek,
   );
   if (!day) return null;
   return {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { TableScroll } from "@/components/ui";
 
 export type SortableColumn = {
@@ -29,10 +29,16 @@ export function SortableTable({
   columns,
   rows,
   initialSort = null,
+  expandedKey,
+  expansion,
 }: {
   columns: SortableColumn[];
   rows: SortableRow[];
   initialSort?: SortState;
+  /** Key of the row whose accordion detail is open — the `expansion` node
+   *  renders in a full-width row right below it, following it through sorts. */
+  expandedKey?: string;
+  expansion?: React.ReactNode;
 }) {
   const [sort, setSort] = useState<SortState>(initialSort);
 
@@ -94,16 +100,25 @@ export function SortableTable({
         </thead>
         <tbody>
           {sorted.map((row) => (
-            <tr key={row.key} className="border-b border-border">
-              {columns.map((col) => (
-                <td
-                  key={col.key}
-                  className={`py-2 pr-3 ${col.numeric ? "text-right font-mono text-xs" : ""}`}
-                >
-                  {row.cells[col.key]}
-                </td>
-              ))}
-            </tr>
+            <React.Fragment key={row.key}>
+              <tr className="border-b border-border">
+                {columns.map((col) => (
+                  <td
+                    key={col.key}
+                    className={`py-2 pr-3 ${col.numeric ? "text-right font-mono text-xs" : ""}`}
+                  >
+                    {row.cells[col.key]}
+                  </td>
+                ))}
+              </tr>
+              {expansion !== undefined && row.key === expandedKey && (
+                <tr className="border-b border-border">
+                  <td colSpan={columns.length} className="p-0">
+                    {expansion}
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
           ))}
         </tbody>
       </table>

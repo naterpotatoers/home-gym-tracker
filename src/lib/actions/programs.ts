@@ -19,6 +19,35 @@ export async function createProgram(formData: FormData): Promise<void> {
   redirect(`/programs/${id}`);
 }
 
+/** Copy a program and its full week/day schedule — starting a new block is
+ *  usually "last block with tweaks". */
+export async function duplicateProgram(programId: string): Promise<void> {
+  const [{ data: program, error }, { data: days, error: daysError }] =
+    await Promise.all([
+      supabase.from("programs").select("*").eq("id", programId).single(),
+      supabase.from("program_days").select("*").eq("program_id", programId),
+    ]);
+  if (error || !program) throw new Error(`duplicating program: ${error?.message ?? "not found"}`);
+  if (daysError) throw new Error(`duplicating program: ${daysError.message}`);
+
+  const name = `${program.name} (copy)`;
+  const newProgramId = slugId("p", name);
+  const { error: insertError } = await supabase
+    .from("programs")
+    .insert({ id: newProgramId, name, weeks: program.weeks, notes: program.notes });
+  if (insertError) throw new Error(`duplicating program: ${insertError.message}`);
+
+  if (days && days.length > 0) {
+    const { error: daysInsertError } = await supabase
+      .from("program_days")
+      .insert(days.map((d) => ({ ...d, program_id: newProgramId })));
+    if (daysInsertError) throw new Error(`duplicating program: ${daysInsertError.message}`);
+  }
+
+  revalidatePath("/", "layout");
+  redirect(`/programs/${newProgramId}`);
+}
+
 export async function updateProgramInfo(
   programId: string,
   patch: { name: string; notes: string },

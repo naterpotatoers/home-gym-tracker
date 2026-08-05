@@ -1,10 +1,20 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeftIcon } from "@/components/icons";
 import { WorkoutRunner } from "@/components/workout-runner";
-import { Chip, PageShell, SeedBanner } from "@/components/ui";
+import { Chip, PageShell, Stat, chipClass, clientBorderStyle } from "@/components/ui";
 import { exerciseById } from "@/lib/data/exercises";
 import { ModalityChip } from "@/components/modality-chip";
+import { localDayLabel } from "@/lib/periods";
 import { loadGymData } from "@/lib/db/snapshot";
-import { availableVariants, blocksFor, describeSet } from "@/lib/queries";
+import { bestE1rm, setLoad } from "@/lib/modality";
+import {
+  availableVariants,
+  blocksFor,
+  describeSet,
+  priorBestE1rm,
+  recentVariantKeys,
+} from "@/lib/queries";
 
 export default async function SessionPage({
   params,
@@ -20,44 +30,132 @@ export default async function SessionPage({
 
   // Completed or skipped: read-only recap.
   if (session.status !== "planned") {
+    const blocks = blocksFor(data, session.id);
+    const completedSets = blocks
+      .flatMap((b) => b.sets)
+      .filter((s) => s.completed && !s.isWarmup);
+    const volumeLbs = completedSets.reduce((sum, set) => {
+      const load = setLoad(data, set);
+      return load.lbs === null ? sum : sum + load.lbs * load.totalReps;
+    }, 0);
+
     return (
-      <PageShell>
-        <div className="flex flex-wrap items-baseline gap-3">
+      <PageShell className="max-w-3xl">
+        <Link
+          href="/workout"
+          className={chipClass(false, "min-h-9 px-2.5 text-xs")}
+        >
+          <ArrowLeftIcon size={14} /> Back to workout
+        </Link>
+
+        {/* Who / when / how it went */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {client?.color && (
+            <span
+              className="size-3.5 shrink-0 rounded-full"
+              style={{ backgroundColor: client.color }}
+            />
+          )}
           <h1 className="text-2xl font-bold tracking-tight">
-            {client?.firstName} — {session.date}
+            {client?.firstName ?? session.clientId}
           </h1>
           <Chip>{session.status}</Chip>
           {session.rpe !== null && <Chip>RPE {session.rpe}</Chip>}
           {session.condition && <Chip>felt {session.condition}</Chip>}
-          {session.durationMinutes !== null && (
-            <span className="text-sm text-muted">{session.durationMinutes} min</span>
-          )}
         </div>
-        {session.notes && <p className="mt-2 text-sm text-muted">{session.notes}</p>}
+        <p className="mt-1 text-sm text-muted">
+          {localDayLabel(session.date)}
+          {session.routineId && (
+            <> · {data.routineById.get(session.routineId)?.name ?? "routine"}</>
+          )}
+        </p>
+        {session.notes && (
+          <p className="mt-2 border-l-2 border-border pl-3 text-sm italic text-muted">
+            {session.notes}
+          </p>
+        )}
 
-        <div className="mt-6 space-y-4">
-          {blocksFor(data, session.id).map((block, i) => (
-            <div key={i}>
-              <h2 className="text-sm font-semibold">
-                {exerciseById.get(block.exerciseId)?.name}
-                <span className="ml-2 inline-flex items-center gap-1.5 font-normal">
+        <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 rounded-xl border border-border bg-surface px-4 py-3">
+          <Stat label="Working sets" value={String(completedSets.length)} />
+          <Stat
+            label="Volume"
+            value={volumeLbs > 0 ? `${Math.round(volumeLbs).toLocaleString()} lb` : "—"}
+          />
+          <Stat
+            label="Duration"
+            value={
+              session.durationMinutes !== null ? `${session.durationMinutes} min` : "—"
+            }
+          />
+          <Stat label="Exercises" value={String(blocks.length)} />
+        </dl>
+
+        <div className="mt-6 space-y-3">
+          {blocks.map((block, i) => {
+            const sessionBest = bestE1rm(
+              data,
+              block.sets.filter((s) => s.completed && !s.isWarmup),
+            );
+            const prior =
+              session.status === "completed"
+                ? priorBestE1rm(
+                    data,
+                    session.clientId,
+                    block.exerciseId,
+                    block.modalityId,
+                    session.id,
+                    session.date,
+                  )
+                : null;
+            const isPr =
+              sessionBest !== null && prior !== null && sessionBest > prior;
+            const done = block.sets.filter((s) => s.completed).length;
+            return (
+              <div
+                key={i}
+                className="rounded-xl border border-border bg-surface p-3"
+                style={clientBorderStyle(client?.color ?? null)}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-sm font-semibold">
+                    {exerciseById.get(block.exerciseId)?.name ?? block.exerciseId}
+                  </h2>
                   <ModalityChip modalityId={block.modalityId} />
                   {block.sets[0].bandRole === "assistance" && (
                     <span className="text-xs text-muted">assisted</span>
                   )}
-                </span>
-              </h2>
-              <ul className="mt-1 space-y-0.5 text-sm opacity-80">
-                {block.sets.map((set) => (
-                  <li key={set.id} className="font-mono text-xs">
-                    {set.setNumber}. {describeSet(data, set)}
-                    {!set.completed && " · skipped"}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+                  {isPr && (
+                    <span className="rounded bg-success/15 px-1.5 py-0.5 text-xs font-semibold text-success-text">
+                      PR · e1RM {Math.round(sessionBest)} lb (prev {Math.round(prior)})
+                    </span>
+                  )}
+                  <span className="ml-auto font-mono text-xs text-muted">
+                    {done}/{block.sets.length} sets
+                  </span>
+                </div>
+                <ul className="mt-2 space-y-0.5">
+                  {block.sets.map((set) => (
+                    <li
+                      key={set.id}
+                      className={`font-mono text-xs ${
+                        set.completed ? "opacity-80" : "text-muted line-through decoration-current/40"
+                      }`}
+                    >
+                      {set.setNumber}. {describeSet(data, set)}
+                      {!set.completed && " · skipped"}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
         </div>
+
+        <p className="mt-8">
+          <Link href="/workout" className={chipClass(false, "min-h-9 px-2.5 text-xs")}>
+            <ArrowLeftIcon size={14} /> Back to workout
+          </Link>
+        </p>
       </PageShell>
     );
   }
@@ -69,13 +167,13 @@ export default async function SessionPage({
 
   return (
     <PageShell>
-      {data.source === "seed" && <SeedBanner />}
       <WorkoutRunner
         session={session}
         initialSets={data.setsBySession.get(session.id) ?? []}
         prescriptions={prescriptions}
         variants={availableVariants()}
         clientName={client?.firstName ?? session.clientId}
+        recentKeys={recentVariantKeys(data, session.clientId)}
       />
     </PageShell>
   );

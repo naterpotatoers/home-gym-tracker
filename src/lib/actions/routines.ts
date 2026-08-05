@@ -60,6 +60,40 @@ export async function saveRoutine(
   revalidatePath("/", "layout");
 }
 
+/** Copy a routine and its prescriptions — "Upper B" is usually "Upper A with
+ *  two swaps", so starting from a copy beats rebuilding six rows by hand. */
+export async function duplicateRoutine(routineId: string): Promise<void> {
+  const { data: routine, error } = await supabase
+    .from("routines")
+    .select("*")
+    .eq("id", routineId)
+    .single();
+  if (error || !routine) throw new Error(`duplicating routine: ${error?.message ?? "not found"}`);
+
+  const { data: rows, error: rowsError } = await supabase
+    .from("routine_exercises")
+    .select("*")
+    .eq("routine_id", routineId);
+  if (rowsError) throw new Error(`duplicating routine: ${rowsError.message}`);
+
+  const name = `${routine.name} (copy)`;
+  const newRoutineId = slugId("r", name);
+  const { error: insertError } = await supabase
+    .from("routines")
+    .insert({ id: newRoutineId, name, notes: routine.notes });
+  if (insertError) throw new Error(`duplicating routine: ${insertError.message}`);
+
+  if (rows && rows.length > 0) {
+    const { error: rowsInsertError } = await supabase
+      .from("routine_exercises")
+      .insert(rows.map((row) => ({ ...row, routine_id: newRoutineId })));
+    if (rowsInsertError) throw new Error(`duplicating routine: ${rowsInsertError.message}`);
+  }
+
+  revalidatePath("/", "layout");
+  redirect(`/routines/${newRoutineId}`);
+}
+
 export async function deleteRoutine(routineId: string): Promise<void> {
   const { count, error: refError } = await supabase
     .from("program_days")

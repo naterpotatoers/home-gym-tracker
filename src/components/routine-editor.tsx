@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { BodyHeatmap } from "@/components/body-heatmap";
 import { ExercisePicker } from "@/components/exercise-picker";
+import { CopyIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import { ModalityChip } from "@/components/modality-chip";
 import { useDebouncedSave } from "@/components/use-debounced-save";
 import {
@@ -14,7 +15,7 @@ import {
   StepperInput,
 } from "@/components/ui";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
-import { deleteRoutine, saveRoutine } from "@/lib/actions/routines";
+import { deleteRoutine, duplicateRoutine, saveRoutine } from "@/lib/actions/routines";
 import { coverageByGroup, neglectedMuscles, prescribedCoverage } from "@/lib/coverage";
 import { exerciseById } from "@/lib/data/exercises";
 import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
@@ -25,6 +26,10 @@ type PickerTarget = { mode: "add" } | { mode: "replace"; index: number };
 
 function rowFromVariant(routineId: string, variant: Variant, order: number): RoutineExercise {
   const em = variant.exerciseModality;
+  const exercise = exerciseById.get(em.exerciseId);
+  // Stretches: one hold (per side via unilateralMode), transition-length rest,
+  // and no RIR — reps-in-reserve is meaningless for a stretch.
+  const isMobility = exercise?.pattern === "mobility";
   return {
     routineId,
     order,
@@ -32,26 +37,103 @@ function rowFromVariant(routineId: string, variant: Variant, order: number): Rou
     modalityId: em.modalityId,
     bandRole: em.bandRoles[0] ?? null,
     unilateralMode: em.defaultUnilateralMode,
-    sets: 3,
+    sets: isMobility ? 1 : 3,
     repMin: 10,
     repMax: 10,
-    durationSeconds:
-      exerciseById.get(em.exerciseId)?.metricType === "time" ? 30 : null,
-    restSeconds: 90,
-    targetRir: 2,
+    durationSeconds: exercise?.metricType === "time" ? 30 : null,
+    restSeconds: isMobility ? 15 : 90,
+    targetRir: isMobility ? null : 2,
     supersetGroup: null,
     notes: "",
   };
+}
+
+/** Target-reps cell: a single stepper by default, one compact min–max line in
+ *  range mode (auto-detected when the row already prescribes a range). The
+ *  single↔range toggle lives in the label row so the control line stays
+ *  clean; the two range ends drag each other so min ≤ max always holds. */
+function RepTargets({
+  row,
+  onPatch,
+}: {
+  row: RoutineExercise;
+  onPatch: (changes: Partial<RoutineExercise>) => void;
+}) {
+  const isRange =
+    row.repMin !== null && row.repMax !== null && row.repMin !== row.repMax;
+  const [rangeMode, setRangeMode] = useState(isRange);
+  const showRange = rangeMode || isRange;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="text-[11px] uppercase tracking-wide text-muted">
+          {showRange ? "Reps (min–max)" : "Target reps"}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            if (showRange) {
+              setRangeMode(false);
+              onPatch({ repMin: row.repMax, repMax: row.repMax });
+            } else {
+              setRangeMode(true);
+            }
+          }}
+          className="cursor-pointer text-[11px] text-accent-text underline underline-offset-2"
+        >
+          {showRange ? "single" : "range"}
+        </button>
+      </span>
+      {showRange ? (
+        <div className="flex items-center gap-1">
+          <StepperInput
+            size="sm"
+            value={row.repMin}
+            min={1}
+            onChange={(v) =>
+              onPatch({
+                repMin: v,
+                repMax: v !== null && row.repMax !== null && v > row.repMax ? v : row.repMax,
+              })
+            }
+            className="w-12"
+          />
+          <span className="text-muted">–</span>
+          <StepperInput
+            size="sm"
+            value={row.repMax}
+            min={1}
+            onChange={(v) =>
+              onPatch({
+                repMax: v,
+                repMin: v !== null && row.repMin !== null && v < row.repMin ? v : row.repMin,
+              })
+            }
+            className="w-12"
+          />
+        </div>
+      ) : (
+        <StepperInput
+          value={row.repMax ?? row.repMin}
+          min={1}
+          onChange={(v) => onPatch({ repMin: v, repMax: v })}
+        />
+      )}
+    </div>
+  );
 }
 
 export function RoutineEditor({
   routine,
   initialRows,
   variants,
+  recentKeys,
 }: {
   routine: Routine;
   initialRows: RoutineExercise[];
   variants: Variant[];
+  recentKeys?: string[];
 }) {
   const [name, setName] = useState(routine.name);
   const [notes, setNotes] = useState(routine.notes);
@@ -210,11 +292,13 @@ export function RoutineEditor({
                   </Button>
                   <IconButton onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move up">↑</IconButton>
                   <IconButton onClick={() => move(index, 1)} disabled={index === rows.length - 1} aria-label="Move down">↓</IconButton>
-                  <IconButton variant="ghost" onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))} aria-label="Remove exercise">✕</IconButton>
+                  <IconButton variant="ghost" onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))} aria-label="Remove exercise"><TrashIcon /></IconButton>
                 </span>
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-end">
+              {/* Strict grid, max 3 columns: Sets|Reps|Rest / RIR|Superset|Mode
+                  / Notes full-width — every card lines up the same way. */}
+              <div className="mt-3 grid grid-cols-2 items-start gap-3 text-sm md:grid-cols-3">
                 <Field label="Sets">
                   <StepperInput value={row.sets} min={1} onChange={(v) => patch(index, { sets: v ?? 1 })} />
                 </Field>
@@ -223,19 +307,29 @@ export function RoutineEditor({
                     <StepperInput value={row.durationSeconds} min={5} step={5} onChange={(v) => patch(index, { durationSeconds: v })} />
                   </Field>
                 ) : (
-                  <Field label="Target reps">
-                    <StepperInput
-                      value={row.repMax ?? row.repMin}
-                      min={1}
-                      onChange={(v) => patch(index, { repMin: v, repMax: v })}
-                    />
-                  </Field>
+                  <RepTargets row={row} onPatch={(changes) => patch(index, changes)} />
                 )}
                 <Field label="Rest (s)">
                   <StepperInput value={row.restSeconds} min={0} step={15} onChange={(v) => patch(index, { restSeconds: v ?? 0 })} />
                 </Field>
                 <Field label="Target RIR">
                   <StepperInput value={row.targetRir} min={0} max={5} onChange={(v) => patch(index, { targetRir: v })} />
+                </Field>
+                <Field label="Superset">
+                  {/* Adjacent exercises sharing a label run interleaved
+                      (A1 B1 A2 B2…) with no rest inside the pair. */}
+                  <Select
+                    value={row.supersetGroup ?? ""}
+                    onChange={(e) => patch(index, { supersetGroup: e.target.value || null })}
+                  >
+                    <option value="">—</option>
+                    {row.supersetGroup && !["A", "B", "C"].includes(row.supersetGroup) && (
+                      <option value={row.supersetGroup}>{row.supersetGroup}</option>
+                    )}
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                  </Select>
                 </Field>
                 <Field label="Mode">
                   <Select
@@ -247,15 +341,17 @@ export function RoutineEditor({
                     <option value="single_side">single side</option>
                   </Select>
                 </Field>
-                <Field label="Notes">
-                  <Input
-                    type="text"
-                    value={row.notes}
-                    onChange={(e) => patch(index, { notes: e.target.value })}
-                    className="w-full lg:w-48"
-                    placeholder="—"
-                  />
-                </Field>
+                <div className="col-span-2 md:col-span-3">
+                  <Field label="Notes">
+                    <Input
+                      type="text"
+                      value={row.notes}
+                      onChange={(e) => patch(index, { notes: e.target.value })}
+                      className="w-full"
+                      placeholder="—"
+                    />
+                  </Field>
+                </div>
               </div>
             </div>
           );
@@ -264,10 +360,23 @@ export function RoutineEditor({
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button variant="primary" onClick={() => setPicker({ mode: "add" })}>
-          + Add exercise
+          <PlusIcon size={16} /> Add exercise
         </Button>
-        <Button variant="danger" size="sm" onClick={handleDelete} className="ml-auto">
-          Delete routine
+        <Button
+          size="sm"
+          className="ml-auto"
+          onClick={async () => {
+            try {
+              await duplicateRoutine(routine.id);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : "Duplicate failed.");
+            }
+          }}
+        >
+          <CopyIcon size={16} /> Duplicate
+        </Button>
+        <Button variant="danger" size="sm" onClick={handleDelete}>
+          <TrashIcon size={16} /> Delete routine
         </Button>
       </div>
 
@@ -321,6 +430,7 @@ export function RoutineEditor({
       {picker && (
         <ExercisePicker
           variants={variants}
+          recentKeys={recentKeys}
           onSelect={handlePick}
           onClose={() => setPicker(null)}
           emphasizePattern={

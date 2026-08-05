@@ -2,24 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { chipClass, IconButton, Input, Select } from "@/components/ui";
+import { heatmapHref, type HeatmapParams } from "@/lib/heatmap-url";
 import type { PeriodKind } from "@/lib/periods";
-
-export type HeatmapParams = {
-  client: string;
-  mode: "logged" | "prescribed";
-  period: PeriodKind;
-  date?: string;
-  from?: string;
-  to?: string;
-  program?: string;
-  week?: string;
-  compare?: string;
-  bDate?: string;
-  bFrom?: string;
-  bTo?: string;
-  bProgram?: string;
-  bWeek?: string;
-};
 
 const PERIODS: PeriodKind[] = ["day", "week", "program", "custom"];
 
@@ -42,12 +26,7 @@ export function HeatmapControls({
   const comparing = params.compare === "1";
 
   function navigate(patch: Partial<HeatmapParams>) {
-    const merged: Record<string, string | undefined> = { ...params, ...patch };
-    const search = new URLSearchParams();
-    for (const [key, value] of Object.entries(merged)) {
-      if (value) search.set(key, value);
-    }
-    router.replace(`/metrics/heatmap?${search.toString()}`);
+    router.replace(heatmapHref({ ...params, ...patch }));
   }
 
 

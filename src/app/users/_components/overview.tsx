@@ -1,37 +1,51 @@
 import Link from "next/link";
 import { BodyHeatmap } from "@/components/body-heatmap";
-import { MeterLegend, MuscleMeterGroups } from "@/components/meter-rows";
 import { ModalityChip } from "@/components/modality-chip";
 import { LiftListControls } from "@/components/progress-controls";
+import { RecentWorkouts } from "@/components/recent-workouts";
 import { SortableTable, type SortableRow } from "@/components/sortable-table";
-import { Chip, Note, Section } from "@/components/ui";
-import { VolumeControls, type VolumeFilter, type VolumeSort } from "@/components/volume-controls";
+import { Note, Section } from "@/components/ui";
 import { exerciseById } from "@/lib/data/exercises";
 import { MUSCLE_GROUP_COLORS } from "@/lib/data/muscles";
 import { modalityById } from "@/lib/data/modalities";
 import type { GymData } from "@/lib/gym-data";
 import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
-import { liftOverview, sessionTopLifts, volumeMeterGroups } from "@/lib/progress";
+import { liftOverview } from "@/lib/progress";
 import { progressHref, type ProgressParams } from "@/lib/progress-url";
-import { muscleVolume, sessionsFor } from "@/lib/queries";
+import { muscleVolume } from "@/lib/queries";
+import { isExerciseId, isModalityId } from "@/lib/validate";
 import type { ClientId, MuscleGroupId } from "@/lib/types";
+import { ExerciseDetail } from "./exercise-view";
 
 export function Overview({
   data,
   client,
   params,
+  personName,
 }: {
   data: GymData;
   client: ClientId;
   params: ProgressParams;
+  personName: string;
 }) {
+  // The Lifts table's accordion state: exercise/modality URL params name the
+  // one expanded row; the server renders only that detail.
+  const selected =
+    isExerciseId(params.exercise) && isModalityId(params.modality)
+      ? { exerciseId: params.exercise, modalityId: params.modality }
+      : null;
   const lifts = liftOverview(data, client)
     .filter((row) => (params.mod ? row.modalityId === params.mod : true))
     .filter((row) =>
       params.group ? row.groupId === (params.group as MuscleGroupId) : true,
     );
 
-  const liftRows: SortableRow[] = lifts.map((row) => ({
+  const liftRows: SortableRow[] = lifts.map((row) => {
+    const isOpen =
+      selected !== null &&
+      selected.exerciseId === row.exerciseId &&
+      selected.modalityId === row.modalityId;
+    return {
     key: `${row.exerciseId}-${row.modalityId}`,
     sort: {
       exercise: exerciseById.get(row.exerciseId)?.name ?? row.exerciseId,
@@ -52,9 +66,20 @@ export function Overview({
             />
           )}
           <Link
-            href={progressHref({ ...params, exercise: row.exerciseId, modality: row.modalityId })}
-            className="text-accent-text underline underline-offset-2"
+            scroll={false}
+            href={progressHref({
+              ...params,
+              exercise: isOpen ? "" : row.exerciseId,
+              modality: isOpen ? "" : row.modalityId,
+            })}
+            className={`inline-flex min-h-9 items-center gap-1 ${
+              isOpen
+                ? "font-semibold text-accent-text"
+                : "text-accent-text underline underline-offset-2"
+            }`}
+            aria-expanded={isOpen}
           >
+            <span className="text-[10px]">{isOpen ? "▾" : "▸"}</span>
             {exerciseById.get(row.exerciseId)?.name ?? row.exerciseId}
           </Link>
         </span>
@@ -82,10 +107,8 @@ export function Overview({
         ),
       last: row.lastDate,
     },
-  }));
-  const completed = sessionsFor(data, client).filter((s) => s.status === "completed");
-  const recent = completed.slice(0, 10);
-
+    };
+  });
   const flatVolume = muscleVolume(data, client);
   const volumeHeatMax = heatMax({ volumes: flatVolume });
   const volumeHeat = heatValues(
@@ -93,17 +116,28 @@ export function Overview({
     volumeHeatMax,
     ordinalMax({ volumes: flatVolume }),
   );
-  const meterGroups = volumeMeterGroups(
-    data,
-    client,
-    params.sort as VolumeSort,
-    params.filter as VolumeFilter,
-  );
 
   return (
     <>
+      <RecentWorkouts data={data} client={client} />
+
+      <Section title="Muscle volume (all time)">
+        <BodyHeatmap
+          values={volumeHeat}
+          title="Body map"
+          maxLabel={`${Math.round(volumeHeatMax).toLocaleString()} lb·reps`}
+        />
+        <Note>
+          Volume is score-weighted: each set counts toward every muscle it
+          trains, scaled by how directly it trains it. Tap a region for its
+          numbers; hatched regions are hip-band work — reps, never pounds.
+        </Note>
+      </Section>
+
       <Section title="Lifts">
-        <LiftListControls params={params} />
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <LiftListControls params={params} />
+        </div>
         {lifts.length === 0 ? (
           <Note>No lifts match — clear a filter or log some sets.</Note>
         ) : (
@@ -118,74 +152,27 @@ export function Overview({
             ]}
             rows={liftRows}
             initialSort={{ key: "best", dir: "desc" }}
+            expandedKey={
+              selected ? `${selected.exerciseId}-${selected.modalityId}` : undefined
+            }
+            expansion={
+              selected ? (
+                <ExerciseDetail
+                  data={data}
+                  client={client}
+                  personName={personName}
+                  exerciseId={selected.exerciseId}
+                  modalityId={selected.modalityId}
+                  params={params}
+                />
+              ) : undefined
+            }
           />
         )}
         <Note>
-          Trend is lb of e1RM per week over the last 90 days — it needs 3+
-          sessions across 2+ weeks. Dot color = primary muscle group.
-        </Note>
-      </Section>
-
-      <Section title="Recent workouts">
-        {recent.length === 0 ? (
-          <Note>Nothing completed yet.</Note>
-        ) : (
-          <ul className="space-y-2 text-sm">
-            {recent.map((session) => {
-              const tops = sessionTopLifts(data, session.id);
-              return (
-                <li key={session.id} className="flex flex-wrap items-center gap-2">
-                  <Link
-                    href={`/workout/session/${session.id}`}
-                    className="font-mono text-xs text-accent-text underline underline-offset-2"
-                  >
-                    {session.date}
-                  </Link>
-                  <span className="font-semibold">
-                    {data.routineById.get(session.routineId ?? "")?.name ?? "Session"}
-                  </span>
-                  {session.rpe !== null && <Chip>RPE {session.rpe}</Chip>}
-                  {session.condition && <Chip>felt {session.condition}</Chip>}
-                  {tops.length > 0 && (
-                    <span className="text-xs text-muted">
-                      {tops
-                        .map(
-                          (t) =>
-                            `${exerciseById.get(t.exerciseId)?.name ?? t.exerciseId} ${Math.round(t.bestE1rmLbs)}`,
-                        )
-                        .join(" · ")}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <Note>
-          {completed.length} completed session{completed.length === 1 ? "" : "s"} total —
-          tap a date for the full workout.
-        </Note>
-      </Section>
-
-      <Section title="Per-muscle volume (all time)">
-        <VolumeControls params={params} />
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
-          <div className="min-w-0 flex-1">
-            <MuscleMeterGroups groups={meterGroups} />
-            <MeterLegend mode="volume" />
-          </div>
-          <div className="shrink-0">
-            <BodyHeatmap
-              values={volumeHeat}
-              title="Body map"
-              maxLabel={`${Math.round(volumeHeatMax).toLocaleString()} lb·reps`}
-            />
-          </div>
-        </div>
-        <Note>
-          Volume is score-weighted: each set counts toward every muscle it
-          trains, scaled by how directly it trains it. &ldquo;ord&rdquo; is
-          hip-band work — reps, never pounds.
+          Tap a lift for its full history, chart, and load explorer. Trend is
+          lb of e1RM per week over the last 90 days — it needs 3+ sessions
+          across 2+ weeks. Dot color = primary muscle group.
         </Note>
       </Section>
     </>

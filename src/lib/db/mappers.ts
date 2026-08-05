@@ -17,19 +17,124 @@ import type {
  *
  * `RoutineExercise.order` maps to the `sort_order` column — "order" is a
  * reserved word in SQL.
+ *
+ * The Row types below mirror `supabase/migrations/*.sql` column-for-column,
+ * with field types borrowed from the domain types so a change to either side
+ * (renamed column, retyped field, new column) is a compile error in BOTH
+ * mapper directions rather than a silent `undefined` at runtime.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+export type RoutineRow = {
+  id: string;
+  name: string;
+  notes: string;
+};
 
-export function rowToRoutine(r: any): Routine {
+export type RoutineExerciseRow = {
+  routine_id: string;
+  sort_order: number;
+  exercise_id: RoutineExercise["exerciseId"];
+  modality_id: RoutineExercise["modalityId"];
+  band_role: RoutineExercise["bandRole"];
+  unilateral_mode: RoutineExercise["unilateralMode"];
+  sets: number;
+  rep_min: number | null;
+  rep_max: number | null;
+  duration_seconds: number | null;
+  rest_seconds: number;
+  target_rir: number | null;
+  superset_group: string | null;
+  notes: string;
+};
+
+export type ProgramRow = {
+  id: string;
+  name: string;
+  weeks: number;
+  notes: string;
+};
+
+export type ProgramDayRow = {
+  program_id: string;
+  week: number;
+  day_of_week: number;
+  routine_id: string;
+};
+
+export type AssignmentRow = {
+  id: string;
+  program_id: string;
+  client_id: Assignment["clientId"];
+  start_date: string;
+  status: Assignment["status"];
+};
+
+export type SessionRow = {
+  id: string;
+  client_id: Session["clientId"];
+  date: string;
+  assignment_id: string | null;
+  routine_id: string | null;
+  duration_minutes: number | null;
+  rpe: number | null;
+  condition: Session["condition"];
+  status: Session["status"];
+  notes: string;
+};
+
+export type SetLogRow = {
+  id: string;
+  session_id: string;
+  position: number;
+  exercise_id: SetLog["exerciseId"];
+  modality_id: SetLog["modalityId"];
+  set_number: number;
+  unilateral_mode: SetLog["unilateralMode"];
+  side: SetLog["side"];
+  reps: number | null;
+  weight_lbs: number | null;
+  added_weight_lbs: number | null;
+  band_id: SetLog["bandId"];
+  band_role: SetLog["bandRole"];
+  duration_seconds: number | null;
+  distance_feet: number | null;
+  rir: number | null;
+  is_warmup: boolean;
+  completed: boolean;
+  notes: string;
+};
+
+export type ClientRow = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  status: Client["status"];
+  join_date: string;
+  date_of_birth: string;
+  height_inches: number;
+  experience_level: Client["experienceLevel"];
+  goal: Client["goal"];
+  is_trainer: boolean;
+  color: string | null;
+  notes: string;
+};
+
+export type WeighInRow = {
+  id: string;
+  client_id: WeighIn["clientId"];
+  date: string;
+  bodyweight_lbs: number;
+};
+
+export function rowToRoutine(r: RoutineRow): Routine {
   return { id: r.id, name: r.name, notes: r.notes };
 }
 
-export function routineToRow(r: Routine) {
+export function routineToRow(r: Routine): RoutineRow {
   return { id: r.id, name: r.name, notes: r.notes };
 }
 
-export function rowToRoutineExercise(r: any): RoutineExercise {
+export function rowToRoutineExercise(r: RoutineExerciseRow): RoutineExercise {
   return {
     routineId: r.routine_id,
     order: r.sort_order,
@@ -48,7 +153,7 @@ export function rowToRoutineExercise(r: any): RoutineExercise {
   };
 }
 
-export function routineExerciseToRow(e: RoutineExercise) {
+export function routineExerciseToRow(e: RoutineExercise): RoutineExerciseRow {
   return {
     routine_id: e.routineId,
     sort_order: e.order,
@@ -67,15 +172,15 @@ export function routineExerciseToRow(e: RoutineExercise) {
   };
 }
 
-export function rowToProgram(r: any): Program {
+export function rowToProgram(r: ProgramRow): Program {
   return { id: r.id, name: r.name, weeks: r.weeks, notes: r.notes };
 }
 
-export function programToRow(p: Program) {
+export function programToRow(p: Program): ProgramRow {
   return { id: p.id, name: p.name, weeks: p.weeks, notes: p.notes };
 }
 
-export function rowToProgramDay(r: any): ProgramDay {
+export function rowToProgramDay(r: ProgramDayRow): ProgramDay {
   return {
     programId: r.program_id,
     week: r.week,
@@ -84,7 +189,7 @@ export function rowToProgramDay(r: any): ProgramDay {
   };
 }
 
-export function programDayToRow(d: ProgramDay) {
+export function programDayToRow(d: ProgramDay): ProgramDayRow {
   return {
     program_id: d.programId,
     week: d.week,
@@ -93,7 +198,7 @@ export function programDayToRow(d: ProgramDay) {
   };
 }
 
-export function rowToAssignment(r: any): Assignment {
+export function rowToAssignment(r: AssignmentRow): Assignment {
   return {
     id: r.id,
     programId: r.program_id,
@@ -103,7 +208,7 @@ export function rowToAssignment(r: any): Assignment {
   };
 }
 
-export function assignmentToRow(a: Assignment) {
+export function assignmentToRow(a: Assignment): AssignmentRow {
   return {
     id: a.id,
     program_id: a.programId,
@@ -113,7 +218,7 @@ export function assignmentToRow(a: Assignment) {
   };
 }
 
-export function rowToSession(r: any): Session {
+export function rowToSession(r: SessionRow): Session {
   return {
     id: r.id,
     clientId: r.client_id,
@@ -128,7 +233,7 @@ export function rowToSession(r: any): Session {
   };
 }
 
-export function sessionToRow(s: Session) {
+export function sessionToRow(s: Session): SessionRow {
   return {
     id: s.id,
     client_id: s.clientId,
@@ -143,7 +248,7 @@ export function sessionToRow(s: Session) {
   };
 }
 
-export function rowToSetLog(r: any): SetLog {
+export function rowToSetLog(r: SetLogRow): SetLog {
   return {
     id: r.id,
     sessionId: r.session_id,
@@ -167,7 +272,7 @@ export function rowToSetLog(r: any): SetLog {
   };
 }
 
-export function setLogToRow(s: SetLog) {
+export function setLogToRow(s: SetLog): SetLogRow {
   return {
     id: s.id,
     session_id: s.sessionId,
@@ -191,7 +296,7 @@ export function setLogToRow(s: SetLog) {
   };
 }
 
-export function rowToClient(r: any): Client {
+export function rowToClient(r: ClientRow): Client {
   return {
     id: r.id,
     firstName: r.first_name,
@@ -208,7 +313,7 @@ export function rowToClient(r: any): Client {
   };
 }
 
-export function clientToRow(c: Client) {
+export function clientToRow(c: Client): ClientRow {
   return {
     id: c.id,
     first_name: c.firstName,
@@ -225,7 +330,7 @@ export function clientToRow(c: Client) {
   };
 }
 
-export function rowToWeighIn(r: any): WeighIn {
+export function rowToWeighIn(r: WeighInRow): WeighIn {
   return {
     id: r.id,
     clientId: r.client_id,
@@ -234,7 +339,7 @@ export function rowToWeighIn(r: any): WeighIn {
   };
 }
 
-export function weighInToRow(w: WeighIn) {
+export function weighInToRow(w: WeighIn): WeighInRow {
   return {
     id: w.id,
     client_id: w.clientId,

@@ -1,10 +1,10 @@
-import type { ChartPoint, TrendSegment } from "@/components/progress-chart";
 import type { GymData } from "./gym-data";
+import type { ChartPoint, TrendSegment } from "./meters";
 import { addDaysIso, utcDay } from "./periods";
 import type { ClientId, WeighIn } from "./types";
 
 /**
- * Bodyweight-over-time queries for the Users page. Pure and synchronous over
+ * Bodyweight-over-time queries for the Clients page. Pure and synchronous over
  * `GymData`, like progress.ts. The trend is a deliberately separate ~20-line
  * least-squares rather than a generalization of `e1rmTrend` — that function is
  * typed to lift history and feeds the Progress tiles; sharing it would couple

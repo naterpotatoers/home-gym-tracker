@@ -1,4 +1,4 @@
--- Home Gym — initial schema for mutable data.
+-- Nates Gym — initial schema for mutable data.
 --
 -- Reference data (muscles, modalities, equipment, exercises, muscle scores,
 -- exercise modalities, clients) lives in TypeScript under src/lib/data/ where

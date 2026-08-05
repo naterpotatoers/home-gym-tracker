@@ -157,7 +157,25 @@ export type ExerciseId =
   | "jumping_jacks"
   | "bear_crawl"
   // mobility
-  | "stretch";
+  | "stretch"
+  | "standing_hamstring_stretch"
+  | "standing_quad_stretch"
+  | "calf_stretch"
+  | "butterfly_stretch"
+  | "figure_four_stretch"
+  | "pigeon_pose"
+  | "ninety_ninety_stretch"
+  | "kneeling_hip_flexor_stretch"
+  | "worlds_greatest_stretch"
+  | "childs_pose"
+  | "cat_cow"
+  | "cobra_stretch"
+  | "thread_the_needle"
+  | "downward_dog"
+  | "doorway_chest_stretch"
+  | "cross_body_shoulder_stretch"
+  | "overhead_triceps_stretch"
+  | "standing_lat_stretch";
 
 /** Clients live in the database now (migration 002), so ids are open
  *  strings — the readable-slug convention still applies (`c_maria_x1`). */

@@ -33,14 +33,29 @@ export function ExercisePicker({
   onSelect,
   onClose,
   emphasizePattern,
+  recentKeys,
 }: {
   variants: Variant[];
   onSelect: (variant: Variant) => void;
   onClose: () => void;
   /** Same-pattern variants sort first — for like-for-like swaps. */
   emphasizePattern?: MovementPattern;
+  /** "exerciseId|modalityId" keys pinned as a Recent group while the search
+   *  is empty — 95% of picks are the same handful of lifts. */
+  recentKeys?: string[];
 }) {
   const [search, setSearch] = useState("");
+
+  const recent = useMemo(() => {
+    if (!recentKeys || recentKeys.length === 0 || search.trim()) return [];
+    const byKey = new Map(
+      variants.map((v) => [
+        `${v.exerciseModality.exerciseId}|${v.exerciseModality.modalityId}`,
+        v,
+      ]),
+    );
+    return recentKeys.map((key) => byKey.get(key)).filter((v): v is Variant => !!v);
+  }, [recentKeys, variants, search]);
 
   const groups = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -81,12 +96,35 @@ export function ExercisePicker({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search exercises…"
+            autoFocus
             className="w-full"
           />
           <Button variant="ghost" onClick={onClose}>
             Close
           </Button>
         </div>
+
+        {recent.length > 0 && (
+          <div className="mt-4">
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+              Recent
+            </h3>
+            <ul>
+              {recent.map((variant) => (
+                <li key={`recent-${variant.exerciseModality.exerciseId}-${variant.exerciseModality.modalityId}`}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(variant)}
+                    className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-current/5"
+                  >
+                    <span>{variant.exerciseName}</span>
+                    <ModalityChip modalityId={variant.exerciseModality.modalityId} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {groups.map(({ pattern, variants: group }) => (
           <div key={pattern} className="mt-4">

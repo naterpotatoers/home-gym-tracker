@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { GroupBoard, type BoardPerson } from "@/components/group-board";
-import { PageShell, SeedBanner } from "@/components/ui";
+import { PageShell } from "@/components/ui";
 import { loadGymData } from "@/lib/db/snapshot";
-import { availableVariants } from "@/lib/queries";
+import { availableVariants, recentVariantKeys } from "@/lib/queries";
 
 export default async function GroupBoardPage({
   searchParams,
@@ -26,6 +26,7 @@ export default async function GroupBoardPage({
       clientName: data.clientById.get(session!.clientId)?.firstName ?? session!.clientId,
       color: data.clientById.get(session!.clientId)?.color ?? null,
       routineName: data.routineById.get(session!.routineId ?? "")?.name ?? "Session",
+      recentKeys: recentVariantKeys(data, session!.clientId),
     }));
 
   if (people.length === 0) {
@@ -45,7 +46,6 @@ export default async function GroupBoardPage({
 
   return (
     <PageShell className="max-w-7xl">
-      {data.source === "seed" && <SeedBanner />}
       <GroupBoard people={people} variants={availableVariants()} />
     </PageShell>
   );

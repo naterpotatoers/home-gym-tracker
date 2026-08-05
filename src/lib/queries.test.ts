@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
+import { buildGymData } from "./gym-data";
 import {
   muscleVolume,
   prComparison,
+  priorBestE1rm,
+  recentVariantKeys,
   repRangeForWeight,
   repsForWeight,
+  routineForDay,
   suggestedLoad,
   weightForReps,
   workingWeightForRepRange,
@@ -89,6 +93,77 @@ describe("suggestedLoad", () => {
 
   it("is null for a variant the client never trained", () => {
     expect(suggestedLoad(data, "nate", "donkey_kick", "bodyweight")).toBeNull();
+  });
+});
+
+describe("routineForDay is week-aware", () => {
+  // A 2-week program that schedules DIFFERENT routines for the same weekday.
+  const weekData = buildGymData({
+    source: "seed",
+    clientsSource: "seed",
+    clients: data.clients,
+    routines: [
+      { id: "r_week1", name: "Week 1 Day", notes: "" },
+      { id: "r_week2", name: "Week 2 Day", notes: "" },
+    ],
+    routineExercises: [],
+    programs: [{ id: "p_two", name: "Two Weeks", weeks: 2, notes: "" }],
+    programDays: [
+      { programId: "p_two", week: 1, dayOfWeek: 1, routineId: "r_week1" },
+      { programId: "p_two", week: 2, dayOfWeek: 1, routineId: "r_week2" },
+    ],
+    assignments: [
+      { id: "a1", programId: "p_two", clientId: "nate", startDate: "2026-07-06", status: "active" },
+    ],
+    sessions: [],
+    setLogs: [],
+    weighIns: [],
+  });
+
+  it("offers the current week's routine, not week 1 forever", () => {
+    expect(routineForDay(weekData, "nate", 1, "2026-07-06")?.routineId).toBe("r_week1");
+    expect(routineForDay(weekData, "nate", 1, "2026-07-13")?.routineId).toBe("r_week2");
+  });
+
+  it("keeps offering the final week after the program ends", () => {
+    expect(routineForDay(weekData, "nate", 1, "2026-09-01")?.routineId).toBe("r_week2");
+  });
+
+  it("returns null for a weekday with nothing scheduled", () => {
+    expect(routineForDay(weekData, "nate", 3, "2026-07-06")).toBeNull();
+  });
+});
+
+describe("priorBestE1rm", () => {
+  // Nate's last barbell bench session in the seed is s_nate_0727.
+  it("excludes the session's own sets from the bar it's measured against", () => {
+    const withLast = priorBestE1rm(
+      data, "nate", "bench_press", "barbell", "not_a_session", "2026-07-27",
+    );
+    const withoutLast = priorBestE1rm(
+      data, "nate", "bench_press", "barbell", "s_nate_0727", "2026-07-27",
+    );
+    expect(withLast).not.toBeNull();
+    expect(withoutLast).not.toBeNull();
+    expect(withoutLast!).toBeLessThanOrEqual(withLast!);
+  });
+
+  it("is null for a variant with no prior history", () => {
+    expect(
+      priorBestE1rm(data, "nate", "donkey_kick", "bodyweight", "x", "2026-07-27"),
+    ).toBeNull();
+  });
+});
+
+describe("recentVariantKeys", () => {
+  it("returns per-client keys, most recent first, capped", () => {
+    const keys = recentVariantKeys(data, "nate", 5);
+    expect(keys.length).toBeLessThanOrEqual(5);
+    expect(keys[0]).toMatch(/^[a-z_]+\|[a-z_]+$/);
+  });
+
+  it("household-wide without a client", () => {
+    expect(recentVariantKeys(data).length).toBeGreaterThan(0);
   });
 });
 

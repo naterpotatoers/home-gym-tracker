@@ -1,8 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BodyHeatmap } from "@/components/body-heatmap";
+import { PlusIcon, SaveIcon, TrashIcon } from "@/components/icons";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
-import { Button, Input, PageShell, Section, SeedBanner, Select, chipClass } from "@/components/ui";
+import {
+  Button,
+  Input,
+  Note,
+  PageShell,
+  Section,
+  Select,
+  TableScroll,
+  Td,
+  Th,
+  chipClass,
+} from "@/components/ui";
 import { ProgramEditor } from "@/components/week-grid";
 import {
   createAssignment,
@@ -41,7 +53,6 @@ export default async function ProgramPage({
 
   return (
     <PageShell>
-      {data.source === "seed" && <SeedBanner />}
       <ProgramEditor
         program={program}
         days={days}
@@ -81,53 +92,86 @@ export default async function ProgramPage({
         </div>
       </Section>
 
-      <Section title="Assignments">
-        {assignments.length > 0 && (
-          <ul className="mb-4 space-y-2 text-sm">
-            {assignments.map((assignment) => (
-              <li key={assignment.id} className="flex flex-wrap items-center gap-3">
-                <span className="font-semibold">
-                  {data.clients.find((c) => c.id === assignment.clientId)?.firstName ??
-                    assignment.clientId}
-                </span>
-                <span className="text-xs text-muted">
-                  since {assignment.startDate}
-                </span>
-                <form
-                  action={updateAssignmentStatus.bind(null, assignment.id)}
-                  className="flex items-center gap-1"
-                >
-                  <Select name="status" size="sm" defaultValue={assignment.status}>
-                    <option value="active">active</option>
-                    <option value="paused">paused</option>
-                    <option value="completed">completed</option>
-                  </Select>
-                  <Button type="submit" size="sm">
-                    Apply
-                  </Button>
-                </form>
-              </li>
-            ))}
-          </ul>
+      <Section
+        title="Assignments"
+        action={
+          <form action={createAssignment} className="flex flex-wrap items-center gap-2 pb-1">
+            <input type="hidden" name="programId" value={programId} />
+            <Select name="clientId" size="sm">
+              {data.clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.firstName}
+                </option>
+              ))}
+            </Select>
+            <Input type="date" name="startDate" required size="sm" />
+            <Button type="submit" variant="primary" size="sm">
+              <PlusIcon size={16} /> Assign
+            </Button>
+          </form>
+        }
+      >
+        {assignments.length === 0 ? (
+          <Note>
+            Nobody is on this program yet — assign someone above and their
+            workouts will follow its weekly schedule.
+          </Note>
+        ) : (
+          <TableScroll>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border-strong text-left">
+                  <Th>Person</Th>
+                  <Th>Since</Th>
+                  <Th>Status</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {assignments.map((assignment) => {
+                  const client = data.clientById.get(assignment.clientId);
+                  return (
+                    <tr key={assignment.id} className="border-b border-border">
+                      <Td>
+                        <span className="inline-flex items-center gap-1.5 font-semibold">
+                          {client?.color && (
+                            <span
+                              className="size-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: client.color }}
+                            />
+                          )}
+                          {client?.firstName ?? assignment.clientId}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="font-mono text-xs">{assignment.startDate}</span>
+                      </Td>
+                      <Td>
+                        <form
+                          action={updateAssignmentStatus.bind(null, assignment.id)}
+                          className="flex items-center gap-1.5"
+                        >
+                          <Select name="status" size="sm" defaultValue={assignment.status}>
+                            <option value="active">active</option>
+                            <option value="paused">paused</option>
+                            <option value="completed">completed</option>
+                          </Select>
+                          <Button type="submit" size="sm" title="Apply status change">
+                            <SaveIcon size={14} /> Apply
+                          </Button>
+                        </form>
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </TableScroll>
         )}
-
-        <form action={createAssignment} className="flex flex-wrap items-center gap-2 text-sm">
-          <input type="hidden" name="programId" value={programId} />
-          <Select name="clientId">
-            {data.clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.firstName}
-              </option>
-            ))}
-          </Select>
-          <Input type="date" name="startDate" required />
-          <Button type="submit">Assign</Button>
-        </form>
       </Section>
 
       <form action={deleteProgram.bind(null, programId)} className="mt-10">
         <Button type="submit" variant="danger" size="sm">
-          Delete program
+          <TrashIcon size={16} /> Delete program
         </Button>
       </form>
     </PageShell>

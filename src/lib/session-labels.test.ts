@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { advanceCursor, nextIncomplete, resolveCursor, rxLabel } from "./session-labels";
+import {
+  advanceCursor,
+  nextIncomplete,
+  performOrder,
+  resolveCursor,
+  rxLabel,
+  supersetGroups,
+} from "./session-labels";
 import type { RoutineExercise, SetLog } from "./types";
 
 const set = (id: string, completed: boolean) => ({ id, completed }) as SetLog;
@@ -73,6 +80,73 @@ describe("advanceCursor", () => {
 
   it("returns null for an unknown id", () => {
     expect(advanceCursor([set("a1", false)], "nope")).toBeNull();
+  });
+});
+
+describe("supersets (performOrder + cursor)", () => {
+  // Typed loosely on purpose — only the fields the helpers read.
+  const vset = (id: string, exerciseId: string, completed = false) =>
+    ({ id, exerciseId, modalityId: "dumbbell", completed }) as SetLog;
+  const rx = (exerciseId: string, supersetGroup: string | null) =>
+    ({ exerciseId, modalityId: "dumbbell", supersetGroup }) as RoutineExercise;
+
+  // Stored grouped: A A A, B B, C C (A+B paired as "arms", C solo)
+  const stored = [
+    vset("a1", "bicep_curl"), vset("a2", "bicep_curl"), vset("a3", "bicep_curl"),
+    vset("b1", "tricep_extension"), vset("b2", "tricep_extension"),
+    vset("c1", "shrug"), vset("c2", "shrug"),
+  ];
+  const groups = supersetGroups([
+    rx("bicep_curl", "arms"),
+    rx("tricep_extension", "arms"),
+    rx("shrug", null),
+  ]);
+
+  it("supersetGroups keeps only labeled prescriptions", () => {
+    expect(groups.size).toBe(2);
+    expect(groups.get("bicep_curl|dumbbell")).toBe("arms");
+    expect(groups.get("shrug|dumbbell")).toBeUndefined();
+  });
+
+  it("interleaves paired blocks round by round; unequal counts degrade", () => {
+    expect(performOrder(stored, groups).map((s) => s.id)).toEqual([
+      "a1", "b1", "a2", "b2", "a3", "c1", "c2",
+    ]);
+  });
+
+  it("is identity with no labels", () => {
+    expect(performOrder(stored, new Map()).map((s) => s.id)).toEqual(
+      stored.map((s) => s.id),
+    );
+  });
+
+  it("non-adjacent same-label blocks do not merge", () => {
+    const spread = [
+      vset("a1", "bicep_curl"), vset("a2", "bicep_curl"),
+      vset("c1", "shrug"),
+      vset("b1", "tricep_extension"), vset("b2", "tricep_extension"),
+    ];
+    expect(performOrder(spread, groups).map((s) => s.id)).toEqual([
+      "a1", "a2", "c1", "b1", "b2",
+    ]);
+  });
+
+  it("the cursor walks the interleaved order: A1 → B1 → A2", () => {
+    const ordered = performOrder(stored, groups);
+    expect(resolveCursor(ordered, null)).toBeNull(); // parked stays parked
+    expect(advanceCursor(ordered, "a1")).toBe("b1");
+    expect(advanceCursor(ordered, "b1")).toBe("a2");
+    expect(advanceCursor(ordered, "a3")).toBe("c1");
+  });
+
+  it("stays forward-only over the interleaved order", () => {
+    const done = performOrder(
+      stored.map((s) => (s.id === "c2" ? s : { ...s, completed: true })),
+      groups,
+    );
+    // everything before c2 skipped/completed; cursor on c2 resolves to itself
+    expect(resolveCursor(done, "c2")?.id).toBe("c2");
+    expect(advanceCursor(done, "c2")).toBeNull();
   });
 });
 

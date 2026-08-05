@@ -16,3 +16,22 @@ export type MeterRow = {
 };
 
 export type MeterGroup = { groupId: string; label: string; rows: MeterRow[] };
+
+/** One point on a progress/weight chart. `sessionId` is the React key slot —
+ *  weigh-in points put their weigh-in id there. */
+export type ChartPoint = {
+  date: string;
+  y: number;
+  sessionId: string;
+  /** Pinned-row line, e.g. "2026-06-15 · 185 lb × 5 · e1RM 216 lb". */
+  detail: string;
+};
+
+/** Dashed projection segment — fitted value at the window end, extrapolated
+ *  +8 weeks. */
+export type TrendSegment = {
+  fromDate: string;
+  fromY: number;
+  toDate: string;
+  toY: number;
+};

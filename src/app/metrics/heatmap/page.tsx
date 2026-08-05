@@ -1,6 +1,6 @@
 import { BodyHeatmap } from "@/components/body-heatmap";
-import { HeatmapControls, type HeatmapParams } from "@/components/heatmap-controls";
-import { Note, PageShell, SeedBanner } from "@/components/ui";
+import { HeatmapControls } from "@/components/heatmap-controls";
+import { Note, PageShell } from "@/components/ui";
 import { weekCoverage } from "@/lib/coverage";
 import { loadGymData } from "@/lib/db/snapshot";
 import {
@@ -10,9 +10,10 @@ import {
   type HeatInputs,
   type HeatValue,
 } from "@/lib/heat";
-import { resolvePeriod, type PeriodKind } from "@/lib/periods";
+import { parseHeatmapParams } from "@/lib/heatmap-url";
+import { resolvePeriod } from "@/lib/periods";
 import { muscleVolume } from "@/lib/queries";
-import type { ClientId, MuscleId } from "@/lib/types";
+import type { MuscleId } from "@/lib/types";
 
 type Panel = { title: string; values: Map<MuscleId, HeatValue> };
 
@@ -24,32 +25,9 @@ export default async function HeatmapPage({
   const raw = await searchParams;
   const data = await loadGymData();
 
-  const clientId: ClientId =
-    raw.client && data.clientById.has(raw.client) ? raw.client : "nate";
-  const mode = raw.mode === "prescribed" ? "prescribed" : "logged";
-  const period: PeriodKind = ["day", "week", "program", "custom"].includes(
-    raw.period ?? "",
-  )
-    ? (raw.period as PeriodKind)
-    : "week";
-  const comparing = raw.compare === "1";
-
-  const params: HeatmapParams = {
-    client: clientId,
-    mode,
-    period,
-    date: raw.date,
-    from: raw.from,
-    to: raw.to,
-    program: raw.program,
-    week: raw.week,
-    compare: raw.compare,
-    bDate: raw.bDate,
-    bFrom: raw.bFrom,
-    bTo: raw.bTo,
-    bProgram: raw.bProgram,
-    bWeek: raw.bWeek,
-  };
+  const params = parseHeatmapParams(raw, data);
+  const { client: clientId, mode, period } = params;
+  const comparing = params.compare === "1";
 
   let panels: Panel[] = [];
   let maxLabel = "";
@@ -138,7 +116,6 @@ export default async function HeatmapPage({
 
   return (
     <PageShell>
-      {data.source === "seed" && <SeedBanner />}
       <h1 className="text-3xl font-bold tracking-tight">Muscle heat map</h1>
       <p className="mt-2 text-sm text-muted">
         {mode === "logged"

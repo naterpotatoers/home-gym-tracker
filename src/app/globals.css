@@ -24,6 +24,15 @@
   --accent-text: #256abf;
   --accent-soft: color-mix(in oklab, var(--accent) 12%, var(--surface));
 
+  /* Warm accent: decorative amber-orange for primary actions ("do the thing"
+   * buttons), deliberately more ORANGE than the gold `warning` status token
+   * so the two never read as each other. Blue stays for links/selection. */
+  --accent-warm: #ea580c;
+  --accent-warm-strong: #c2410c;
+  --accent-warm-fg: #ffffff;
+  --accent-warm-text: #9a3412;
+  --accent-warm-soft: color-mix(in oklab, var(--accent-warm) 12%, var(--surface));
+
   --success: #0ca30c;
   --warning: #c98500;
   --danger: #d03b3b;
@@ -49,6 +58,12 @@
     --accent-fg: #0b0e13;
     --accent-text: #6da7ec;
 
+    /* Same flip for the warm accent: bright orange fill, dark ink. */
+    --accent-warm: #fb923c;
+    --accent-warm-strong: #fb923c;
+    --accent-warm-fg: #0b0e13;
+    --accent-warm-text: #fdba74;
+
     --success: #22b04b;
     --warning: #e0a025;
     --danger: #e05252;
@@ -72,6 +87,11 @@
   --color-accent-fg: var(--accent-fg);
   --color-accent-text: var(--accent-text);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-warm: var(--accent-warm);
+  --color-accent-warm-strong: var(--accent-warm-strong);
+  --color-accent-warm-fg: var(--accent-warm-fg);
+  --color-accent-warm-text: var(--accent-warm-text);
+  --color-accent-warm-soft: var(--accent-warm-soft);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);

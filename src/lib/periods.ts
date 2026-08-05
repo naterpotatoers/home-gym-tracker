@@ -43,6 +43,15 @@ export function localTodayIso(): string {
   return localIso(new Date());
 }
 
+/** Human label for a local ISO day — "Tuesday, August 5". Display only. */
+export function localDayLabel(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 /** Today's weekday in the schema's numbering: 1 = Monday .. 7 = Sunday. */
 export function todayDow(): number {
   return ((new Date().getDay() + 6) % 7) + 1;
@@ -52,6 +61,18 @@ export function todayDow(): number {
  *  math only, never display. */
 export function utcDay(date: string): number {
   return new Date(`${date}T00:00:00Z`).getTime() / 86_400_000;
+}
+
+/** Which 1-based program week a date falls in, clamped into the program —
+ *  before the start it's week 1, past the end the final week keeps being
+ *  offered (matches the week grid's behavior). */
+export function currentProgramWeek(
+  assignment: { startDate: string },
+  program: { weeks: number },
+  todayIso: string,
+): number {
+  const elapsed = Math.floor((utcDay(todayIso) - utcDay(assignment.startDate)) / 7);
+  return Math.min(Math.max(elapsed + 1, 1), Math.max(program.weeks, 1));
 }
 
 export function resolvePeriod(

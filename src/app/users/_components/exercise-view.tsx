@@ -1,12 +1,11 @@
-import Link from "next/link";
 import { ProgressChart, type ChartPoint } from "@/components/progress-chart";
 import { LoadExplorerControls } from "@/components/progress-controls";
-import { Note, Section, Stat } from "@/components/ui";
+import { Note, Stat } from "@/components/ui";
 import { exerciseById } from "@/lib/data/exercises";
 import { modalityById } from "@/lib/data/modalities";
 import type { GymData } from "@/lib/gym-data";
 import { e1rmTrend, exerciseHistory, trendSegment } from "@/lib/progress";
-import { progressHref, type ProgressParams } from "@/lib/progress-url";
+import type { ProgressParams } from "@/lib/progress-url";
 import {
   hipBandLadder,
   prComparison,
@@ -16,7 +15,8 @@ import {
 import type { ClientId, ExerciseId, ModalityId } from "@/lib/types";
 import { HistoryTable } from "./history-table";
 
-export function ExerciseView({
+/** One lift's full detail — rendered as the Lifts table's accordion row. */
+export function ExerciseDetail({
   data,
   client,
   personName,
@@ -56,15 +56,10 @@ export function ExerciseView({
   const weightAnswer = repRangeForWeight(data, client, exerciseId, modalityId, params.weight);
 
   return (
-    <Section title={`${exerciseName} — ${modalityName}`}>
-      <p className="-mt-2 mb-4">
-        <Link
-          href={progressHref({ ...params, exercise: "", modality: "" })}
-          className="text-xs text-accent-text underline underline-offset-2"
-        >
-          ← back to overview
-        </Link>
-      </p>
+    <div className="bg-current/[0.025] px-3 py-4 sm:px-4">
+      <h3 className="mb-3 text-sm font-semibold">
+        {exerciseName} — {modalityName}
+      </h3>
 
       {history.length === 0 ? (
         <Note>No logged sets for {personName} on this variant.</Note>
@@ -208,6 +203,6 @@ export function ExerciseView({
         warmups never count. Dumbbell loads are total pounds across both
         implements; bodyweight-modality e1RMs move with weigh-ins.
       </Note>
-    </Section>
+    </div>
   );
 }

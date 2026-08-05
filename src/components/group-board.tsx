@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { GroupPersonCard } from "@/components/group-person-card";
+import { useSessionClock } from "@/components/use-session-clock";
+import { useWakeLock } from "@/components/use-wake-lock";
 import type { Variant } from "@/lib/queries";
 import type { RoutineExercise, Session, SetLog } from "@/lib/types";
 
@@ -14,6 +16,8 @@ export type BoardPerson = {
   routineName: string;
   /** Preset swatch hex from the person's profile — tints their card. */
   color: string | null;
+  /** This person's recently trained variants, for the picker's Recent group. */
+  recentKeys?: string[];
 };
 
 /**
@@ -28,19 +32,16 @@ export function GroupBoard({
   people: BoardPerson[];
   variants: Variant[];
 }) {
-  const [now, setNow] = useState(0);
-  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  // One clock for the whole board, keyed by the session ids so leaving and
+  // coming back (or a Safari tab eviction) doesn't reset everyone's elapsed
+  // time. Cleared when the last person finishes.
+  const boardKey = people
+    .map((p) => p.session.id)
+    .sort()
+    .join(",");
+  const { now, elapsedMinutes, clear: clearClock } = useSessionClock(boardKey);
+  useWakeLock();
   const [finishedIds, setFinishedIds] = useState<ReadonlySet<string>>(new Set());
-
-  useEffect(() => {
-    const startedAt = Date.now();
-    const timer = setInterval(() => {
-      const t = Date.now();
-      setNow(t);
-      setElapsedMinutes(Math.floor((t - startedAt) / 60_000));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const allDone = finishedIds.size === people.length;
 
@@ -70,9 +71,10 @@ export function GroupBoard({
             variants={variants}
             now={now}
             boardElapsedMinutes={elapsedMinutes}
-            onFinished={() =>
-              setFinishedIds((prev) => new Set([...prev, person.session.id]))
-            }
+            onFinished={() => {
+              if (finishedIds.size + 1 >= people.length) clearClock();
+              setFinishedIds((prev) => new Set([...prev, person.session.id]));
+            }}
           />
         ))}
       </div>

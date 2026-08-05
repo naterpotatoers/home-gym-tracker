@@ -114,15 +114,29 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
     restructure(sets.filter((s) => !ids.has(s.id)));
   }
 
-  /** Replace a block's exercise: incomplete sets move to the new variant with
-   *  the client's last-used load; completed sets stay as performed. */
-  async function swapExercise(block: Block, variant: Variant) {
-    const em = variant.exerciseModality;
+  /** The client's last-used load for a variant, with the variant's own band
+   *  role as the fallback — shared by swap and add so they can't drift. */
+  async function fetchPrefill(
+    em: Variant["exerciseModality"],
+  ): Promise<Pick<SetLog, "weightLbs" | "addedWeightLbs" | "bandId" | "bandRole">> {
     const prefill = await getSuggestedLoad(
       session.clientId,
       em.exerciseId,
       em.modalityId,
     ).catch(() => null);
+    return {
+      weightLbs: prefill?.weightLbs ?? null,
+      addedWeightLbs: prefill?.addedWeightLbs ?? null,
+      bandId: prefill?.bandId ?? null,
+      bandRole: prefill?.bandRole ?? em.bandRoles[0] ?? null,
+    };
+  }
+
+  /** Replace a block's exercise: incomplete sets move to the new variant with
+   *  the client's last-used load; completed sets stay as performed. */
+  async function swapExercise(block: Block, variant: Variant) {
+    const em = variant.exerciseModality;
+    const prefill = await fetchPrefill(em);
     const blockIds = new Set(block.sets.filter((s) => !s.completed).map((s) => s.id));
     restructure(
       sets.map((set) =>
@@ -132,10 +146,7 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
               exerciseId: em.exerciseId,
               modalityId: em.modalityId,
               unilateralMode: em.defaultUnilateralMode,
-              weightLbs: prefill?.weightLbs ?? null,
-              addedWeightLbs: prefill?.addedWeightLbs ?? null,
-              bandId: prefill?.bandId ?? null,
-              bandRole: prefill?.bandRole ?? em.bandRoles[0] ?? null,
+              ...prefill,
             }
           : set,
       ),
@@ -147,11 +158,7 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
    *  caller can point its cursor at them. */
   async function addExercise(variant: Variant, count = 3): Promise<SetLog[]> {
     const em = variant.exerciseModality;
-    const prefill = await getSuggestedLoad(
-      session.clientId,
-      em.exerciseId,
-      em.modalityId,
-    ).catch(() => null);
+    const prefill = await fetchPrefill(em);
     const timed = exerciseById.get(em.exerciseId)?.metricType === "time";
     const newSets = Array.from({ length: count }, (_, i): SetLog => ({
       id: clientSetId(),
@@ -164,10 +171,7 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
       unilateralMode: em.defaultUnilateralMode,
       side: null,
       reps: timed ? null : 10,
-      weightLbs: prefill?.weightLbs ?? null,
-      addedWeightLbs: prefill?.addedWeightLbs ?? null,
-      bandId: prefill?.bandId ?? null,
-      bandRole: prefill?.bandRole ?? em.bandRoles[0] ?? null,
+      ...prefill,
       durationSeconds: timed ? 30 : null,
       distanceFeet: null,
       rir: null,
