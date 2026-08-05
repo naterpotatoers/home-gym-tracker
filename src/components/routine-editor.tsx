@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { BodyHeatmap } from "@/components/body-heatmap";
 import { ExercisePicker } from "@/components/exercise-picker";
-import { CopyIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { CopyIcon, PlusIcon, SwapIcon, TrashIcon } from "@/components/icons";
 import { ModalityChip } from "@/components/modality-chip";
 import { useDebouncedSave } from "@/components/use-debounced-save";
 import {
@@ -15,14 +15,26 @@ import {
   StepperInput,
 } from "@/components/ui";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
+import { MuscleGroupLegend } from "@/components/muscle-group-legend";
 import { deleteRoutine, duplicateRoutine, saveRoutine } from "@/lib/actions/routines";
 import { coverageByGroup, neglectedMuscles, prescribedCoverage } from "@/lib/coverage";
-import { exerciseById } from "@/lib/data/exercises";
+import { exerciseById, scoresByExercise } from "@/lib/data/exercises";
+import { MUSCLE_GROUP_COLORS, muscleById } from "@/lib/data/muscles";
 import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
 import { bandRolesFor, type Variant } from "@/lib/queries";
 import type { Routine, RoutineExercise, UnilateralMode } from "@/lib/types";
 
 type PickerTarget = { mode: "add" } | { mode: "replace"; index: number };
+
+/** The exercise's primary muscle-group color — the same hue its dot wears in
+ *  the Clients lift table. Null for mobility (no scores on purpose). */
+function groupColor(exerciseId: RoutineExercise["exerciseId"]): string | null {
+  const scores = scoresByExercise.get(exerciseId);
+  if (!scores || scores.length === 0) return null;
+  const top = scores.reduce((a, b) => (b.score > a.score ? b : a));
+  const groupId = muscleById.get(top.muscleId)?.groupId;
+  return groupId ? MUSCLE_GROUP_COLORS[groupId] : null;
+}
 
 function rowFromVariant(routineId: string, variant: Variant, order: number): RoutineExercise {
   const em = variant.exerciseModality;
@@ -48,10 +60,15 @@ function rowFromVariant(routineId: string, variant: Variant, order: number): Rou
   };
 }
 
-/** Target-reps cell: a single stepper by default, one compact min–max line in
- *  range mode (auto-detected when the row already prescribes a range). The
- *  single↔range toggle lives in the label row so the control line stays
- *  clean; the two range ends drag each other so min ≤ max always holds. */
+/** Sets + reps carry the prescription — every other field is trim. This tint
+ *  lifts them out of the grid so the eye lands there first. */
+const emphasisClass = "rounded-lg bg-accent/8 p-2 ring-1 ring-accent/15";
+
+/** Target-reps cell: a single stepper by default (always the initial mode), a
+ *  compact min–max line when toggled to range — a row already prescribing a
+ *  genuine range stays in range mode so the data is never hidden. The
+ *  Single|Range segmented toggle lives in the label row; the two range ends
+ *  drag each other so min ≤ max always holds. */
 function RepTargets({
   row,
   onPatch,
@@ -61,29 +78,41 @@ function RepTargets({
 }) {
   const isRange =
     row.repMin !== null && row.repMax !== null && row.repMin !== row.repMax;
-  const [rangeMode, setRangeMode] = useState(isRange);
+  const [rangeMode, setRangeMode] = useState(false);
   const showRange = rangeMode || isRange;
 
+  const segment = (active: boolean) =>
+    `cursor-pointer px-2 py-1 text-[11px] ${
+      active
+        ? "bg-accent-soft font-semibold text-accent-text"
+        : "text-muted hover:bg-current/5 hover:text-foreground"
+    }`;
+
   return (
-    <div className="flex flex-col gap-1">
-      <span className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] uppercase tracking-wide text-muted">
-          {showRange ? "Reps (min–max)" : "Target reps"}
-        </span>
-        <button
-          type="button"
-          onClick={() => {
-            if (showRange) {
+    <div className={`flex flex-col gap-1 ${emphasisClass}`}>
+      <span className="flex items-center justify-between gap-2">
+        <span className="text-[11px] uppercase tracking-wide text-muted">Reps</span>
+        <span className="inline-flex overflow-hidden rounded-md border border-border-strong bg-surface">
+          <button
+            type="button"
+            onClick={() => {
               setRangeMode(false);
-              onPatch({ repMin: row.repMax, repMax: row.repMax });
-            } else {
-              setRangeMode(true);
-            }
-          }}
-          className="cursor-pointer text-[11px] text-accent-text underline underline-offset-2"
-        >
-          {showRange ? "single" : "range"}
-        </button>
+              if (isRange) onPatch({ repMin: row.repMax, repMax: row.repMax });
+            }}
+            aria-pressed={!showRange}
+            className={segment(!showRange)}
+          >
+            Single
+          </button>
+          <button
+            type="button"
+            onClick={() => setRangeMode(true)}
+            aria-pressed={showRange}
+            className={`border-l border-border-strong ${segment(showRange)}`}
+          >
+            Range
+          </button>
+        </span>
       </span>
       {showRange ? (
         <div className="flex items-center gap-1">
@@ -232,10 +261,16 @@ export function RoutineEditor({
         {error && <span className="text-xs font-semibold text-danger-text">{error}</span>}
       </div>
 
+      {/* Card edges + dots below are colored by primary muscle group. */}
+      <div className="mt-4">
+        <MuscleGroupLegend />
+      </div>
+
       <div className="mt-6 space-y-3">
         {rows.map((row, index) => {
           const exercise = exerciseById.get(row.exerciseId);
           const timed = exercise?.metricType === "time";
+          const color = groupColor(row.exerciseId);
           const bandRoles = row.modalityId === "band"
             ? bandRolesFor(row.exerciseId, row.modalityId)
             : [];
@@ -247,9 +282,12 @@ export function RoutineEditor({
                 dragTo(index);
               }}
               onDrop={(e) => e.preventDefault()}
-              className={`rounded-xl border bg-surface p-3 ${
+              className={`rounded-xl border border-l-4 bg-surface p-3 ${
                 dragIndex === index ? "border-accent shadow-lg" : "border-border"
               }`}
+              style={
+                dragIndex === index ? undefined : { borderLeftColor: color ?? undefined }
+              }
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span
@@ -266,6 +304,12 @@ export function RoutineEditor({
                   ⠿
                 </span>
                 <span className="font-mono text-xs text-muted">{index + 1}.</span>
+                {color && (
+                  <span
+                    className="size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: color }}
+                  />
+                )}
                 <span className="text-sm font-semibold">
                   {exercise?.name ?? row.exerciseId}
                 </span>
@@ -288,7 +332,7 @@ export function RoutineEditor({
                     size="sm"
                     onClick={() => setPicker({ mode: "replace", index })}
                   >
-                    Swap
+                    <SwapIcon size={14} /> Swap
                   </Button>
                   <IconButton onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move up">↑</IconButton>
                   <IconButton onClick={() => move(index, 1)} disabled={index === rows.length - 1} aria-label="Move down">↓</IconButton>
@@ -299,13 +343,17 @@ export function RoutineEditor({
               {/* Strict grid, max 3 columns: Sets|Reps|Rest / RIR|Superset|Mode
                   / Notes full-width — every card lines up the same way. */}
               <div className="mt-3 grid grid-cols-2 items-start gap-3 text-sm md:grid-cols-3">
-                <Field label="Sets">
-                  <StepperInput value={row.sets} min={1} onChange={(v) => patch(index, { sets: v ?? 1 })} />
-                </Field>
-                {timed ? (
-                  <Field label="Seconds">
-                    <StepperInput value={row.durationSeconds} min={5} step={5} onChange={(v) => patch(index, { durationSeconds: v })} />
+                <div className={emphasisClass}>
+                  <Field label="Sets">
+                    <StepperInput value={row.sets} min={1} onChange={(v) => patch(index, { sets: v ?? 1 })} />
                   </Field>
+                </div>
+                {timed ? (
+                  <div className={emphasisClass}>
+                    <Field label="Seconds">
+                      <StepperInput value={row.durationSeconds} min={5} step={5} onChange={(v) => patch(index, { durationSeconds: v })} />
+                    </Field>
+                  </div>
                 ) : (
                   <RepTargets row={row} onPatch={(changes) => patch(index, changes)} />
                 )}

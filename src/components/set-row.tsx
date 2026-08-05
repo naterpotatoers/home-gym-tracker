@@ -1,7 +1,7 @@
 "use client";
 
 import { TrashIcon } from "@/components/icons";
-import { IconButton, NumberInput, Select } from "@/components/ui";
+import { Checkbox, IconButton, NumberInput, Select } from "@/components/ui";
 import { bands } from "@/lib/data/equipment";
 import { describePlates, formatPlates } from "@/lib/loading";
 import { bandRolesFor } from "@/lib/queries";
@@ -48,12 +48,10 @@ export function SetRow({
             dense ? "size-9" : "size-11"
           }`}
         >
-          <input
-            type="checkbox"
+          <Checkbox
             checked={set.completed}
             onChange={(e) => onChange({ completed: e.target.checked })}
             aria-label="Set completed"
-            className="size-5 accent-accent"
           />
         </label>
         {/* Tap the set number to toggle warm-up — W replaces the number. */}

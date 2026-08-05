@@ -10,6 +10,7 @@
  * - CheckIcon = finish / complete something
  * - EyeIcon   = view / open a detail page
  * - ArrowLeftIcon = go back
+ * - SwapIcon  = swap / replace an exercise
  */
 
 export function iconProps(size = 18) {
@@ -127,6 +128,14 @@ export function CheckIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+export function SwapIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg {...iconProps(size)} aria-hidden>
+      <path d="M4 8h13M14 4.5L17.5 8 14 11.5M20 16H7M10 12.5L6.5 16l3.5 3.5" />
+    </svg>
+  );
+}
+
 export function EyeIcon({ size = 18 }: { size?: number }) {
   return (
     <svg {...iconProps(size)} aria-hidden>
@@ -148,6 +157,22 @@ export function DumbbellIcon({ size = 18 }: { size?: number }) {
   return (
     <svg {...iconProps(size)} aria-hidden>
       <path d="M7 6.5v11M3.5 9.5v5M17 6.5v11M20.5 9.5v5M7 12h10" />
+    </svg>
+  );
+}
+
+export function BarbellIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg {...iconProps(size)} aria-hidden>
+      <path d="M2 12h20M5.5 9v6M8.5 7v10M15.5 7v10M18.5 9v6" />
+    </svg>
+  );
+}
+
+export function BandIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg {...iconProps(size)} aria-hidden>
+      <ellipse cx="12" cy="12" rx="8.5" ry="5.5" transform="rotate(-25 12 12)" />
     </svg>
   );
 }

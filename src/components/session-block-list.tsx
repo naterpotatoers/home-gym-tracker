@@ -1,6 +1,6 @@
 "use client";
 
-import { PencilIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { PlusIcon, SwapIcon, TrashIcon } from "@/components/icons";
 import { ModalityChip } from "@/components/modality-chip";
 import { SetRow } from "@/components/set-row";
 import { Button, IconButton } from "@/components/ui";
@@ -128,10 +128,10 @@ export function SessionBlockList({
                   variant="ghost"
                   size="sm"
                   onClick={() => onReplace(block)}
-                  aria-label="Replace exercise"
-                  title="Replace exercise"
+                  aria-label="Swap exercise"
+                  title="Swap exercise"
                 >
-                  <PencilIcon />
+                  <SwapIcon />
                 </IconButton>
                 <IconButton
                   variant="ghost"

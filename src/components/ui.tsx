@@ -141,6 +141,37 @@ export function Select({
   );
 }
 
+/** Styled checkbox: sr-only native input (forms, form-state selectors, and
+ *  label-click toggling all keep working) behind an accent-filled box with an
+ *  animated check. CSS-only, so it renders from server components. */
+export function Checkbox({
+  className = "",
+  ...props
+}: Omit<React.ComponentProps<"input">, "type" | "size">) {
+  return (
+    <span className={`relative inline-flex shrink-0 ${className}`}>
+      <input type="checkbox" {...props} className="peer sr-only" />
+      <span
+        aria-hidden
+        className="flex size-6 cursor-pointer items-center justify-center rounded-md border-2 border-border-strong bg-surface-input text-transparent transition-colors duration-150 peer-checked:border-accent peer-checked:bg-accent peer-checked:text-accent-fg peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background peer-disabled:cursor-not-allowed peer-disabled:opacity-50"
+      >
+        <svg
+          width={14}
+          height={14}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={3.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4 12.5l5.5 5.5L20 6.5" />
+        </svg>
+      </span>
+    </span>
+  );
+}
+
 /** Labeled control wrapper. */
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

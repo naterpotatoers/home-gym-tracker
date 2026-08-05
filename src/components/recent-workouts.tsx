@@ -56,31 +56,55 @@ export function RecentWorkouts({
                       </span>
                     )}
                   </summary>
-                  <div className="space-y-3 px-1 pb-3 pl-6">
-                    {blocksFor(data, session.id).map((block, i) => (
-                      <div key={i}>
-                        <h4 className="text-xs font-semibold">
-                          {exerciseById.get(block.exerciseId)?.name ?? block.exerciseId}
-                          <span className="ml-2 inline-flex items-center font-normal">
-                            <ModalityChip modalityId={block.modalityId} />
-                          </span>
-                        </h4>
-                        <ul className="mt-0.5 space-y-0.5 opacity-80">
-                          {block.sets.map((set) => (
-                            <li key={set.id} className="font-mono text-xs">
-                              {set.setNumber}. {describeSet(data, set)}
-                              {!set.completed && " · skipped"}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                    <Link
-                      href={`/workout/session/${session.id}`}
-                      className="inline-flex items-center gap-1 text-xs text-accent-text underline underline-offset-2"
-                    >
-                      <EyeIcon size={14} /> View session
-                    </Link>
+                  {/* Inset panel, blocks in a two-up grid with aligned set
+                      numbers — same grouped-inset language as the workout
+                      page's unfinished-sessions block. */}
+                  <div className="mb-2 ml-5 mt-1 rounded-lg bg-background px-4 py-3">
+                    <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+                      {blocksFor(data, session.id).map((block, i) => {
+                        const done = block.sets.filter((s) => s.completed).length;
+                        return (
+                          <div key={i} className="min-w-0">
+                            <h4 className="flex items-center gap-1.5 text-xs font-semibold">
+                              <span className="truncate">
+                                {exerciseById.get(block.exerciseId)?.name ?? block.exerciseId}
+                              </span>
+                              <ModalityChip modalityId={block.modalityId} />
+                              <span className="ml-auto shrink-0 font-mono text-[10px] font-normal text-muted">
+                                {done}/{block.sets.length}
+                              </span>
+                            </h4>
+                            <ul className="mt-1 space-y-0.5">
+                              {block.sets.map((set) => (
+                                <li key={set.id} className="flex gap-2 font-mono text-xs">
+                                  <span className="w-4 shrink-0 text-right text-muted">
+                                    {set.setNumber}.
+                                  </span>
+                                  <span
+                                    className={
+                                      set.completed
+                                        ? "opacity-80"
+                                        : "text-muted line-through decoration-current/40"
+                                    }
+                                  >
+                                    {describeSet(data, set)}
+                                    {!set.completed && " · skipped"}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 border-t border-border pt-2">
+                      <Link
+                        href={`/workout/session/${session.id}`}
+                        className="inline-flex items-center gap-1 text-xs text-accent-text underline underline-offset-2"
+                      >
+                        <EyeIcon size={14} /> View session
+                      </Link>
+                    </div>
                   </div>
                 </details>
               </li>

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DiscardSessionButton } from "@/components/discard-session-button";
 import { CalendarIcon } from "@/components/icons";
 import { StartWorkoutSubmit } from "@/components/start-workout-submit";
-import { chipClass, clientBorderStyle, Note, PageShell, Select } from "@/components/ui";
+import { Checkbox, chipClass, clientBorderStyle, Note, PageShell, Select } from "@/components/ui";
 import { startGroupFromForm } from "@/lib/actions/group";
 import { loadGymData } from "@/lib/db/snapshot";
 import { localTodayIso, todayDow } from "@/lib/periods";
@@ -68,12 +68,7 @@ export default async function WorkoutPage() {
               className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2 rounded-xl border border-border bg-surface px-4 py-3 sm:grid-cols-[auto_11rem_1fr_auto]"
               style={clientBorderStyle(client.color)}
             >
-              <input
-                type="checkbox"
-                name={`include_${client.id}`}
-                defaultChecked={planned.length > 0 || todaysRoutine !== null}
-                className="size-5 accent-accent"
-              />
+              <Checkbox name={`include_${client.id}`} />
               <span className="min-w-0">
                 <span className="flex items-center gap-1.5 font-semibold">
                   {client.color && (
