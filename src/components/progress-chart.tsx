@@ -38,10 +38,12 @@ export function ProgressChart({
   points,
   trend,
   yUnit = "lb",
+  label = "Estimated one-rep max over time",
 }: {
   points: ChartPoint[];
   trend: TrendSegment | null;
   yUnit?: string;
+  label?: string;
 }) {
   const [pinned, setPinned] = useState<number | null>(null);
   if (points.length === 0) return null;
@@ -98,7 +100,7 @@ export function ProgressChart({
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
         role="img"
-        aria-label={`Estimated one-rep max over time, in ${yUnit}`}
+        aria-label={`${label}, in ${yUnit}`}
       >
         {gridValues.map((v) => (
           <g key={v}>
@@ -188,9 +190,9 @@ export function ProgressChart({
         ) : (
           <span className="text-muted">
             {points.length === 1
-              ? "one session logged — the line appears with the second"
+              ? "one point logged — the line appears with the second"
               : trend === null
-                ? "tap a point for numbers · trend needs 3+ sessions across 2+ weeks"
+                ? "tap a point for numbers · trend needs 3+ points across 2+ weeks"
                 : "tap a point for numbers · dashed = 8-week projection"}
           </span>
         )}

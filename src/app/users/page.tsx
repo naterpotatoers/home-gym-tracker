@@ -1,9 +1,12 @@
 import { Button, Card, Field, Input, PageShell, Select } from "@/components/ui";
+import { WeighInPanel } from "@/components/weigh-in-panel";
 import { createClient, updateClient } from "@/lib/actions/clients";
 import { CLIENT_COLORS } from "@/lib/data/clients";
 import { loadGymData } from "@/lib/db/snapshot";
+import { localTodayIso } from "@/lib/periods";
 import { clientSummaries } from "@/lib/queries";
 import type { Client } from "@/lib/types";
+import { weighInChartPoints, weighInHistory, weighInTrend } from "@/lib/weigh-ins";
 
 /** CSS-only swatch picker: sr-only radios, peer-checked ring on the dot. */
 function ColorPicker({ name, selected }: { name: string; selected: string | null }) {
@@ -95,6 +98,7 @@ function ProfileFields({ client }: { client?: Client }) {
 export default async function UsersPage() {
   const data = await loadGymData();
   const summaries = clientSummaries(data);
+  const today = localTodayIso();
 
   return (
     <PageShell>
@@ -108,7 +112,8 @@ export default async function UsersPage() {
       <h1 className="text-3xl font-bold tracking-tight">Users</h1>
       <p className="mt-2 text-sm text-muted">
         Everyone who trains here. The card color outlines their card on the
-        group board. Bodyweight comes from weigh-ins, so it isn&apos;t edited here.
+        group board. Bodyweight is tracked as dated weigh-ins — log them on
+        each card and the trend charts over time.
       </p>
 
       <div className="mt-8 space-y-4">
@@ -136,6 +141,13 @@ export default async function UsersPage() {
                 Save {client.firstName}
               </Button>
             </form>
+            <WeighInPanel
+              clientId={client.id}
+              history={weighInHistory(data, client.id)}
+              points={weighInChartPoints(weighInHistory(data, client.id))}
+              trend={weighInTrend(weighInHistory(data, client.id))?.segment ?? null}
+              today={today}
+            />
           </Card>
         ))}
       </div>

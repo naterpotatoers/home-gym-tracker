@@ -8,6 +8,7 @@ import { modalityById } from "./data/modalities";
 import { muscleGroups, muscles } from "./data/muscles";
 import type { GymData } from "./gym-data";
 import { nearestLoadableWeight } from "./loading";
+import { localIso, localTodayIso } from "./periods";
 import { toBlocks, type Block } from "./set-blocks";
 import {
   bestE1rm,
@@ -37,7 +38,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 /** Age from date of birth, so it never goes stale. */
-export function ageOn(dateOfBirth: string, asOf: Date = new Date()): number {
+function ageOn(dateOfBirth: string, asOf: Date = new Date()): number {
   const dob = new Date(`${dateOfBirth}T00:00:00`);
   let age = asOf.getFullYear() - dob.getFullYear();
   const monthDiff = asOf.getMonth() - dob.getMonth();
@@ -55,7 +56,7 @@ export type ClientSummary = {
 };
 
 export function clientSummaries(data: GymData, asOf: Date = new Date()): ClientSummary[] {
-  const isoToday = asOf.toISOString().slice(0, 10);
+  const isoToday = localIso(asOf);
   return data.clients.map((client) => {
     const mine = data.sessions
       .filter((s) => s.clientId === client.id && s.status === "completed")
@@ -86,7 +87,7 @@ export function sessionsFor(data: GymData, clientId: ClientId): Session[] {
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 
-export function setsFor(data: GymData, sessionId: string): SetLog[] {
+function setsFor(data: GymData, sessionId: string): SetLog[] {
   return [...(data.setsBySession.get(sessionId) ?? [])];
 }
 
@@ -174,14 +175,14 @@ export function workingSets(
 
 /** e1RM relative to the most recent weigh-in — needs weigh-in history, which
  *  is why bodyweight does not live on the profile. */
-export function relativeStrength(
+function relativeStrength(
   data: GymData,
   clientId: ClientId,
   exerciseId: ExerciseId,
   modalityId: ModalityId,
 ): number | null {
   const best = bestE1rm(data, workingSets(data, clientId, exerciseId, modalityId));
-  const bodyweight = latestBodyweight(data, clientId, new Date().toISOString().slice(0, 10));
+  const bodyweight = latestBodyweight(data, clientId, localTodayIso());
   if (best === null || bodyweight === null || bodyweight <= 0) return null;
   return best / bodyweight;
 }

@@ -23,6 +23,9 @@ export const exercises: readonly Exercise[] = [
   { id: "goblet_squat", name: "Goblet Squat", pattern: "squat", metricType: "reps", isCompound: true },
   { id: "wide_stance_squat", name: "Wide-Stance Squat", pattern: "squat", metricType: "reps", isCompound: true },
   { id: "bulgarian_split_squat", name: "Bulgarian Split Squat", pattern: "squat", metricType: "reps", isCompound: true },
+  { id: "wall_sit", name: "Wall Sit", pattern: "squat", metricType: "time", isCompound: false },
+  { id: "squat_jump", name: "Squat Jump", pattern: "squat", metricType: "reps", isCompound: true },
+  { id: "burpee", name: "Burpee", pattern: "squat", metricType: "reps", isCompound: true },
 
   // ---- hinge ----
   { id: "deadlift", name: "Deadlift", pattern: "hinge", metricType: "reps", isCompound: true },
@@ -31,6 +34,9 @@ export const exercises: readonly Exercise[] = [
   { id: "back_extension", name: "Back Extension", pattern: "hinge", metricType: "reps", isCompound: false },
   { id: "hip_thrust", name: "Hip Thrust", pattern: "hinge", metricType: "reps", isCompound: true },
   { id: "glute_bridge", name: "Glute Bridge", pattern: "hinge", metricType: "reps", isCompound: false },
+  { id: "single_leg_glute_bridge", name: "Single-Leg Glute Bridge", pattern: "hinge", metricType: "reps", isCompound: false },
+  { id: "donkey_kick", name: "Donkey Kick", pattern: "hinge", metricType: "reps", isCompound: false },
+  { id: "superman", name: "Superman", pattern: "hinge", metricType: "reps", isCompound: false },
 
   // ---- lunge ----
   { id: "lunge", name: "Lunge", pattern: "lunge", metricType: "reps", isCompound: true },
@@ -84,14 +90,19 @@ export const exercises: readonly Exercise[] = [
   { id: "hanging_leg_raise", name: "Hanging Leg Raise", pattern: "core", metricType: "reps", isCompound: false },
   { id: "lateral_walk", name: "Lateral Walk", pattern: "core", metricType: "reps", isCompound: false },
   { id: "clam_shell", name: "Banded Clam Shell", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "fire_hydrant", name: "Fire Hydrant", pattern: "core", metricType: "reps", isCompound: false },
   { id: "dead_bug", name: "Dead Bug", pattern: "core", metricType: "reps", isCompound: false },
-  { id: "reverse_dead_bug", name: "Reverse Dead Bug", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "bird_dog", name: "Bird Dog", pattern: "core", metricType: "reps", isCompound: false },
   { id: "sit_up", name: "Sit-Up", pattern: "core", metricType: "reps", isCompound: false },
   { id: "hollow_hold", name: "Hollow Hold", pattern: "core", metricType: "time", isCompound: false },
   { id: "russian_twist", name: "Russian Twist", pattern: "core", metricType: "reps", isCompound: false },
   { id: "bicycle_crunch", name: "Bicycle Crunch", pattern: "core", metricType: "reps", isCompound: false },
   { id: "mountain_climber", name: "Mountain Climber", pattern: "core", metricType: "reps", isCompound: false },
   { id: "woodchopper", name: "Band Woodchopper", pattern: "core", metricType: "reps", isCompound: false },
+  // Timed conditioning — counting jacks or measuring crawl distance in a
+  // garage is impractical, so both are clocked.
+  { id: "jumping_jacks", name: "Jumping Jacks", pattern: "core", metricType: "time", isCompound: true },
+  { id: "bear_crawl", name: "Bear Crawl", pattern: "core", metricType: "time", isCompound: true },
 
   // ---- mobility ----
   // No muscle scores on purpose. `mobility` is excluded from all volume math
@@ -125,6 +136,16 @@ export const exerciseMuscleScores: readonly ExerciseMuscleScore[] = [
   s("bulgarian_split_squat", "glute_med", 4), s("bulgarian_split_squat", "adductors", 4),
   s("bulgarian_split_squat", "hamstrings", 3), s("bulgarian_split_squat", "abs", 3),
   s("bulgarian_split_squat", "calves", 2),
+  // Wall Sit — isometric knee extension, plank-of-the-quads
+  s("wall_sit", "quads", 9), s("wall_sit", "glutes", 4), s("wall_sit", "adductors", 3),
+  s("wall_sit", "calves", 2),
+  // Squat Jump
+  s("squat_jump", "quads", 9), s("squat_jump", "glutes", 7), s("squat_jump", "calves", 5),
+  s("squat_jump", "hamstrings", 3), s("squat_jump", "abs", 2),
+  // Burpee — full-body conditioning: squat + plank + push-up + jump
+  s("burpee", "quads", 7), s("burpee", "glutes", 6), s("burpee", "mid_chest", 5),
+  s("burpee", "abs", 4), s("burpee", "front_delts", 4), s("burpee", "triceps", 4),
+  s("burpee", "hamstrings", 3), s("burpee", "calves", 3), s("burpee", "hip_flexors", 3),
 
   // Deadlift
   s("deadlift", "glutes", 10), s("deadlift", "hamstrings", 8), s("deadlift", "lower_back", 8),
@@ -146,6 +167,16 @@ export const exerciseMuscleScores: readonly ExerciseMuscleScore[] = [
   // Glute Bridge
   s("glute_bridge", "glutes", 9), s("glute_bridge", "hamstrings", 5),
   s("glute_bridge", "abs", 3), s("glute_bridge", "quads", 2),
+  // Single-Leg Glute Bridge — one leg doubles the load and adds pelvic stability
+  s("single_leg_glute_bridge", "glutes", 9), s("single_leg_glute_bridge", "hamstrings", 6),
+  s("single_leg_glute_bridge", "glute_med", 3), s("single_leg_glute_bridge", "lower_back", 2),
+  s("single_leg_glute_bridge", "abs", 2),
+  // Donkey Kick — quadruped hip extension
+  s("donkey_kick", "glutes", 9), s("donkey_kick", "hamstrings", 4),
+  s("donkey_kick", "glute_med", 3), s("donkey_kick", "lower_back", 2),
+  // Superman — prone back extension with arms/legs lifted
+  s("superman", "lower_back", 9), s("superman", "glutes", 6), s("superman", "hamstrings", 3),
+  s("superman", "rear_delts", 3), s("superman", "traps", 2),
 
   // Lunge
   s("lunge", "quads", 9), s("lunge", "glutes", 8), s("lunge", "hamstrings", 4),
@@ -274,15 +305,18 @@ export const exerciseMuscleScores: readonly ExerciseMuscleScore[] = [
   s("lateral_walk", "quads", 3),
   // Banded Clam Shell — hip external rotation against the band
   s("clam_shell", "glute_med", 9), s("clam_shell", "glutes", 5),
+  // Fire Hydrant — quadruped hip abduction
+  s("fire_hydrant", "glute_med", 9), s("fire_hydrant", "glutes", 4),
   // Hanging Leg Raise — straight legs push both prime movers past knee raises
   s("hanging_leg_raise", "abs", 10), s("hanging_leg_raise", "hip_flexors", 10),
   s("hanging_leg_raise", "obliques", 6), s("hanging_leg_raise", "forearms", 4),
   s("hanging_leg_raise", "lats", 2),
   // Dead Bug — anti-extension with limb movement
   s("dead_bug", "abs", 8), s("dead_bug", "hip_flexors", 4), s("dead_bug", "obliques", 3),
-  // Reverse Dead Bug (bird-dog position) — the prone, anti-flexion counterpart
-  s("reverse_dead_bug", "lower_back", 7), s("reverse_dead_bug", "glutes", 5),
-  s("reverse_dead_bug", "abs", 4), s("reverse_dead_bug", "glute_med", 3),
+  // Bird Dog (formerly "reverse_dead_bug") — quadruped opposite arm/leg
+  // extension, Dead Bug's anti-flexion counterpart
+  s("bird_dog", "lower_back", 7), s("bird_dog", "glutes", 5),
+  s("bird_dog", "abs", 4), s("bird_dog", "glute_med", 3),
   // Sit-Up
   s("sit_up", "abs", 9), s("sit_up", "hip_flexors", 6), s("sit_up", "obliques", 3),
   // Hollow Hold
@@ -300,6 +334,14 @@ export const exerciseMuscleScores: readonly ExerciseMuscleScore[] = [
   // Band Woodchopper — rotational pull across the body
   s("woodchopper", "obliques", 9), s("woodchopper", "abs", 5),
   s("woodchopper", "front_delts", 3), s("woodchopper", "glute_med", 2),
+  // Jumping Jacks — light everywhere, nothing primary
+  s("jumping_jacks", "calves", 5), s("jumping_jacks", "glute_med", 4),
+  s("jumping_jacks", "side_delts", 4), s("jumping_jacks", "quads", 3),
+  s("jumping_jacks", "hip_flexors", 3), s("jumping_jacks", "abs", 2),
+  // Bear Crawl — a moving plank with knee drive
+  s("bear_crawl", "abs", 6), s("bear_crawl", "front_delts", 6), s("bear_crawl", "quads", 5),
+  s("bear_crawl", "hip_flexors", 5), s("bear_crawl", "serratus", 4),
+  s("bear_crawl", "obliques", 4), s("bear_crawl", "triceps", 3),
 
   // Stretch: intentionally none — see `pattern: 'mobility'`.
 ];
@@ -322,6 +364,9 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("bulgarian_split_squat", "dumbbell", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["dumbbells", "bench"] }),
   em("bulgarian_split_squat", "bodyweight", { defaultUnilateralMode: "single_side", requiredEquipment: ["bench"] }),
   em("bulgarian_split_squat", "barbell", { defaultUnilateralMode: "single_side", requiredEquipment: ["ohio_bar", "plates", "rack", "bench"] }),
+  em("wall_sit", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("squat_jump", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("burpee", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
 
   // ---- hinge ----
   em("deadlift", "barbell", { isDefault: true, requiredEquipment: ["ohio_bar", "plates"] }),
@@ -334,6 +379,10 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("hip_thrust", "band", { bandRoles: ["resistance"], requiredEquipment: ["hip_bands", "bench"] }),
   em("glute_bridge", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
   em("glute_bridge", "band", { bandRoles: ["resistance"], requiredEquipment: ["hip_bands", "floor"] }),
+  em("single_leg_glute_bridge", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("donkey_kick", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("donkey_kick", "band", { bandRoles: ["resistance"], defaultUnilateralMode: "single_side", requiredEquipment: ["hip_bands", "floor"], notes: "Hip band looped above the knees or under the standing knee." }),
+  em("superman", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
 
   // ---- lunge ----
   em("lunge", "dumbbell", { isDefault: true, defaultUnilateralMode: "alternating", requiredEquipment: ["dumbbells"] }),
@@ -411,13 +460,15 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("copenhagen_plank", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor", "bench"] }),
   em("pallof_press", "band", { isDefault: true, bandRoles: ["resistance"], defaultUnilateralMode: "single_side", requiredEquipment: ["monster_bands", "rack"] }),
   em("hanging_knee_raise", "bodyweight", { isDefault: true, requiredEquipment: ["pull_up_bar"] }),
-  // Hip-band only, and the sole primary driver of glute_med — which is why that
-  // muscle's volume is ordinal-only and cannot be charted as a number.
+  // Hip-band only. Fire Hydrant's bodyweight default also drives glute_med as
+  // primary, so glute_med volume is no longer ordinal-only across the library.
   em("lateral_walk", "band", { isDefault: true, bandRoles: ["resistance"], requiredEquipment: ["hip_bands"] }),
   em("clam_shell", "band", { isDefault: true, bandRoles: ["resistance"], defaultUnilateralMode: "single_side", requiredEquipment: ["hip_bands", "floor"] }),
+  em("fire_hydrant", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("fire_hydrant", "band", { bandRoles: ["resistance"], defaultUnilateralMode: "single_side", requiredEquipment: ["hip_bands", "floor"] }),
   em("hanging_leg_raise", "bodyweight", { isDefault: true, requiredEquipment: ["pull_up_bar"] }),
   em("dead_bug", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
-  em("reverse_dead_bug", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("bird_dog", "bodyweight", { isDefault: true, defaultUnilateralMode: "alternating", requiredEquipment: ["floor"] }),
   em("sit_up", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
   em("sit_up", "dumbbell", { requiredEquipment: ["dumbbells", "floor"], notes: "Weighted: dumbbell hugged to the chest." }),
   em("hollow_hold", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
@@ -426,6 +477,8 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("bicycle_crunch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
   em("mountain_climber", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
   em("woodchopper", "band", { isDefault: true, bandRoles: ["resistance"], defaultUnilateralMode: "single_side", requiredEquipment: ["monster_bands", "rack"] }),
+  em("jumping_jacks", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("bear_crawl", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
 
   // ---- mobility ----
   em("stretch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),

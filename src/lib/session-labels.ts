@@ -34,9 +34,37 @@ export function rxLabel(rx: RoutineExercise): string {
   return `${scheme}${rx.targetRir !== null ? ` @ RIR ${rx.targetRir}` : ""} · rest ${rx.restSeconds}s`;
 }
 
-/** First index at or after `from` that isn't completed, wrapping once. */
+/** First index at or after `from` that isn't completed. Forward-only: never
+ *  wraps back to earlier (deliberately skipped) sets. */
 export function nextIncomplete(sets: readonly SetLog[], from: number): number {
-  for (let i = from; i < sets.length; i++) if (!sets[i].completed) return i;
-  for (let i = 0; i < from; i++) if (!sets[i].completed) return i;
+  for (let i = Math.max(from, 0); i < sets.length; i++) {
+    if (!sets[i].completed) return i;
+  }
   return -1;
+}
+
+/** Resolve an id-based cursor to the set the LOG hero should show.
+ *  - the set itself, while it exists and is incomplete
+ *  - if it completed, the first incomplete set AFTER it (never behind), so a
+ *    cursor parked on the session's last logged set self-recovers when new
+ *    sets are appended
+ *  - null, or an id that no longer exists (removed without re-aiming) →
+ *    parked: nothing to log
+ *  Never scans backward — skipped sets stay skipped. */
+export function resolveCursor(sets: readonly SetLog[], cursorId: string | null): SetLog | null {
+  if (cursorId === null) return null;
+  const at = sets.findIndex((s) => s.id === cursorId);
+  if (at === -1) return null;
+  const next = nextIncomplete(sets, sets[at].completed ? at + 1 : at);
+  return next === -1 ? null : sets[next];
+}
+
+/** Id of the first incomplete set strictly after `fromId` — where the cursor
+ *  lands after LOG. The caller marks `fromId` complete separately, so this
+ *  looks only at what's ahead of it. Null = nothing ahead. */
+export function advanceCursor(sets: readonly SetLog[], fromId: string): string | null {
+  const at = sets.findIndex((s) => s.id === fromId);
+  if (at === -1) return null;
+  const next = nextIncomplete(sets, at + 1);
+  return next === -1 ? null : sets[next].id;
 }

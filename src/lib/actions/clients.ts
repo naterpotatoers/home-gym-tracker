@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { CLIENT_COLORS } from "../data/clients";
 import { supabase } from "../db/client";
 import { slugId } from "../ids";
+import { localTodayIso } from "../periods";
 
 const LEVELS = new Set(["beginner", "intermediate", "advanced"]);
 const GOALS = new Set(["general-fitness", "strength", "hypertrophy", "fat-loss"]);
@@ -57,7 +58,7 @@ export async function createClient(formData: FormData): Promise<void> {
     ...profile,
     last_name: "",
     status: "active",
-    join_date: new Date().toISOString().slice(0, 10),
+    join_date: localTodayIso(),
     is_trainer: false,
   });
   if (error) throw new Error(`adding person: ${error.message}`);

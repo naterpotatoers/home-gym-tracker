@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { getSuggestedLoad, syncSetLogs, updateSetLog } from "@/lib/actions/workout";
+import { exerciseById } from "@/lib/data/exercises";
 import { randomSuffix } from "@/lib/ids";
 import type { Variant } from "@/lib/queries";
 import { renumber, toBlocks, type Block } from "@/lib/set-blocks";
@@ -141,6 +142,43 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
     );
   }
 
+  /** Append an ad-hoc exercise to the end of the session: `count` fresh sets
+   *  prefilled with the client's last-used load. Returns the new sets so the
+   *  caller can point its cursor at them. */
+  async function addExercise(variant: Variant, count = 3): Promise<SetLog[]> {
+    const em = variant.exerciseModality;
+    const prefill = await getSuggestedLoad(
+      session.clientId,
+      em.exerciseId,
+      em.modalityId,
+    ).catch(() => null);
+    const timed = exerciseById.get(em.exerciseId)?.metricType === "time";
+    const newSets = Array.from({ length: count }, (_, i): SetLog => ({
+      id: clientSetId(),
+      sessionId: session.id,
+      exerciseId: em.exerciseId,
+      modalityId: em.modalityId,
+      // renumber() inside restructure re-derives both of these
+      position: sets.length + i + 1,
+      setNumber: i + 1,
+      unilateralMode: em.defaultUnilateralMode,
+      side: null,
+      reps: timed ? null : 10,
+      weightLbs: prefill?.weightLbs ?? null,
+      addedWeightLbs: prefill?.addedWeightLbs ?? null,
+      bandId: prefill?.bandId ?? null,
+      bandRole: prefill?.bandRole ?? em.bandRoles[0] ?? null,
+      durationSeconds: timed ? 30 : null,
+      distanceFeet: null,
+      rir: null,
+      isWarmup: false,
+      completed: false,
+      notes: "",
+    }));
+    restructure([...sets, ...newSets]);
+    return newSets;
+  }
+
   /** Cancel pending debounced saves and persist the current list — call
    *  before finishing the session. */
   async function flush() {
@@ -161,6 +199,7 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
     removeSet,
     removeBlock,
     swapExercise,
+    addExercise,
     flush,
   };
 }

@@ -4,7 +4,7 @@ import { scoresByExercise } from "./data/exercises";
 import { muscleById } from "./data/muscles";
 import type { GymData } from "./gym-data";
 import { bestE1rm, e1rm, setLoad } from "./modality";
-import { utcDay } from "./periods";
+import { addDaysIso, utcDay } from "./periods";
 import { blocksFor, muscleVolumeByGroup, workingSets } from "./queries";
 import type { ClientId, ExerciseId, ModalityId, MuscleGroupId } from "./types";
 
@@ -203,19 +203,17 @@ export function e1rmTrend(
 export function trendSegment(
   trend: E1rmTrend,
 ): { fromDate: string; fromY: number; toDate: string; toY: number } {
-  const to = new Date(`${trend.windowTo}T00:00:00Z`);
-  to.setUTCDate(to.getUTCDate() + 56);
   return {
     fromDate: trend.windowTo,
     fromY: trend.fittedLastLbs,
-    toDate: to.toISOString().slice(0, 10),
+    toDate: addDaysIso(trend.windowTo, 56),
     toY: trend.projected8wkLbs,
   };
 }
 
 /** The muscle group an exercise most directly trains — its highest-scored
  *  muscle's group. Null for mobility work (no scores on purpose). */
-export function primaryMuscleGroup(exerciseId: ExerciseId): MuscleGroupId | null {
+function primaryMuscleGroup(exerciseId: ExerciseId): MuscleGroupId | null {
   const scores = scoresByExercise.get(exerciseId);
   if (!scores || scores.length === 0) return null;
   const top = scores.reduce((a, b) => (b.score > a.score ? b : a));

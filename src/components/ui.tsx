@@ -72,6 +72,60 @@ export function NumberInput({
   );
 }
 
+/** NumberInput flanked by −/+ steppers — the iPad-friendly way to nudge small
+ *  prescriptions (sets, reps, rest). Not for weights: they vary too much for
+ *  ±step taps to help. Typing stays available; only the buttons clamp. */
+export function StepperInput({
+  value,
+  onChange,
+  min = 0,
+  max,
+  step = 1,
+  size = "md",
+  className = "w-16",
+}: {
+  value: number | null;
+  onChange: (value: number | null) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  size?: ControlSize;
+  className?: string;
+}) {
+  function nudge(direction: 1 | -1) {
+    const next = value === null ? min : value + direction * step;
+    onChange(Math.min(max ?? Infinity, Math.max(min, next)));
+  }
+  return (
+    <div className="flex items-center gap-1">
+      <IconButton
+        size={size}
+        onClick={() => nudge(-1)}
+        disabled={value !== null && value <= min}
+        aria-label="Decrease"
+      >
+        −
+      </IconButton>
+      <NumberInput
+        value={value}
+        onChange={onChange}
+        min={min}
+        step={step}
+        size={size}
+        className={className}
+      />
+      <IconButton
+        size={size}
+        onClick={() => nudge(1)}
+        disabled={max !== undefined && value !== null && value >= max}
+        aria-label="Increase"
+      >
+        +
+      </IconButton>
+    </div>
+  );
+}
+
 export function Select({
   size = "md",
   className = "",

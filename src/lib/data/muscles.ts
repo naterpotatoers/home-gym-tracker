@@ -58,4 +58,3 @@ export const muscles: readonly Muscle[] = [
 ];
 
 export const muscleById = new Map(muscles.map((m) => [m.id, m]));
-export const muscleGroupById = new Map(muscleGroups.map((g) => [g.id, g]));

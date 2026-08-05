@@ -13,9 +13,11 @@ import { useSetEditor } from "@/components/use-set-editor";
 import { finishSession } from "@/lib/actions/workout";
 import { exerciseById } from "@/lib/data/exercises";
 import type { Variant } from "@/lib/queries";
-import { describeTarget, nextIncomplete, rxLabel } from "@/lib/session-labels";
+import { advanceCursor, describeTarget, resolveCursor, rxLabel } from "@/lib/session-labels";
 import type { Block } from "@/lib/set-blocks";
 import type { SessionCondition } from "@/lib/types";
+
+type PickerTarget = { mode: "add" } | { mode: "replace"; block: Block };
 
 /**
  * One person's live card on the group board, laid out as the session's
@@ -40,13 +42,12 @@ export function GroupPersonCard({
 }) {
   const { session, initialSets, prescriptions, clientName, routineName, color } = person;
   const editor = useSetEditor(session, initialSets);
-  const [cursor, setCursor] = useState(() => {
-    const first = initialSets.findIndex((s) => !s.completed);
-    return first === -1 ? -1 : first;
-  });
+  const [cursorId, setCursorId] = useState<string | null>(
+    () => initialSets.find((s) => !s.completed)?.id ?? null,
+  );
   /** Block explicitly opened by tap; null = follow the current block. */
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const [swapBlock, setSwapBlock] = useState<Block | null>(null);
+  const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [restUntil, setRestUntil] = useState<number | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [finishBusy, setFinishBusy] = useState(false);
@@ -55,12 +56,9 @@ export function GroupPersonCard({
   const [condition, setCondition] = useState<SessionCondition | null>(null);
   const [notes, setNotes] = useState("");
 
-  // Self-healing cursor: if it points at a completed/removed set (jumps,
-  // removals, external edits), fall back to the first incomplete set.
-  const cursorValid =
-    cursor >= 0 && cursor < editor.sets.length && !editor.sets[cursor].completed;
-  const effectiveCursor = cursorValid ? cursor : nextIncomplete(editor.sets, 0);
-  const current = effectiveCursor >= 0 ? editor.sets[effectiveCursor] : undefined;
+  // Id-based cursor: survives restructures (add/remove/swap rebuild the sets
+  // array) and only ever resolves FORWARD — a skipped exercise stays skipped.
+  const current = resolveCursor(editor.sets, cursorId) ?? undefined;
   const currentBlock = current
     ? editor.blocks.find((b) => b.sets.some((s) => s.id === current.id))
     : undefined;
@@ -73,23 +71,39 @@ export function GroupPersonCard({
   const resting = restSecondsLeft !== null && restSecondsLeft > 0;
   const ready = restSecondsLeft !== null && restSecondsLeft <= 0 && !finished;
 
-  // The set after the current one — where the cursor lands after LOG.
-  const upNextIndex = current
-    ? nextIncomplete(
-        editor.sets.map((s, i) => (i === effectiveCursor ? { ...s, completed: true } : s)),
-        effectiveCursor + 1,
-      )
-    : -1;
-
   function logCurrent() {
     if (!current) return;
     const rx = prescriptions.find(
       (p) => p.exerciseId === current.exerciseId && p.modalityId === current.modalityId,
     );
+    // advanceCursor looks strictly after `current`, so computing it before the
+    // patch lands is safe. With nothing ahead the cursor parks on the logged
+    // set itself, which self-recovers if more sets get appended later.
+    const nextId = advanceCursor(editor.sets, current.id);
     editor.patchSet(current.id, { completed: true });
-    setRestUntil(rx ? Date.now() + rx.restSeconds * 1000 : null);
-    setCursor(upNextIndex);
+    setRestUntil(rx ? now + rx.restSeconds * 1000 : null);
+    setCursorId(nextId ?? current.id);
     setExpandedKey(null); // follow the flow to the next block
+  }
+
+  // Removing the set/block the cursor sits on would strand it on a dead id
+  // (parked); re-aim it at the next incomplete survivor ahead first.
+  function removeSetKeepingCursor(setId: string) {
+    if (current && setId === current.id) {
+      setCursorId(advanceCursor(editor.sets, current.id));
+    }
+    editor.removeSet(setId);
+  }
+
+  function removeBlockKeepingCursor(block: Block) {
+    if (current && block.sets.some((s) => s.id === current.id)) {
+      const at = editor.sets.findIndex((s) => s.id === current.id);
+      const survivor = editor.sets.find(
+        (s, i) => i > at && !s.completed && !block.sets.some((b) => b.id === s.id),
+      );
+      setCursorId(survivor?.id ?? null);
+    }
+    editor.removeBlock(block);
   }
 
   function tapBlock(block: Block) {
@@ -99,8 +113,7 @@ export function GroupPersonCard({
     // count toward anything.)
     const firstIncomplete = block.sets.find((s) => !s.completed);
     if (firstIncomplete) {
-      const index = editor.sets.findIndex((s) => s.id === firstIncomplete.id);
-      if (index >= 0) setCursor(index);
+      setCursorId(firstIncomplete.id);
       setExpandedKey(null); // it becomes the current block, which auto-expands
     } else {
       setExpandedKey(block.key === shownKey ? null : block.key);
@@ -243,7 +256,7 @@ export function GroupPersonCard({
                 <IconButton
                   variant="ghost"
                   size="sm"
-                  onClick={() => setSwapBlock(block)}
+                  onClick={() => setPicker({ mode: "replace", block })}
                   aria-label="Replace exercise"
                   title="Replace exercise"
                 >
@@ -254,7 +267,7 @@ export function GroupPersonCard({
                   size="sm"
                   onClick={() => {
                     if (confirm(`Remove ${exercise?.name ?? "this exercise"} from the session?`)) {
-                      editor.removeBlock(block);
+                      removeBlockKeepingCursor(block);
                     }
                   }}
                   aria-label="Remove exercise from session"
@@ -296,7 +309,7 @@ export function GroupPersonCard({
                     dense
                     metricType={exercise?.metricType ?? "reps"}
                     onChange={(changes) => editor.patchSet(set.id, changes)}
-                    onRemove={() => editor.removeSet(set.id)}
+                    onRemove={() => removeSetKeepingCursor(set.id)}
                   />
                 ))}
                 <div className="mt-1 flex justify-end">
@@ -310,9 +323,20 @@ export function GroupPersonCard({
         })}
       </ul>
 
-      {!current && (
-        <p className="mt-2 text-sm text-success-text">All sets done — finish below.</p>
-      )}
+      <div className="mt-1">
+        <Button size="sm" variant="ghost" onClick={() => setPicker({ mode: "add" })}>
+          + Add exercise
+        </Button>
+      </div>
+
+      {!current &&
+        (editor.sets.some((s) => !s.completed) ? (
+          <p className="mt-2 text-sm text-muted">
+            Nothing ahead — tap a skipped exercise to log it, or finish below.
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-success-text">All sets done — finish below.</p>
+        ))}
 
       {/* Footer — pinned to the card bottom so cards in a row line up */}
       <div className="mt-auto flex items-center gap-2 border-t border-border pt-2">
@@ -356,16 +380,27 @@ export function GroupPersonCard({
         </div>
       )}
 
-      {swapBlock && (
+      {picker && (
         <ExercisePicker
           variants={variants}
-          onSelect={(variant) => {
-            const block = swapBlock;
-            setSwapBlock(null);
-            editor.swapExercise(block, variant);
+          onSelect={async (variant) => {
+            const target = picker;
+            setPicker(null);
+            if (target.mode === "add") {
+              const newSets = await editor.addExercise(variant);
+              // A parked cursor (nothing ahead) jumps to the new work; an
+              // in-flight cursor is unaffected by an append.
+              if (!current && newSets.length > 0) setCursorId(newSets[0].id);
+            } else {
+              editor.swapExercise(target.block, variant);
+            }
           }}
-          onClose={() => setSwapBlock(null)}
-          emphasizePattern={exerciseById.get(swapBlock.exerciseId)?.pattern}
+          onClose={() => setPicker(null)}
+          emphasizePattern={
+            picker.mode === "replace"
+              ? exerciseById.get(picker.block.exerciseId)?.pattern
+              : undefined
+          }
         />
       )}
     </div>

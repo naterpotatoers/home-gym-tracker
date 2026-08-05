@@ -17,8 +17,10 @@ export type GroupEntry =
 /**
  * Start a group workout: one planned session per person (or resume their
  * existing planned session), then land on the board with all of them.
+ * Not exported — in a "use server" file every export is a live RPC endpoint,
+ * and only `startGroupFromForm` should be one.
  */
-export async function startGroupSessions(entries: GroupEntry[]): Promise<void> {
+async function startGroupSessions(entries: GroupEntry[]): Promise<void> {
   if (entries.length === 0) throw new Error("Pick at least one person.");
   const data = await loadGymData();
 

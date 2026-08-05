@@ -11,7 +11,10 @@ import { useSetEditor } from "@/components/use-set-editor";
 import { discardSession, finishSession } from "@/lib/actions/workout";
 import { exerciseById } from "@/lib/data/exercises";
 import type { Variant } from "@/lib/queries";
+import { rxLabel } from "@/lib/session-labels";
 import type { RoutineExercise, Session, SessionCondition, SetLog } from "@/lib/types";
+
+type PickerTarget = { mode: "add" } | { mode: "replace"; index: number };
 
 export function WorkoutRunner({
   session,
@@ -27,7 +30,7 @@ export function WorkoutRunner({
   clientName: string;
 }) {
   const editor = useSetEditor(session, initialSets);
-  const [swapTarget, setSwapTarget] = useState<number | null>(null);
+  const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [finishBusy, setFinishBusy] = useState(false);
   const [notes, setNotes] = useState("");
@@ -94,22 +97,12 @@ export function WorkoutRunner({
               <div className="flex flex-wrap items-baseline gap-2">
                 <h2 className="text-sm font-semibold">{exercise?.name ?? block.exerciseId}</h2>
                 <ModalityChip modalityId={block.modalityId} />
-                {rx && (
-                  <span className="text-xs text-muted">
-                    {rx.durationSeconds !== null
-                      ? `${rx.sets}×${rx.durationSeconds}s`
-                      : rx.repMin === rx.repMax
-                      ? `${rx.sets}×${rx.repMax ?? "?"}`
-                      : `${rx.sets}×${rx.repMin ?? "?"}–${rx.repMax ?? "?"}`}
-                    {rx.targetRir !== null && ` @ RIR ${rx.targetRir}`}
-                    {` · rest ${rx.restSeconds}s`}
-                  </span>
-                )}
+                {rx && <span className="text-xs text-muted">{rxLabel(rx)}</span>}
                 <span className="ml-auto flex gap-1">
                   <IconButton
                     variant="ghost"
                     size="sm"
-                    onClick={() => setSwapTarget(blockIndex)}
+                    onClick={() => setPicker({ mode: "replace", index: blockIndex })}
                     aria-label="Replace exercise"
                     title="Replace exercise"
                   >
@@ -149,6 +142,7 @@ export function WorkoutRunner({
             </div>
           );
         })}
+        <Button onClick={() => setPicker({ mode: "add" })}>+ Add exercise</Button>
       </div>
 
       <div className="mt-8 border-t border-border pt-4">
@@ -199,17 +193,23 @@ export function WorkoutRunner({
         )}
       </div>
 
-      {swapTarget !== null && (
+      {picker !== null && (
         <ExercisePicker
           variants={variants}
           onSelect={(variant) => {
-            const block = editor.blocks[swapTarget];
-            setSwapTarget(null);
-            editor.swapExercise(block, variant);
+            const target = picker;
+            setPicker(null);
+            if (target.mode === "add") {
+              editor.addExercise(variant);
+            } else {
+              editor.swapExercise(editor.blocks[target.index], variant);
+            }
           }}
-          onClose={() => setSwapTarget(null)}
+          onClose={() => setPicker(null)}
           emphasizePattern={
-            exerciseById.get(editor.blocks[swapTarget].exerciseId)?.pattern
+            picker.mode === "replace"
+              ? exerciseById.get(editor.blocks[picker.index].exerciseId)?.pattern
+              : undefined
           }
         />
       )}

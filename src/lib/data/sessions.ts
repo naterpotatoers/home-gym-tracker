@@ -498,14 +498,3 @@ export const setsBySession = (() => {
   }
   return out;
 })();
-
-export const sessionsByClient = (() => {
-  const out = new Map<Session["clientId"], Session[]>();
-  for (const s of sessions) {
-    const existing = out.get(s.clientId);
-    if (existing) existing.push(s);
-    else out.set(s.clientId, [s]);
-  }
-  for (const list of out.values()) list.sort((a, b) => a.date.localeCompare(b.date));
-  return out;
-})();

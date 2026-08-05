@@ -87,6 +87,9 @@ export type ExerciseId =
   | "goblet_squat"
   | "wide_stance_squat"
   | "bulgarian_split_squat"
+  | "wall_sit"
+  | "squat_jump"
+  | "burpee"
   // hinge
   | "deadlift"
   | "romanian_deadlift"
@@ -94,6 +97,9 @@ export type ExerciseId =
   | "back_extension"
   | "hip_thrust"
   | "glute_bridge"
+  | "single_leg_glute_bridge"
+  | "donkey_kick"
+  | "superman"
   // lunge / unilateral legs
   | "lunge"
   | "side_lunge"
@@ -139,14 +145,17 @@ export type ExerciseId =
   | "hanging_leg_raise"
   | "lateral_walk"
   | "clam_shell"
+  | "fire_hydrant"
   | "dead_bug"
-  | "reverse_dead_bug"
+  | "bird_dog"
   | "sit_up"
   | "hollow_hold"
   | "russian_twist"
   | "bicycle_crunch"
   | "mountain_climber"
   | "woodchopper"
+  | "jumping_jacks"
+  | "bear_crawl"
   // mobility
   | "stretch";
 

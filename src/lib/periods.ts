@@ -33,8 +33,14 @@ export function mondayOf(iso: string): string {
   return addDaysIso(iso, -offset);
 }
 
+/** A Date as a LOCAL yyyy-mm-dd string — the blessed conversion; never use
+ *  `toISOString().slice(0, 10)`, which is a day off west of UTC every evening. */
+export function localIso(date: Date): string {
+  return date.toLocaleDateString("en-CA");
+}
+
 export function localTodayIso(): string {
-  return new Date().toLocaleDateString("en-CA");
+  return localIso(new Date());
 }
 
 /** Today's weekday in the schema's numbering: 1 = Monday .. 7 = Sunday. */

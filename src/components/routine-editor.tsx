@@ -10,8 +10,8 @@ import {
   Field,
   IconButton,
   Input,
-  NumberInput,
   Select,
+  StepperInput,
 } from "@/components/ui";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
 import { deleteRoutine, saveRoutine } from "@/lib/actions/routines";
@@ -216,15 +216,15 @@ export function RoutineEditor({
 
               <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-end">
                 <Field label="Sets">
-                  <NumberInput value={row.sets} min={1} onChange={(v) => patch(index, { sets: v ?? 1 })} />
+                  <StepperInput value={row.sets} min={1} onChange={(v) => patch(index, { sets: v ?? 1 })} />
                 </Field>
                 {timed ? (
                   <Field label="Seconds">
-                    <NumberInput value={row.durationSeconds} min={5} step={5} onChange={(v) => patch(index, { durationSeconds: v })} />
+                    <StepperInput value={row.durationSeconds} min={5} step={5} onChange={(v) => patch(index, { durationSeconds: v })} />
                   </Field>
                 ) : (
                   <Field label="Target reps">
-                    <NumberInput
+                    <StepperInput
                       value={row.repMax ?? row.repMin}
                       min={1}
                       onChange={(v) => patch(index, { repMin: v, repMax: v })}
@@ -232,10 +232,10 @@ export function RoutineEditor({
                   </Field>
                 )}
                 <Field label="Rest (s)">
-                  <NumberInput value={row.restSeconds} min={0} step={15} onChange={(v) => patch(index, { restSeconds: v ?? 0 })} />
+                  <StepperInput value={row.restSeconds} min={0} step={15} onChange={(v) => patch(index, { restSeconds: v ?? 0 })} />
                 </Field>
                 <Field label="Target RIR">
-                  <NumberInput value={row.targetRir} min={0} onChange={(v) => patch(index, { targetRir: v })} />
+                  <StepperInput value={row.targetRir} min={0} max={5} onChange={(v) => patch(index, { targetRir: v })} />
                 </Field>
                 <Field label="Mode">
                   <Select

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DiscardSessionButton } from "@/components/discard-session-button";
 import { Button, clientBorderStyle, Note, PageShell, SeedBanner, Select } from "@/components/ui";
 import { startGroupFromForm } from "@/lib/actions/group";
 import { loadGymData } from "@/lib/db/snapshot";
@@ -19,15 +20,15 @@ export default async function WorkoutPage() {
   );
 
   const rows = data.clients.map((client) => {
-    const planned = data.sessions.find(
-      (s) => s.clientId === client.id && s.status === "planned",
-    );
+    const planned = data.sessions
+      .filter((s) => s.clientId === client.id && s.status === "planned")
+      .sort((a, b) => b.date.localeCompare(a.date));
     const assignment = data.assignments.find(
       (a) => a.clientId === client.id && a.status === "active",
     );
     const todaysRoutine = routineForDay(data, client.id, dow);
-    const defaultPlan = planned
-      ? `resume:${planned.id}`
+    const defaultPlan = planned[0]
+      ? `resume:${planned[0].id}`
       : todaysRoutine
         ? `${todaysRoutine.routineId}|${assignment?.id ?? ""}`
         : `${routines[0]?.id ?? ""}|`;
@@ -55,7 +56,7 @@ export default async function WorkoutPage() {
               <input
                 type="checkbox"
                 name={`include_${client.id}`}
-                defaultChecked={planned !== undefined || todaysRoutine !== null}
+                defaultChecked={planned.length > 0 || todaysRoutine !== null}
                 className="size-5 accent-accent"
               />
               <span className="min-w-0">
@@ -81,12 +82,12 @@ export default async function WorkoutPage() {
                 defaultValue={defaultPlan}
                 className="col-span-3 w-full sm:col-span-1"
               >
-                {planned && (
-                  <option value={`resume:${planned.id}`}>
-                    Resume: {data.routineById.get(planned.routineId ?? "")?.name ?? "session"}{" "}
-                    ({planned.date})
+                {planned.map((s) => (
+                  <option key={s.id} value={`resume:${s.id}`}>
+                    Resume: {data.routineById.get(s.routineId ?? "")?.name ?? "session"}{" "}
+                    ({s.date})
                   </option>
-                )}
+                ))}
                 {todaysRoutine && (
                   <option value={`${todaysRoutine.routineId}|${assignment?.id ?? ""}`}>
                     {data.routineById.get(todaysRoutine.routineId)?.name} — today&apos;s
@@ -105,6 +106,25 @@ export default async function WorkoutPage() {
               >
                 history →
               </Link>
+              {planned.length > 0 && (
+                <span className="col-span-3 flex flex-col gap-1 text-xs text-muted sm:col-span-4">
+                  {planned.map((s) => {
+                    const name =
+                      data.routineById.get(s.routineId ?? "")?.name ?? "session";
+                    return (
+                      <span key={s.id} className="flex items-center gap-2">
+                        <span className="truncate">
+                          unfinished: {name} ({s.date})
+                        </span>
+                        <DiscardSessionButton
+                          sessionId={s.id}
+                          label={`${name} (${s.date})`}
+                        />
+                      </span>
+                    );
+                  })}
+                </span>
+              )}
             </label>
           );
         })}
@@ -114,8 +134,8 @@ export default async function WorkoutPage() {
         </Button>
       </form>
       <Note>
-        Resuming an unfinished session? It&apos;s the first option in that
-        person&apos;s plan list.
+        Every unfinished session shows up as its own Resume option in the plan
+        list — discard the ones that never really happened.
       </Note>
     </PageShell>
   );
