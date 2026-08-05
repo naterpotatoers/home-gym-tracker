@@ -21,7 +21,7 @@ export type GroupEntry =
  * and only `startGroupFromForm` should be one.
  */
 async function startGroupSessions(entries: GroupEntry[]): Promise<void> {
-  if (entries.length === 0) throw new Error("Pick at least one person.");
+  if (entries.length === 0) throw new Error("Pick at least one client.");
   const data = await loadGymData();
 
   const sessionIds: string[] = [];

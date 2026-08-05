@@ -103,6 +103,9 @@ describe("routineForDay is week-aware", () => {
   const weekData = buildGymData({
     source: "seed",
     clientsSource: "seed",
+    nutritionSource: "database",
+    foods: [],
+    foodLogs: [],
     clients: data.clients,
     routines: [
       { id: "r_week1", name: "Week 1 Day", notes: "" },

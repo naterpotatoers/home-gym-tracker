@@ -68,7 +68,7 @@ export function PersonList({
               : "text-muted hover:bg-current/5 hover:text-foreground"
           }`}
         >
-          <PlusIcon size={14} /> <span className="ml-1">Add person</span>
+          <PlusIcon size={14} /> <span className="ml-1">Add client</span>
         </Link>
       </div>
 

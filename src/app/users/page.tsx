@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
+import { NutritionLog } from "@/components/nutrition-log";
 import { PlusIcon, SaveIcon } from "@/components/icons";
 import { Button, Card, ColorDot, Field, Input, Note, PageShell, Stat } from "@/components/ui";
 import { createClient, deleteClient, updateClient } from "@/lib/actions/clients";
 import { createWeighIn, deleteWeighIn } from "@/lib/actions/weigh-ins";
 import { loadGymData } from "@/lib/db/snapshot";
+import { recentFoods } from "@/lib/nutrition";
 import { localTodayIso } from "@/lib/periods";
 import { parseProgressParams } from "@/lib/progress-url";
 import { clientSummaries } from "@/lib/queries";
@@ -41,11 +43,11 @@ export default async function UsersPage({
 
   const addPersonCard = (
     <Card className="mt-4">
-      <h2 className="mb-3 text-lg font-semibold">Add a person</h2>
+      <h2 className="mb-3 text-lg font-semibold">Add a client</h2>
       <form action={createClient} className="space-y-3">
         <ProfileFields />
         <Button type="submit" variant="primary" size="sm">
-          <PlusIcon size={16} /> Add person
+          <PlusIcon size={16} /> Add client
         </Button>
       </form>
     </Card>
@@ -112,7 +114,28 @@ export default async function UsersPage({
               </form>
             </Card>
           ) : params.view === "tracking" ? (
-            <Card className="mt-4">
+            <>
+              <Card className="mt-4">
+                <h2 className="mb-3 text-lg font-semibold">
+                  {person.firstName} — nutrition
+                </h2>
+                {data.nutritionSource === "missing" ? (
+                  <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+                    The nutrition tables don&apos;t exist yet — run{" "}
+                    <code className="font-mono">supabase/apply_nutrition.sql</code>{" "}
+                    in the Supabase SQL editor once, then reload.
+                  </p>
+                ) : (
+                  <NutritionLog
+                    clientId={person.id}
+                    today={today}
+                    foods={data.foods}
+                    recents={recentFoods(data, person.id)}
+                    logs={data.foodLogs.filter((l) => l.clientId === person.id)}
+                  />
+                )}
+              </Card>
+              <Card className="mt-4">
               <h2 className="mb-3 text-lg font-semibold">
                 {person.firstName} — weigh-ins
               </h2>
@@ -161,10 +184,11 @@ export default async function UsersPage({
                 </ul>
               )}
               <Note>
-                Weight lives only on this tab. Calorie &amp; macro tracking
-                will land here one day.
+                Bodyweight drives bodyweight-exercise e1RMs and the ×BW
+                comparison column — keep it fresh-ish.
               </Note>
-            </Card>
+              </Card>
+            </>
           ) : (
             <>
               <p className="mt-3 text-sm text-muted">

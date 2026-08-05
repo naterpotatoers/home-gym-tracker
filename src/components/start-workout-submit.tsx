@@ -30,7 +30,7 @@ export function StartWorkoutSubmit() {
             );
           if (!anyChecked) {
             e.preventDefault();
-            setWarning("Pick at least one person first.");
+            setWarning("Pick at least one client first.");
           } else {
             setWarning(null);
           }

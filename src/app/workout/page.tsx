@@ -53,7 +53,7 @@ export default async function WorkoutPage() {
     <PageShell className="max-w-4xl">
       <h1 className="text-3xl font-bold tracking-tight">Start a workout</h1>
       <p className="mt-2 text-sm text-muted">
-        Check who&apos;s training and confirm their plan. One person goes
+        Check who&apos;s training and confirm their plan. One client goes
         straight into logging; more than one opens the shared board.
       </p>
 
@@ -147,7 +147,7 @@ export default async function WorkoutPage() {
               href={`/workout/group/board?s=${sessionIds.join(",")}`}
               className="block text-sm font-semibold text-accent-text underline underline-offset-2"
             >
-              Resume group board — {date} ({sessionIds.length} people) →
+              Resume group board — {date} ({sessionIds.length} clients) →
             </Link>
           ))}
         </div>

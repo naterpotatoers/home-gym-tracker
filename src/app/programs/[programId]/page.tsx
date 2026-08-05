@@ -122,7 +122,7 @@ export default async function ProgramPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border-strong text-left">
-                  <Th>Person</Th>
+                  <Th>Client</Th>
                   <Th>Since</Th>
                   <Th>Status</Th>
                 </tr>

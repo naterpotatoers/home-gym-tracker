@@ -128,6 +128,16 @@ export const exercises: readonly Exercise[] = [
   { id: "cross_body_shoulder_stretch", name: "Cross-Body Shoulder Stretch", pattern: "mobility", metricType: "time", isCompound: false },
   { id: "overhead_triceps_stretch", name: "Overhead Triceps Stretch", pattern: "mobility", metricType: "time", isCompound: false },
   { id: "standing_lat_stretch", name: "Standing Lat Stretch", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "seated_forward_fold", name: "Seated Forward Fold (Hamstrings)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "standing_forward_fold", name: "Standing Forward Fold (Hamstrings)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "upward_dog", name: "Upward Dog (Front Body)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "supine_spinal_twist", name: "Supine Spinal Twist", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "seated_spinal_twist", name: "Seated Spinal Twist", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "happy_baby", name: "Happy Baby (Hips)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "frog_pose", name: "Frog Pose (Adductors)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "lizard_pose", name: "Lizard Pose (Hips)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "triangle_pose", name: "Triangle Pose (Hamstrings/Side)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "pancake_stretch", name: "Seated Straddle (Pancake)", pattern: "mobility", metricType: "time", isCompound: false },
 ];
 
 /**
@@ -521,6 +531,16 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("cross_body_shoulder_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
   em("overhead_triceps_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
   em("standing_lat_stretch", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("seated_forward_fold", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("standing_forward_fold", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("upward_dog", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("supine_spinal_twist", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("seated_spinal_twist", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("happy_baby", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("frog_pose", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("lizard_pose", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("triangle_pose", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("pancake_stretch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
 ];
 
 // ---------------------------------------------------------------------------

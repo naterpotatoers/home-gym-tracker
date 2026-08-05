@@ -30,7 +30,7 @@ function parseProfile(formData: FormData) {
   const color = String(formData.get("color") ?? "");
   const notes = String(formData.get("notes") ?? "").trim();
 
-  if (!firstName) throw new Error("A person needs a name.");
+  if (!firstName) throw new Error("A client needs a name.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) throw new Error("Pick a date of birth.");
   if (!Number.isFinite(heightInches) || heightInches < 24 || heightInches > 96) {
     throw new Error("Height must be between 24 and 96 inches.");
@@ -53,7 +53,7 @@ function parseProfile(formData: FormData) {
 export async function createClient(formData: FormData): Promise<void> {
   const profile = parseProfile(formData);
   await run(
-    "adding person",
+    "adding client",
     supabase.from("clients").insert({
       id: slugId("c", profile.first_name),
       ...profile,
@@ -72,7 +72,7 @@ export async function updateClient(
 ): Promise<void> {
   const profile = parseProfile(formData);
   await run(
-    "updating person",
+    "updating client",
     supabase.from("clients").update(profile).eq("id", clientId),
   );
   revalidateAll();
@@ -86,21 +86,21 @@ export async function deleteClient(clientId: string): Promise<void> {
     "sessions",
     "client_id",
     clientId,
-    "This person has workout sessions — discard those first.",
+    "This client has workout sessions — discard those first.",
   );
   await assertNoRefs(
     "assignments",
     "client_id",
     clientId,
-    "This person has program assignments — remove those first.",
+    "This client has program assignments — remove those first.",
   );
   await assertNoRefs(
     "weigh_ins",
     "client_id",
     clientId,
-    "This person has weigh-ins — delete those first.",
+    "This client has weigh-ins — delete those first.",
   );
-  await run("deleting person", supabase.from("clients").delete().eq("id", clientId));
+  await run("deleting client", supabase.from("clients").delete().eq("id", clientId));
   revalidateAll();
   redirect("/users");
 }

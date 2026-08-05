@@ -1,6 +1,8 @@
 import type {
   Assignment,
   Client,
+  Food,
+  FoodLog,
   Program,
   ProgramDay,
   Routine,
@@ -25,6 +27,9 @@ export type GymData = {
   /** Clients fall back to the TypeScript seed separately, so a database that
    *  ran migration 001 but not 002 keeps working (read-only roster). */
   clientsSource: "database" | "seed";
+  /** "missing" while the nutrition tables haven't been created yet — the rest
+   *  of the app keeps working; the Tracking tab shows a run-the-SQL note. */
+  nutritionSource: "database" | "missing";
   clients: readonly Client[];
   routines: readonly Routine[];
   routineExercises: readonly RoutineExercise[];
@@ -34,6 +39,8 @@ export type GymData = {
   sessions: readonly Session[];
   setLogs: readonly SetLog[];
   weighIns: readonly WeighIn[];
+  foods: readonly Food[];
+  foodLogs: readonly FoodLog[];
 
   sessionById: ReadonlyMap<string, Session>;
   /** Sets per session, sorted by performed order. */
@@ -43,6 +50,7 @@ export type GymData = {
   exercisesByRoutine: ReadonlyMap<string, RoutineExercise[]>;
   programById: ReadonlyMap<string, Program>;
   clientById: ReadonlyMap<string, Client>;
+  foodById: ReadonlyMap<string, Food>;
 };
 
 export type GymTables = Pick<
@@ -58,6 +66,9 @@ export type GymTables = Pick<
   | "sessions"
   | "setLogs"
   | "weighIns"
+  | "nutritionSource"
+  | "foods"
+  | "foodLogs"
 >;
 
 export function buildGymData(tables: GymTables): GymData {
@@ -89,5 +100,6 @@ export function buildGymData(tables: GymTables): GymData {
     exercisesByRoutine,
     programById: new Map(tables.programs.map((p) => [p.id, p])),
     clientById: new Map(tables.clients.map((c) => [c.id, c])),
+    foodById: new Map(tables.foods.map((f) => [f.id, f])),
   };
 }

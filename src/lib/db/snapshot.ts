@@ -8,6 +8,8 @@ import { supabase } from "./client";
 import {
   rowToAssignment,
   rowToClient,
+  rowToFood,
+  rowToFoodLog,
   rowToProgram,
   rowToProgramDay,
   rowToRoutine,
@@ -54,6 +56,8 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       sessions,
       setLogs,
       weighIns,
+      foodRows,
+      foodLogRows,
     ] = await Promise.all([
       // Clients get their own fallback: null means migration 002 hasn't run
       // yet, and the TS seed roster serves read-only.
@@ -69,6 +73,17 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       fetchAll("sessions", ["date"]),
       fetchAll("set_logs", ["session_id", "position"]),
       fetchAll("weigh_ins", ["client_id", "date"]),
+      // Nutrition tables get their own fallback too: null means
+      // apply_nutrition.sql hasn't run — the rest of the app keeps working
+      // and the Tracking tab shows a setup note.
+      fetchAll("foods", ["name"]).catch((e) => {
+        if (e instanceof TablesMissingError) return null;
+        throw e;
+      }),
+      fetchAll("food_logs", ["client_id", "date"]).catch((e) => {
+        if (e instanceof TablesMissingError) return null;
+        throw e;
+      }),
     ]);
 
     return buildGymData({
@@ -83,6 +98,9 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       sessions: sessions.map(rowToSession),
       setLogs: setLogs.map(rowToSetLog),
       weighIns: weighIns.map(rowToWeighIn),
+      nutritionSource: foodRows === null || foodLogRows === null ? "missing" : "database",
+      foods: foodRows === null ? [] : foodRows.map(rowToFood),
+      foodLogs: foodLogRows === null ? [] : foodLogRows.map(rowToFoodLog),
     });
   } catch (error) {
     // Bootstrap fallback ONLY for "the migration hasn't run yet": the app

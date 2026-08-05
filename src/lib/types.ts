@@ -175,7 +175,17 @@ export type ExerciseId =
   | "doorway_chest_stretch"
   | "cross_body_shoulder_stretch"
   | "overhead_triceps_stretch"
-  | "standing_lat_stretch";
+  | "standing_lat_stretch"
+  | "seated_forward_fold"
+  | "standing_forward_fold"
+  | "upward_dog"
+  | "supine_spinal_twist"
+  | "seated_spinal_twist"
+  | "happy_baby"
+  | "frog_pose"
+  | "lizard_pose"
+  | "triangle_pose"
+  | "pancake_stretch";
 
 /** Clients live in the database now (migration 002), so ids are open
  *  strings — the readable-slug convention still applies (`c_maria_x1`). */
@@ -403,6 +413,63 @@ export type WeighIn = {
   clientId: ClientId;
   date: string;
   bodyweightLbs: number;
+};
+
+// ---------------------------------------------------------------------------
+// Nutrition
+// ---------------------------------------------------------------------------
+
+/** Generic per-plate density classes for the plate-fraction estimator. */
+export type FoodCategoryId =
+  | "lean_protein"
+  | "fatty_protein"
+  | "starchy_carb"
+  | "veggie"
+  | "fruit"
+  | "fried_fatty"
+  | "dessert"
+  | "dairy"
+  | "drink";
+
+/**
+ * kcal/macros for a FULL single-layer 10 1/16" Dixie plate of a typical food
+ * in this class (drinks: a full 12 oz glass). Rough coaching estimates in the
+ * same spirit as `seedLoadFactor` — honest directionally, not lab numbers.
+ */
+export type FoodCategory = {
+  id: FoodCategoryId;
+  label: string;
+  plateKcal: number;
+  plateProteinG: number;
+  plateCarbsG: number;
+  plateFatG: number;
+};
+
+/** A named food in the household catalog (DB). Values are per FULL plate;
+ *  logs scale them by the covered fraction. */
+export type Food = {
+  id: string;
+  name: string;
+  category: FoodCategoryId;
+  plateKcal: number;
+  plateProteinG: number;
+  plateCarbsG: number;
+  plateFatG: number;
+};
+
+/** One logged food. kcal/macros are snapshotted at log time so later edits
+ *  to the food never rewrite eating history. */
+export type FoodLog = {
+  id: string;
+  clientId: ClientId;
+  date: string;
+  foodId: string;
+  /** Fraction of the plate covered, (0, 1]. */
+  plateFraction: number;
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
 };
 
 // ---------------------------------------------------------------------------

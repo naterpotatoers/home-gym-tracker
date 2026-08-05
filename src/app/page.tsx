@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PlayIcon } from "@/components/icons";
 import {
+  chipClass,
   clientBorderStyle,
   ColorDot,
   IconButton,
@@ -43,14 +44,19 @@ export default async function Home() {
 
   const dow = todayDow();
   const todayIso = localTodayIso();
-  const today = data.assignments
-    .filter((a) => a.status === "active")
-    .map((a) => ({
-      clientId: a.clientId,
-      assignmentId: a.id,
-      prescribed: routineForDay(data, a.clientId, dow, todayIso),
-    }))
-    .filter((t) => t.prescribed !== null);
+  // Every client gets a Today card — a prescribed program day starts in one
+  // tap, and anyone without one (new client, rest day) still shows up rather
+  // than silently vanishing from the roster.
+  const today = data.clients.map((client) => {
+    const assignment = data.assignments.find(
+      (a) => a.clientId === client.id && a.status === "active",
+    );
+    return {
+      client,
+      assignmentId: assignment?.id ?? null,
+      prescribed: routineForDay(data, client.id, dow, todayIso),
+    };
+  });
 
   const inProgress = data.sessions.filter((s) => s.status === "planned");
   const boardGroups = openBoardGroups(data);
@@ -71,47 +77,53 @@ export default async function Home() {
       >
         {today.length === 0 ? (
           <p className="text-sm text-muted">
-            No program prescribes training today. Rest day — or start any
-            routine from{" "}
-            <Link href="/workout" className="text-accent-text underline underline-offset-2">
-              Start a Workout
+            No clients yet — add the first one at{" "}
+            <Link href="/users" className="text-accent-text underline underline-offset-2">
+              Clients
             </Link>
             .
           </p>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
-            {today.map(({ clientId, assignmentId, prescribed }) => {
-              const client = data.clientById.get(clientId);
-              return (
-                <li
-                  key={clientId}
-                  className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3"
-                  style={clientBorderStyle(client?.color ?? null)}
-                >
-                  <ColorDot color={client?.color} size="md" />
-                  <span className="min-w-0">
-                    <span className="block font-semibold">{client?.firstName}</span>
-                    <span className="block truncate text-xs text-muted">
-                      {data.routineById.get(prescribed!.routineId)?.name} ·{" "}
-                      {prescribed!.exercises.length} exercises
-                    </span>
+            {today.map(({ client, assignmentId, prescribed }) => (
+              <li
+                key={client.id}
+                className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3"
+                style={clientBorderStyle(client.color)}
+              >
+                <ColorDot color={client.color} size="md" />
+                <span className="min-w-0">
+                  <span className="block font-semibold">{client.firstName}</span>
+                  <span className="block truncate text-xs text-muted">
+                    {prescribed
+                      ? `${data.routineById.get(prescribed.routineId)?.name} · ${prescribed.exercises.length} exercises`
+                      : "No plan today"}
                   </span>
+                </span>
+                {prescribed ? (
                   <form
-                    action={startSession.bind(null, clientId, prescribed!.routineId, assignmentId)}
+                    action={startSession.bind(null, client.id, prescribed.routineId, assignmentId)}
                     className="ml-auto"
                   >
                     <IconButton
                       type="submit"
                       variant="primary"
-                      title={`Start ${client?.firstName}'s workout`}
-                      aria-label={`Start ${client?.firstName}'s workout`}
+                      title={`Start ${client.firstName}'s workout`}
+                      aria-label={`Start ${client.firstName}'s workout`}
                     >
                       <PlayIcon size={20} />
                     </IconButton>
                   </form>
-                </li>
-              );
-            })}
+                ) : (
+                  <Link
+                    href="/workout"
+                    className={`ml-auto ${chipClass(false, "min-h-9 whitespace-nowrap px-2.5 text-xs")}`}
+                  >
+                    Any routine
+                  </Link>
+                )}
+              </li>
+            ))}
           </ul>
         )}
       </Section>
@@ -125,7 +137,7 @@ export default async function Home() {
                   href={`/workout/group/board?s=${sessionIds.join(",")}`}
                   className="font-semibold text-accent-text underline underline-offset-2"
                 >
-                  Resume group board — {date} ({sessionIds.length} people)
+                  Resume group board — {date} ({sessionIds.length} clients)
                 </Link>
               </li>
             ))}
@@ -179,7 +191,7 @@ export default async function Home() {
               .map(({ band }) => band.label)
               .join(" → ")}
           />
-          <Stat label="People" value={`${data.clients.length} training`} />
+          <Stat label="Clients" value={`${data.clients.length} training`} />
         </dl>
         <Note>
           Strength is scored as estimated 1RM (Epley) over completed working

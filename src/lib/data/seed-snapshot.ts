@@ -1,5 +1,6 @@
 import { buildGymData, type GymData } from "../gym-data";
 import { clients, weighIns } from "./clients";
+import { foods } from "./foods";
 import {
   assignments,
   programDays,
@@ -27,5 +28,10 @@ export function seedSnapshot(): GymData {
     weighIns,
     clientsSource: "seed",
     clients,
+    // Fixture foods so the nutrition UI and its tests work without a
+    // database; "database" here means "don't show the run-the-SQL note".
+    nutritionSource: "database",
+    foods,
+    foodLogs: [],
   });
 }

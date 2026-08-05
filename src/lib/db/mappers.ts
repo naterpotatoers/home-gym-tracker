@@ -1,6 +1,8 @@
 import type {
   Client,
   Assignment,
+  Food,
+  FoodLog,
   Program,
   ProgramDay,
   Routine,
@@ -124,6 +126,28 @@ export type WeighInRow = {
   client_id: WeighIn["clientId"];
   date: string;
   bodyweight_lbs: number;
+};
+
+export type FoodRow = {
+  id: string;
+  name: string;
+  category: Food["category"];
+  plate_kcal: number;
+  plate_protein_g: number;
+  plate_carbs_g: number;
+  plate_fat_g: number;
+};
+
+export type FoodLogRow = {
+  id: string;
+  client_id: FoodLog["clientId"];
+  date: string;
+  food_id: string;
+  plate_fraction: number;
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
 };
 
 export function rowToRoutine(r: RoutineRow): Routine {
@@ -345,5 +369,57 @@ export function weighInToRow(w: WeighIn): WeighInRow {
     client_id: w.clientId,
     date: w.date,
     bodyweight_lbs: w.bodyweightLbs,
+  };
+}
+
+export function rowToFood(r: FoodRow): Food {
+  return {
+    id: r.id,
+    name: r.name,
+    category: r.category,
+    plateKcal: r.plate_kcal,
+    plateProteinG: r.plate_protein_g,
+    plateCarbsG: r.plate_carbs_g,
+    plateFatG: r.plate_fat_g,
+  };
+}
+
+export function foodToRow(f: Food): FoodRow {
+  return {
+    id: f.id,
+    name: f.name,
+    category: f.category,
+    plate_kcal: f.plateKcal,
+    plate_protein_g: f.plateProteinG,
+    plate_carbs_g: f.plateCarbsG,
+    plate_fat_g: f.plateFatG,
+  };
+}
+
+export function rowToFoodLog(r: FoodLogRow): FoodLog {
+  return {
+    id: r.id,
+    clientId: r.client_id,
+    date: r.date,
+    foodId: r.food_id,
+    plateFraction: r.plate_fraction,
+    kcal: r.kcal,
+    proteinG: r.protein_g,
+    carbsG: r.carbs_g,
+    fatG: r.fat_g,
+  };
+}
+
+export function foodLogToRow(l: FoodLog): FoodLogRow {
+  return {
+    id: l.id,
+    client_id: l.clientId,
+    date: l.date,
+    food_id: l.foodId,
+    plate_fraction: l.plateFraction,
+    kcal: l.kcal,
+    protein_g: l.proteinG,
+    carbs_g: l.carbsG,
+    fat_g: l.fatG,
   };
 }

@@ -225,8 +225,8 @@ export type LiftOverviewRow = LiftFrequency & {
 
 /** The unified lift list: frequency + best + 90-day trend + primary muscle
  *  group, ready for the Progress overview's sort/filter controls. Mobility
- *  work is filtered OUT here (18 stretches would pad the table with "—"
- *  rows); `liftFrequency` itself keeps it — frequency stays honest, and any
+ *  work is filtered OUT here (dozens of stretches would pad the table with
+ *  "—" rows); `liftFrequency` itself keeps it — frequency stays honest, and any
  *  future consumer wanting a mobility-free list must filter like this. */
 export function liftOverview(data: GymData, clientId: ClientId): LiftOverviewRow[] {
   return liftFrequency(data, clientId)
