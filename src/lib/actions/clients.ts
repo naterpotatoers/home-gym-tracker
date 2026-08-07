@@ -98,7 +98,7 @@ export async function deleteClient(clientId: string): Promise<void> {
     "weigh_ins",
     "client_id",
     clientId,
-    "This client has weigh-ins — delete those first.",
+    "This client has body weight entries — delete those first.",
   );
   await run("deleting client", supabase.from("clients").delete().eq("id", clientId));
   revalidateAll();

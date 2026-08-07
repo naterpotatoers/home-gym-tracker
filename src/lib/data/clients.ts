@@ -10,12 +10,11 @@ import type { Client, WeighIn } from "../types";
 /** Preset card colors — curated so none collides with the status hues
  *  (success/warning/danger) that carry meaning elsewhere in the UI. */
 export const CLIENT_COLORS = [
-  { id: "blue", hex: "#3987e5" },
-  { id: "violet", hex: "#8b5cf6" },
-  { id: "pink", hex: "#ec4899" },
-  { id: "orange", hex: "#f97316" },
-  { id: "teal", hex: "#14b8a6" },
-  { id: "cyan", hex: "#06b6d4" },
+  { id: "red", hex: "#FF0000" },
+  { id: "blue", hex: "#0000FF" },
+  { id: "green", hex: "#00FF00" },
+  { id: "purple", hex: "#B200ED" },
+  { id: "yellow", hex: "#FFFF00" },
 ] as const;
 
 /** Seed roster: the app falls back to this list read-only while the clients

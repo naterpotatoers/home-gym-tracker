@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { CalendarIcon } from "@/components/icons";
+import { StartRowButton } from "@/components/start-row-button";
 import { StartWorkoutSubmit } from "@/components/start-workout-submit";
 import {
   Checkbox,
+  Chip,
   chipClass,
-  clientBorderStyle,
   ColorDot,
   Note,
   PageShell,
@@ -26,10 +27,10 @@ export default async function WorkoutPage() {
   const data = await loadGymData();
   const dow = todayDow();
   const today = localTodayIso();
-  const routines = [...data.routines].sort((a, b) => a.name.localeCompare(b.name));
-  const summaries = new Map(
-    clientSummaries(data).map((s) => [s.client.id, s]),
+  const routines = [...data.routines].sort((a, b) =>
+    a.name.localeCompare(b.name),
   );
+  const summaries = new Map(clientSummaries(data).map((s) => [s.client.id, s]));
 
   const boardGroups = openBoardGroups(data);
 
@@ -57,101 +58,140 @@ export default async function WorkoutPage() {
         straight into logging; more than one opens the shared board.
       </p>
 
-      <form action={startGroupFromForm} className="mt-8 space-y-3">
-        {rows.map(({ client, planned, assignment, todaysRoutine, defaultPlan }) => {
-          const summary = summaries.get(client.id);
-          return (
-            <label
-              key={client.id}
-              className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2 rounded-xl border border-border bg-surface px-4 py-3 sm:grid-cols-[auto_11rem_1fr_auto]"
-              style={clientBorderStyle(client.color)}
-            >
-              <Checkbox name={`include_${client.id}`} />
-              <span className="min-w-0">
-                <span className="flex items-center gap-1.5 font-semibold">
-                  <ColorDot color={client.color} />
-                  {client.firstName}
-                </span>
-                <span className="block text-xs text-muted">
-                  {summary
-                    ? `${summary.sessionCount} sessions${
-                        summary.lastSessionDate ? ` · last ${summary.lastSessionDate}` : ""
-                      }`
-                    : "no sessions yet"}
-                </span>
-              </span>
-              <Select
-                name={`plan_${client.id}`}
-                defaultValue={defaultPlan}
-                className="col-span-3 w-full sm:col-span-1"
+      {boardGroups.length > 0 && (
+        <ul className="mt-6 divide-y divide-border rounded-xl border border-border bg-surface text-sm">
+          {boardGroups.map(({ date, sessionIds }) => {
+            const clients = sessionIds
+              .map((id) => data.sessionById.get(id)?.clientId)
+              .map((cid) => data.clientById.get(cid ?? ""))
+              .filter(Boolean);
+            return (
+              <li
+                key={date}
+                className="flex flex-wrap items-center gap-2 px-4 py-3"
               >
-                {planned.map((s) => (
-                  <option key={s.id} value={`resume:${s.id}`}>
-                    Resume: {data.routineById.get(s.routineId ?? "")?.name ?? "session"}{" "}
-                    ({s.date})
-                  </option>
+                <span className="font-mono text-xs text-muted">{date}</span>
+                {clients.map((c) => (
+                  <Chip key={c!.id}>{c!.firstName}</Chip>
                 ))}
-                {todaysRoutine && (
-                  <option value={`${todaysRoutine.routineId}|${assignment?.id ?? ""}`}>
-                    {data.routineById.get(todaysRoutine.routineId)?.name} — today&apos;s
-                    program day
-                  </option>
-                )}
-                {routines.map((routine) => (
-                  <option key={routine.id} value={`${routine.id}|`}>
-                    {routine.name}
-                  </option>
-                ))}
-              </Select>
-              <Link
-                href={`/workout/${client.id}`}
-                className={`col-start-3 row-start-1 sm:col-start-4 ${chipClass(false, "min-h-9 whitespace-nowrap px-2.5 text-xs")}`}
-              >
-                <CalendarIcon size={14} /> Program
-              </Link>
-              {planned.length > 0 && (
-                <div className="col-span-3 mt-1 rounded-lg bg-background px-3 py-2 sm:col-span-4">
-                  <span className="text-[11px] uppercase tracking-wide text-muted">
-                    Unfinished sessions
-                  </span>
-                  {planned.map((s) => {
-                    const name =
-                      data.routineById.get(s.routineId ?? "")?.name ?? "session";
-                    return (
-                      <div key={s.id} className="flex min-h-9 items-center gap-2 text-sm">
-                        <span className="truncate">{name}</span>
-                        <span className="font-mono text-xs text-muted">{s.date}</span>
-                        <ConfirmDeleteButton
-                          action={discardSession.bind(null, s.id)}
-                          confirmText={`Discard ${name} (${s.date})? Any sets already logged in it are deleted.`}
-                          ariaLabel={`Discard ${name} (${s.date})`}
-                          className="ml-auto text-danger-text"
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </label>
-          );
-        })}
+                <StartRowButton
+                  isResume
+                  href={`/workout/group/board?s=${sessionIds.join(",")}`}
+                  className="ml-auto"
+                />
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
-        <StartWorkoutSubmit />
+      <form id="workout-form" action={startGroupFromForm} className="mt-8">
+        <ul className="divide-y divide-border rounded-xl border border-border bg-surface text-sm">
+          {rows.map(
+            ({ client, planned, assignment, todaysRoutine, defaultPlan }) => {
+              const summary = summaries.get(client.id);
+              const isResume = defaultPlan.startsWith("resume:");
+              return (
+                <li key={client.id}>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+                    <label className="cursor-pointer">
+                      <Checkbox name={`include_${client.id}`} />
+                    </label>
+                    <ColorDot color={client.color} size="md" />
+                    <span className="min-w-0 flex-1 basis-32">
+                      <span className="block font-semibold">
+                        {client.firstName}
+                      </span>
+                      <span className="block truncate text-xs text-muted">
+                        {summary
+                          ? `${summary.sessionCount} sessions${
+                              summary.lastSessionDate
+                                ? ` · last ${summary.lastSessionDate}`
+                                : ""
+                            }`
+                          : "no sessions yet"}
+                      </span>
+                    </span>
+                    <Select
+                      name={`plan_${client.id}`}
+                      defaultValue={defaultPlan}
+                      size="sm"
+                      className="flex-1 basis-44"
+                    >
+                      {planned.map((s) => (
+                        <option key={s.id} value={`resume:${s.id}`}>
+                          Resume:{" "}
+                          {data.routineById.get(s.routineId ?? "")?.name ??
+                            "session"}{" "}
+                          ({s.date})
+                        </option>
+                      ))}
+                      {todaysRoutine && (
+                        <option
+                          value={`${todaysRoutine.routineId}|${assignment?.id ?? ""}`}
+                        >
+                          {data.routineById.get(todaysRoutine.routineId)?.name}{" "}
+                          — today&apos;s program day
+                        </option>
+                      )}
+                      {routines.map((routine) => (
+                        <option key={routine.id} value={`${routine.id}|`}>
+                          {routine.name}
+                        </option>
+                      ))}
+                    </Select>
+                    <Link
+                      href={`/workout/${client.id}`}
+                      className={chipClass(
+                        false,
+                        "hidden min-h-9 whitespace-nowrap px-2.5 text-xs sm:inline-flex",
+                      )}
+                    >
+                      <CalendarIcon size={14} /> Program
+                    </Link>
+                    <StartRowButton clientId={client.id} isResume={isResume} />
+                  </div>
+
+                  {planned.length > 0 && (
+                    <div className="mx-4 mb-3 rounded-lg bg-background px-3 py-2">
+                      <span className="text-[11px] uppercase tracking-wide text-muted">
+                        Unfinished sessions
+                      </span>
+                      {planned.map((s) => {
+                        const name =
+                          data.routineById.get(s.routineId ?? "")?.name ??
+                          "session";
+                        return (
+                          <div
+                            key={s.id}
+                            className="flex min-h-9 items-center gap-2 text-sm"
+                          >
+                            <span className="truncate">{name}</span>
+                            <span className="font-mono text-xs text-muted">
+                              {s.date}
+                            </span>
+                            <ConfirmDeleteButton
+                              action={discardSession.bind(null, s.id)}
+                              confirmText={`Discard ${name} (${s.date})? Any sets already logged in it are deleted.`}
+                              ariaLabel={`Discard ${name} (${s.date})`}
+                              className="ml-auto text-danger-text"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </li>
+              );
+            },
+          )}
+        </ul>
+
+        <div className="mt-4">
+          <StartWorkoutSubmit />
+        </div>
       </form>
 
-      {boardGroups.length > 0 && (
-        <div className="mt-6 space-y-1">
-          {boardGroups.map(({ date, sessionIds }) => (
-            <Link
-              key={date}
-              href={`/workout/group/board?s=${sessionIds.join(",")}`}
-              className="block text-sm font-semibold text-accent-text underline underline-offset-2"
-            >
-              Resume group board — {date} ({sessionIds.length} clients) →
-            </Link>
-          ))}
-        </div>
-      )}
       <Note>
         Every unfinished session shows up as its own Resume option in the plan
         list — discard the ones that never really happened.

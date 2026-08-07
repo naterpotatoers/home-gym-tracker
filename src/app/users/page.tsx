@@ -106,7 +106,7 @@ export default async function UsersPage({
                   </Button>
                   <ConfirmDeleteButton
                     action={deleteClient.bind(null, person.id)}
-                    confirmText={`Delete ${person.firstName}? Only possible while they have no sessions, assignments, or weigh-ins.`}
+                    confirmText={`Delete ${person.firstName}? Only possible while they have no sessions, assignments, or body weight entries.`}
                     ariaLabel={`Delete ${person.firstName}`}
                     className="ml-auto text-danger-text"
                   />
@@ -137,13 +137,13 @@ export default async function UsersPage({
               </Card>
               <Card className="mt-4">
               <h2 className="mb-3 text-lg font-semibold">
-                {person.firstName} — weigh-ins
+                {person.firstName} — body weight entries
               </h2>
               <form
                 action={createWeighIn.bind(null, person.id)}
                 className="flex flex-wrap items-end gap-3"
               >
-                <Field label="Weigh-in date">
+                <Field label="Date">
                   <Input type="date" name="date" required defaultValue={today} />
                 </Field>
                 <Field label="Weight (lb)">
@@ -160,7 +160,7 @@ export default async function UsersPage({
                   />
                 </Field>
                 <Button type="submit" variant="primary" size="sm">
-                  <PlusIcon size={16} /> Log weigh-in
+                  <PlusIcon size={16} /> Log body weight
                 </Button>
               </form>
 
@@ -175,9 +175,9 @@ export default async function UsersPage({
                         <span className="font-mono">{w.bodyweightLbs} lb</span>
                         <ConfirmDeleteButton
                           action={deleteWeighIn.bind(null, w.id)}
-                          confirmText={`Delete the ${w.date} (${w.bodyweightLbs} lb) weigh-in?`}
-                          ariaLabel={`Delete weigh-in: ${w.date} (${w.bodyweightLbs} lb)`}
-                          title="Delete weigh-in"
+                          confirmText={`Delete the ${w.date} (${w.bodyweightLbs} lb) body weight entry?`}
+                          ariaLabel={`Delete body weight entry: ${w.date} (${w.bodyweightLbs} lb)`}
+                          title="Delete body weight entry"
                         />
                       </li>
                     ))}

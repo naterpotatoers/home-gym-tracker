@@ -13,7 +13,7 @@ export async function createWeighIn(
   await assertClientId(clientId);
   const date = String(formData.get("date") ?? "");
   const bodyweightLbs = Number(formData.get("bodyweightLbs"));
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Pick a weigh-in date.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Pick a valid date.");
   if (!Number.isFinite(bodyweightLbs) || bodyweightLbs < 50 || bodyweightLbs > 1000) {
     throw new Error("Bodyweight must be between 50 and 1000 lb.");
   }
