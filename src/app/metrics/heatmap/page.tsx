@@ -1,4 +1,5 @@
 import { BodyHeatmap } from "@/components/body-heatmap";
+import { catalogSlice } from "@/lib/exercise-catalog";
 import { HeatmapControls } from "@/components/heatmap-controls";
 import { Note, PageShell } from "@/components/ui";
 import { weekCoverage } from "@/lib/coverage";
@@ -139,6 +140,7 @@ export default async function HeatmapPage({
             <BodyHeatmap
               key={panel.title}
               values={panel.values}
+              catalog={catalogSlice(data)}
               title={panel.title}
               maxLabel={maxLabel}
               ordinalMaxLabel={ordinalMaxLabel}

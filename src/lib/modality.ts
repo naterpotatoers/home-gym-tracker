@@ -1,10 +1,6 @@
 import { bandById, dumbbells } from "./data/equipment";
-import {
-  exerciseModalities,
-  exerciseById,
-  scoresByExercise,
-} from "./data/exercises";
 import { BASELINE_MODALITY_ID, modalityById } from "./data/modalities";
+import { exerciseLookup, type ExerciseCatalog } from "./exercise-catalog";
 import type { GymData } from "./gym-data";
 import type {
   ClientId,
@@ -28,10 +24,12 @@ import type {
  * nothing to apply to. Modality changes emphasis; it doesn't change anatomy.
  */
 export function effectiveScores(
+  catalog: ExerciseCatalog,
   exerciseId: ExerciseId,
   modalityId: ModalityId,
 ): Map<MuscleId, number> {
   const out = new Map<MuscleId, number>();
+  const { exerciseById, scoresByExercise } = exerciseLookup(catalog);
   const exercise = exerciseById.get(exerciseId);
   // Mobility work carries no scores and is excluded from volume entirely.
   if (!exercise || exercise.pattern === "mobility") return out;
@@ -227,9 +225,9 @@ export function deriveLoadFactor(
   modalityId: ModalityId,
 ): LoadFactor {
   const modality = modalityById.get(modalityId);
-  const override = exerciseModalities.find(
-    (em) => em.exerciseId === exerciseId && em.modalityId === modalityId,
-  )?.loadFactorOverride;
+  const override = data.modalitiesByExercise
+    .get(exerciseId)
+    ?.find((em) => em.modalityId === modalityId)?.loadFactorOverride;
   const seed = override ?? modality?.seedLoadFactor ?? 1;
 
   const sets = workingSetsFor(data, clientId, exerciseId, modalityId);

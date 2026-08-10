@@ -1,4 +1,5 @@
 import { muscleById, muscleGroups, muscles } from "./data/muscles";
+import type { ExerciseCatalog } from "./exercise-catalog";
 import type { GymData } from "./gym-data";
 import { effectiveScores } from "./modality";
 import type {
@@ -24,6 +25,7 @@ export type MuscleCoverage = {
 };
 
 export function prescribedCoverage(
+  catalog: ExerciseCatalog,
   rows: readonly RoutineExercise[],
 ): Map<MuscleId, MuscleCoverage> {
   const out = new Map<MuscleId, MuscleCoverage>();
@@ -36,7 +38,7 @@ export function prescribedCoverage(
     });
   }
   for (const row of rows) {
-    const scores = effectiveScores(row.exerciseId, row.modalityId);
+    const scores = effectiveScores(catalog, row.exerciseId, row.modalityId);
     for (const [muscleId, score] of scores) {
       const entry = out.get(muscleId);
       if (!entry || score <= 0) continue;
@@ -62,7 +64,7 @@ export function weekCoverage(
     if (day.programId !== programId || day.week !== week) continue;
     rows.push(...(data.exercisesByRoutine.get(day.routineId) ?? []));
   }
-  return prescribedCoverage(rows);
+  return prescribedCoverage(data, rows);
 }
 
 /**

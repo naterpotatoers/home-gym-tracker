@@ -6,7 +6,11 @@ import type {
 } from "../types";
 
 /**
- * Generic movements. No `muscleGroup` field — the primary muscle and group are
+ * Seed exercise catalog. Exercises live in the database at runtime (authored
+ * at /exercises); these arrays are the read-only fallback while the tables
+ * don't exist and the source for the one-time "Import seed catalog" action.
+ *
+ * No `muscleGroup` field — the primary muscle and group are
  * derived from `exerciseMuscleScores` so the two can never disagree. (The old
  * data already disagreed: Deadlift was tagged `back` while its scores said
  * glutes 10 / hamstrings 8 / lower_back 8, i.e. legs.)
@@ -60,6 +64,7 @@ export const exercises: readonly Exercise[] = [
   { id: "bent_over_row", name: "Bent Over Row", pattern: "pull_h", metricType: "reps", isCompound: true },
   { id: "single_arm_row", name: "Single-Arm Row", pattern: "pull_h", metricType: "reps", isCompound: true },
   { id: "chest_supported_row", name: "Chest-Supported Row", pattern: "pull_h", metricType: "reps", isCompound: true },
+  { id: "inverted_row", name: "Inverted Row", pattern: "pull_h", metricType: "reps", isCompound: true },
   { id: "face_pull", name: "Face Pull", pattern: "pull_h", metricType: "reps", isCompound: false },
   { id: "band_pull_apart", name: "Band Pull-Apart", pattern: "pull_h", metricType: "reps", isCompound: false },
 
@@ -267,6 +272,11 @@ export const exerciseMuscleScores: readonly ExerciseMuscleScore[] = [
   s("chest_supported_row", "rhomboids", 10), s("chest_supported_row", "lats", 8),
   s("chest_supported_row", "traps", 7), s("chest_supported_row", "rear_delts", 6),
   s("chest_supported_row", "biceps", 5), s("chest_supported_row", "forearms", 3),
+  // Inverted Row — horizontal bodyweight pull, body held as a rigid plank
+  s("inverted_row", "lats", 9), s("inverted_row", "rhomboids", 8),
+  s("inverted_row", "rear_delts", 6), s("inverted_row", "biceps", 6),
+  s("inverted_row", "traps", 5), s("inverted_row", "forearms", 4),
+  s("inverted_row", "abs", 3),
   // Face Pull
   s("face_pull", "rear_delts", 10), s("face_pull", "rotator_cuff", 7),
   s("face_pull", "traps", 6), s("face_pull", "rhomboids", 5),
@@ -450,6 +460,7 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("bent_over_row", "dumbbell", { requiredEquipment: ["dumbbells"] }),
   em("single_arm_row", "dumbbell", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["dumbbells", "bench"] }),
   em("chest_supported_row", "dumbbell", { isDefault: true, requiredEquipment: ["dumbbells", "bench_incline"] }),
+  em("inverted_row", "bodyweight", { isDefault: true, requiredEquipment: ["rack"], notes: "Bar racked ~hip height, body rigid. Elevate feet to progress." }),
   em("face_pull", "band", { isDefault: true, bandRoles: ["resistance"], requiredEquipment: ["monster_bands", "rack"] }),
   em("band_pull_apart", "band", { isDefault: true, bandRoles: ["resistance"], requiredEquipment: ["monster_bands"], notes: "No anchor needed — you hold both ends." }),
 
@@ -574,21 +585,3 @@ function em(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Lookups
-// ---------------------------------------------------------------------------
-
-export const exerciseById = new Map(exercises.map((e) => [e.id, e]));
-
-export const scoresByExercise = groupBy(exerciseMuscleScores, (r) => r.exerciseId);
-
-function groupBy<T, K>(rows: readonly T[], key: (row: T) => K): Map<K, T[]> {
-  const out = new Map<K, T[]>();
-  for (const row of rows) {
-    const k = key(row);
-    const existing = out.get(k);
-    if (existing) existing.push(row);
-    else out.set(k, [row]);
-  }
-  return out;
-}

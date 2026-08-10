@@ -11,7 +11,7 @@ import { useSessionFlow } from "@/components/use-session-flow";
 import { useSetEditor } from "@/components/use-set-editor";
 import { useWakeLock } from "@/components/use-wake-lock";
 import { discardSession, finishSession } from "@/lib/actions/workout";
-import { exerciseById } from "@/lib/data/exercises";
+import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import type { Variant } from "@/lib/queries";
 import type { RoutineExercise, Session, SetLog } from "@/lib/types";
 import { errorMessage } from "@/lib/format";
@@ -28,6 +28,7 @@ export function WorkoutRunner({
   initialSets,
   prescriptions,
   variants,
+  catalog,
   clientName,
   recentKeys,
 }: {
@@ -35,6 +36,7 @@ export function WorkoutRunner({
   initialSets: SetLog[];
   prescriptions: RoutineExercise[];
   variants: Variant[];
+  catalog: ExerciseCatalog;
   clientName: string;
   recentKeys?: string[];
 }) {
@@ -96,6 +98,7 @@ export function WorkoutRunner({
           editor={editor}
           flow={flow}
           prescriptions={prescriptions}
+          catalog={catalog}
           onReplace={(block) => {
             const index = editor.blocks.indexOf(block);
             if (index >= 0) setPicker({ mode: "replace", index });
@@ -156,7 +159,9 @@ export function WorkoutRunner({
           onClose={() => setPicker(null)}
           emphasizePattern={
             picker.mode === "replace"
-              ? exerciseById.get(editor.blocks[picker.index].exerciseId)?.pattern
+              ? exerciseLookup(catalog).exerciseById.get(
+                  editor.blocks[picker.index].exerciseId,
+                )?.pattern
               : undefined
           }
         />

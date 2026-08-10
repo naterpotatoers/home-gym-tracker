@@ -80,112 +80,11 @@ export type BandId =
   | "hip_band_small"
   | "hip_band_medium";
 
-export type ExerciseId =
-  // squat
-  | "squat"
-  | "front_squat"
-  | "goblet_squat"
-  | "wide_stance_squat"
-  | "bulgarian_split_squat"
-  | "wall_sit"
-  | "squat_jump"
-  | "burpee"
-  // hinge
-  | "deadlift"
-  | "romanian_deadlift"
-  | "good_morning"
-  | "back_extension"
-  | "hip_thrust"
-  | "glute_bridge"
-  | "single_leg_glute_bridge"
-  | "donkey_kick"
-  | "superman"
-  // lunge / unilateral legs
-  | "lunge"
-  | "side_lunge"
-  | "step_up"
-  // horizontal push
-  | "bench_press"
-  | "incline_bench_press"
-  | "decline_bench_press"
-  | "floor_press"
-  | "push_up"
-  | "chest_fly"
-  // vertical push
-  | "shoulder_press"
-  | "dip"
-  | "bench_dip"
-  // horizontal pull
-  | "bent_over_row"
-  | "single_arm_row"
-  | "chest_supported_row"
-  | "face_pull"
-  | "band_pull_apart"
-  // vertical pull
-  | "pull_up"
-  | "chin_up"
-  // isolation
-  | "bicep_curl"
-  | "hammer_curl"
-  | "tricep_extension"
-  | "lateral_raise"
-  | "shrug"
-  | "calf_raise"
-  | "external_rotation"
-  // carry
-  | "farmer_carry"
-  | "timed_carry"
-  | "bar_hang"
-  // core
-  | "plank"
-  | "side_plank"
-  | "copenhagen_plank"
-  | "pallof_press"
-  | "hanging_knee_raise"
-  | "hanging_leg_raise"
-  | "lateral_walk"
-  | "clam_shell"
-  | "fire_hydrant"
-  | "dead_bug"
-  | "bird_dog"
-  | "sit_up"
-  | "hollow_hold"
-  | "russian_twist"
-  | "bicycle_crunch"
-  | "mountain_climber"
-  | "woodchopper"
-  | "jumping_jacks"
-  | "bear_crawl"
-  // mobility
-  | "stretch"
-  | "standing_hamstring_stretch"
-  | "standing_quad_stretch"
-  | "calf_stretch"
-  | "butterfly_stretch"
-  | "figure_four_stretch"
-  | "pigeon_pose"
-  | "ninety_ninety_stretch"
-  | "kneeling_hip_flexor_stretch"
-  | "worlds_greatest_stretch"
-  | "childs_pose"
-  | "cat_cow"
-  | "cobra_stretch"
-  | "thread_the_needle"
-  | "downward_dog"
-  | "doorway_chest_stretch"
-  | "cross_body_shoulder_stretch"
-  | "overhead_triceps_stretch"
-  | "standing_lat_stretch"
-  | "seated_forward_fold"
-  | "standing_forward_fold"
-  | "upward_dog"
-  | "supine_spinal_twist"
-  | "seated_spinal_twist"
-  | "happy_baby"
-  | "frog_pose"
-  | "lizard_pose"
-  | "triangle_pose"
-  | "pancake_stretch";
+/** Exercises live in the database now (authored at /exercises), so ids are
+ *  open strings — the readable-slug convention still applies ("squat",
+ *  "ex_cable_row_a1b2"). Validated at write time via `assertExerciseIds`,
+ *  not a compile-time union. */
+export type ExerciseId = string;
 
 /** Clients live in the database now (migration 002), so ids are open
  *  strings — the readable-slug convention still applies (`c_maria_x1`). */

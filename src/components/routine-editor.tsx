@@ -20,8 +20,8 @@ import { MuscleCoverageBars } from "@/components/muscle-coverage";
 import { MuscleGroupLegend } from "@/components/muscle-group-legend";
 import { deleteRoutine, duplicateRoutine, saveRoutine } from "@/lib/actions/routines";
 import { coverageByGroup, neglectedMuscles, prescribedCoverage } from "@/lib/coverage";
-import { exerciseById, scoresByExercise } from "@/lib/data/exercises";
 import { MUSCLE_GROUP_COLORS, muscleById } from "@/lib/data/muscles";
+import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
 import { bandRolesFor, type Variant } from "@/lib/queries";
 import type { Routine, RoutineExercise, UnilateralMode } from "@/lib/types";
@@ -31,8 +31,11 @@ type PickerTarget = { mode: "add" } | { mode: "replace"; index: number };
 
 /** The exercise's primary muscle-group color — the same hue its dot wears in
  *  the Clients lift table. Null for mobility (no scores on purpose). */
-function groupColor(exerciseId: RoutineExercise["exerciseId"]): string | null {
-  const scores = scoresByExercise.get(exerciseId);
+function groupColor(
+  catalog: ExerciseCatalog,
+  exerciseId: RoutineExercise["exerciseId"],
+): string | null {
+  const scores = exerciseLookup(catalog).scoresByExercise.get(exerciseId);
   if (!scores || scores.length === 0) return null;
   const top = scores.reduce((a, b) => (b.score > a.score ? b : a));
   const groupId = muscleById.get(top.muscleId)?.groupId;
@@ -41,10 +44,9 @@ function groupColor(exerciseId: RoutineExercise["exerciseId"]): string | null {
 
 function rowFromVariant(routineId: string, variant: Variant, order: number): RoutineExercise {
   const em = variant.exerciseModality;
-  const exercise = exerciseById.get(em.exerciseId);
   // Stretches: one hold (per side via unilateralMode), transition-length rest,
   // and no RIR — reps-in-reserve is meaningless for a stretch.
-  const isMobility = exercise?.pattern === "mobility";
+  const isMobility = variant.pattern === "mobility";
   return {
     routineId,
     order,
@@ -55,7 +57,7 @@ function rowFromVariant(routineId: string, variant: Variant, order: number): Rou
     sets: isMobility ? 1 : 3,
     repMin: 10,
     repMax: 10,
-    durationSeconds: exercise?.metricType === "time" ? 30 : null,
+    durationSeconds: variant.metricType === "time" ? 30 : null,
     restSeconds: isMobility ? 15 : 90,
     targetRir: isMobility ? null : 2,
     supersetGroup: null,
@@ -160,11 +162,13 @@ export function RoutineEditor({
   routine,
   initialRows,
   variants,
+  catalog,
   recentKeys,
 }: {
   routine: Routine;
   initialRows: RoutineExercise[];
   variants: Variant[];
+  catalog: ExerciseCatalog;
   recentKeys?: string[];
 }) {
   const [name, setName] = useState(routine.name);
@@ -180,7 +184,7 @@ export function RoutineEditor({
     () => saveRoutine(routine.id, { name, notes }, rows),
   );
 
-  const coverage = useMemo(() => prescribedCoverage(rows), [rows]);
+  const coverage = useMemo(() => prescribedCoverage(catalog, rows), [catalog, rows]);
   const neglected = useMemo(() => neglectedMuscles(coverage), [coverage]);
   const heat = useMemo(() => {
     const max = heatMax({ coverage });
@@ -271,11 +275,11 @@ export function RoutineEditor({
 
       <div className="mt-6 space-y-3">
         {rows.map((row, index) => {
-          const exercise = exerciseById.get(row.exerciseId);
+          const exercise = exerciseLookup(catalog).exerciseById.get(row.exerciseId);
           const timed = exercise?.metricType === "time";
-          const color = groupColor(row.exerciseId);
+          const color = groupColor(catalog, row.exerciseId);
           const bandRoles = row.modalityId === "band"
-            ? bandRolesFor(row.exerciseId, row.modalityId)
+            ? bandRolesFor(catalog, row.exerciseId, row.modalityId)
             : [];
           return (
             <div
@@ -463,6 +467,7 @@ export function RoutineEditor({
             )}
             <BodyHeatmap
               values={heat.values}
+              catalog={catalog}
               title="Body map"
               maxLabel={`${heat.max.toFixed(1)} sets/wk`}
             />
@@ -481,7 +486,9 @@ export function RoutineEditor({
           onClose={() => setPicker(null)}
           emphasizePattern={
             picker.mode === "replace"
-              ? exerciseById.get(rows[picker.index].exerciseId)?.pattern
+              ? exerciseLookup(catalog).exerciseById.get(
+                  rows[picker.index].exerciseId,
+                )?.pattern
               : undefined
           }
         />

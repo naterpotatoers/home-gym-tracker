@@ -13,7 +13,6 @@ import {
 } from "@/components/ui";
 import { createProgram, duplicateProgram } from "@/lib/actions/programs";
 import { createRoutine, duplicateRoutine } from "@/lib/actions/routines";
-import { exerciseById } from "@/lib/data/exercises";
 import { loadGymData } from "@/lib/db/snapshot";
 import { DAY_LABELS } from "@/lib/periods";
 import { schemeLabel } from "@/lib/session-labels";
@@ -184,7 +183,7 @@ export default async function PlanPage() {
                           <span className="font-mono text-xs text-muted">
                             {schemeLabel(rx)}
                           </span>
-                          <span>{exerciseById.get(rx.exerciseId)?.name ?? rx.exerciseId}</span>
+                          <span>{data.exerciseById.get(rx.exerciseId)?.name ?? rx.exerciseId}</span>
                           <ModalityChip modalityId={rx.modalityId} />
                           {rx.supersetGroup && (
                             <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent-text">

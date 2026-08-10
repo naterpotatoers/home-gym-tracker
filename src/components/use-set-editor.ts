@@ -2,7 +2,6 @@
 
 import { useMemo, useRef, useState } from "react";
 import { getSuggestedLoad, syncSetLogs, updateSetLog } from "@/lib/actions/workout";
-import { exerciseById } from "@/lib/data/exercises";
 import { randomSuffix } from "@/lib/ids";
 import type { Variant } from "@/lib/queries";
 import { renumber, toBlocks, type Block } from "@/lib/set-blocks";
@@ -160,7 +159,7 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
   async function addExercise(variant: Variant, count = 3): Promise<SetLog[]> {
     const em = variant.exerciseModality;
     const prefill = await fetchPrefill(em);
-    const timed = exerciseById.get(em.exerciseId)?.metricType === "time";
+    const timed = variant.metricType === "time";
     const newSets = Array.from({ length: count }, (_, i): SetLog => ({
       id: clientSetId(),
       sessionId: session.id,

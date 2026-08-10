@@ -3,9 +3,9 @@ import {
   hipBandsByDifficulty,
   ownedEquipmentIds,
 } from "./data/equipment";
-import { exerciseById, exerciseModalities } from "./data/exercises";
 import { modalityById } from "./data/modalities";
 import { muscles } from "./data/muscles";
+import { exerciseLookup, type ExerciseCatalog } from "./exercise-catalog";
 import type { GymData } from "./gym-data";
 import { nearestLoadableWeight } from "./loading";
 import { currentProgramWeek, localIso, localTodayIso } from "./periods";
@@ -24,6 +24,7 @@ import type {
   Client,
   ClientId,
   EquipmentId,
+  Exercise,
   ExerciseId,
   ExerciseModality,
   HipBand,
@@ -270,6 +271,7 @@ export function trainedVariants(data: GymData): TrainedVariant[] {
     row.clientSet.add(session.clientId);
     if (session.date > row.lastDate) row.lastDate = session.date;
   }
+  const { exerciseById } = exerciseLookup(data);
   return [...byKey.values()]
     .map(({ clientSet, ...row }) => ({ ...row, clients: [...clientSet] }))
     .sort(
@@ -502,7 +504,7 @@ export function muscleVolume(
     if (opts.from && session.date < opts.from) continue;
     if (opts.to && session.date > opts.to) continue;
 
-    const scores = effectiveScores(set.exerciseId, set.modalityId);
+    const scores = effectiveScores(data, set.exerciseId, set.modalityId);
     if (scores.size === 0) continue;
 
     const load = setLoad(data, set);
@@ -534,6 +536,10 @@ export type Variant = {
   exerciseModality: ExerciseModality;
   exerciseName: string;
   modalityName: string;
+  /** Carried on the variant so client components (picker, set editor) don't
+   *  need the whole catalog just to group by pattern or default a duration. */
+  pattern: Exercise["pattern"];
+  metricType: Exercise["metricType"];
   /** False when failing a rep could trap you and you have no spotter arms. */
   allowsFailure: boolean;
 };
@@ -544,15 +550,19 @@ export type Variant = {
  * could not: nothing joined equipment to exercises at all.
  */
 export function availableVariants(
+  catalog: ExerciseCatalog,
   owned: ReadonlySet<EquipmentId> = ownedEquipmentIds,
 ): Variant[] {
-  return exerciseModalities
+  const { exerciseById } = exerciseLookup(catalog);
+  return catalog.exerciseModalities
     .filter((em) => modalityById.get(em.modalityId)?.owned !== false)
     .filter((em) => em.requiredEquipment.every((id) => owned.has(id)))
     .map((em) => ({
       exerciseModality: em,
       exerciseName: exerciseById.get(em.exerciseId)?.name ?? em.exerciseId,
       modalityName: modalityById.get(em.modalityId)?.name ?? em.modalityId,
+      pattern: exerciseById.get(em.exerciseId)?.pattern ?? "isolation",
+      metricType: exerciseById.get(em.exerciseId)?.metricType ?? "reps",
       allowsFailure: !em.pinRisk || owned.has("spotter_arms"),
     }));
 }
@@ -560,13 +570,14 @@ export function availableVariants(
 /** Valid band roles for a variant. Assistance-only for pull-ups and dips;
  *  resistance-only for curls. */
 export function bandRolesFor(
+  catalog: ExerciseCatalog,
   exerciseId: ExerciseId,
   modalityId: ModalityId,
 ): readonly BandRole[] {
   return (
-    exerciseModalities.find(
-      (em) => em.exerciseId === exerciseId && em.modalityId === modalityId,
-    )?.bandRoles ?? []
+    exerciseLookup(catalog)
+      .modalitiesByExercise.get(exerciseId)
+      ?.find((em) => em.modalityId === modalityId)?.bandRoles ?? []
   );
 }
 

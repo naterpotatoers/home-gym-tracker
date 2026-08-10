@@ -106,6 +106,10 @@ describe("routineForDay is week-aware", () => {
     nutritionSource: "database",
     foods: [],
     foodLogs: [],
+    exercisesSource: "seed",
+    exercises: data.exercises,
+    exerciseMuscleScores: data.exerciseMuscleScores,
+    exerciseModalities: data.exerciseModalities,
     clients: data.clients,
     routines: [
       { id: "r_week1", name: "Week 1 Day", notes: "" },

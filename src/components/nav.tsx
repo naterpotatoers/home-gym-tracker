@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarIcon, DumbbellIcon, PersonIcon, PlayIcon } from "@/components/icons";
+import { CalendarIcon, ClipboardIcon, DumbbellIcon, PersonIcon, PlayIcon } from "@/components/icons";
 import { chipClass } from "@/components/ui";
 
 const LINKS = [
   { href: "/programs", label: "Plan", short: "Plan", icon: CalendarIcon },
   { href: "/workout", label: "Workout", short: "Workout", icon: PlayIcon },
+  { href: "/exercises", label: "Exercises", short: "Library", icon: ClipboardIcon },
   // People absorbed the Progress page; the heat map still lives under
   // /metrics, so that prefix lights this tab too.
   { href: "/users", also: ["/metrics"], label: "Clients", short: "Clients", icon: PersonIcon },

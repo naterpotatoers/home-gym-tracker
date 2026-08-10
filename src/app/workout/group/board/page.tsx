@@ -2,6 +2,7 @@ import Link from "next/link";
 import { GroupBoard, type BoardPerson } from "@/components/group-board";
 import { PageShell } from "@/components/ui";
 import { loadGymData } from "@/lib/db/snapshot";
+import { catalogSlice } from "@/lib/exercise-catalog";
 import { availableVariants, recentVariantKeys } from "@/lib/queries";
 
 export default async function GroupBoardPage({
@@ -46,7 +47,11 @@ export default async function GroupBoardPage({
 
   return (
     <PageShell className="max-w-7xl">
-      <GroupBoard people={people} variants={availableVariants()} />
+      <GroupBoard
+        people={people}
+        variants={availableVariants(data)}
+        catalog={catalogSlice(data)}
+      />
     </PageShell>
   );
 }

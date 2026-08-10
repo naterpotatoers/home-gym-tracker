@@ -5,15 +5,15 @@ import { LiftListControls } from "@/components/progress-controls";
 import { RecentWorkouts } from "@/components/recent-workouts";
 import { SortableTable, type SortableRow } from "@/components/sortable-table";
 import { ColorDot, Note, Section } from "@/components/ui";
-import { exerciseById } from "@/lib/data/exercises";
 import { MUSCLE_GROUP_COLORS } from "@/lib/data/muscles";
 import { modalityById } from "@/lib/data/modalities";
+import { catalogSlice } from "@/lib/exercise-catalog";
 import type { GymData } from "@/lib/gym-data";
 import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
 import { liftOverview } from "@/lib/progress";
 import { progressHref, type ProgressParams } from "@/lib/progress-url";
 import { muscleVolume } from "@/lib/queries";
-import { isExerciseId, isModalityId } from "@/lib/validate";
+import { isModalityId } from "@/lib/validate";
 import type { ClientId, MuscleGroupId } from "@/lib/types";
 import { ExerciseDetail } from "./exercise-view";
 import { dash, lbs } from "@/lib/format";
@@ -32,7 +32,7 @@ export function Overview({
   // The Lifts table's accordion state: exercise/modality URL params name the
   // one expanded row; the server renders only that detail.
   const selected =
-    isExerciseId(params.exercise) && isModalityId(params.modality)
+    data.exerciseById.has(params.exercise) && isModalityId(params.modality)
       ? { exerciseId: params.exercise, modalityId: params.modality }
       : null;
   const lifts = liftOverview(data, client)
@@ -49,7 +49,7 @@ export function Overview({
     return {
     key: `${row.exerciseId}-${row.modalityId}`,
     sort: {
-      exercise: exerciseById.get(row.exerciseId)?.name ?? row.exerciseId,
+      exercise: data.exerciseById.get(row.exerciseId)?.name ?? row.exerciseId,
       modality: modalityById.get(row.modalityId)?.name ?? row.modalityId,
       sessions: row.sessionCount,
       best: row.bestE1rmLbs,
@@ -77,7 +77,7 @@ export function Overview({
             aria-expanded={isOpen}
           >
             <span className="text-[10px]">{isOpen ? "▾" : "▸"}</span>
-            {exerciseById.get(row.exerciseId)?.name ?? row.exerciseId}
+            {data.exerciseById.get(row.exerciseId)?.name ?? row.exerciseId}
           </Link>
         </span>
       ),
@@ -121,6 +121,7 @@ export function Overview({
       <Section title="Muscle volume (all time)">
         <BodyHeatmap
           values={volumeHeat}
+          catalog={catalogSlice(data)}
           title="Body map"
           maxLabel={`${Math.round(volumeHeatMax).toLocaleString()} lb·reps`}
         />

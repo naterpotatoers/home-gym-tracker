@@ -2,12 +2,20 @@ import "server-only";
 import { connection } from "next/server";
 import { cache } from "react";
 import { clients as seedClients } from "../data/clients";
+import {
+  exerciseModalities as seedExerciseModalities,
+  exerciseMuscleScores as seedExerciseMuscleScores,
+  exercises as seedExercises,
+} from "../data/exercises";
 import { seedSnapshot } from "../data/seed-snapshot";
 import { buildGymData, type GymData } from "../gym-data";
 import { supabase } from "./client";
 import {
   rowToAssignment,
   rowToClient,
+  rowToExercise,
+  rowToExerciseModality,
+  rowToExerciseMuscleScore,
   rowToFood,
   rowToFoodLog,
   rowToProgram,
@@ -21,6 +29,13 @@ import {
 
 /** PostgREST's code for "table does not exist" — the migration hasn't run. */
 class TablesMissingError extends Error {}
+
+/** For tables with their own fallback tier: missing table → null, so the
+ *  caller can serve the TypeScript seed instead of failing the snapshot. */
+function nullIfMissing(e: unknown): null {
+  if (e instanceof TablesMissingError) return null;
+  throw e;
+}
 
 async function fetchAll(table: string, orderBy: readonly string[]) {
   let query = supabase.from(table).select("*");
@@ -58,13 +73,13 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       weighIns,
       foodRows,
       foodLogRows,
+      exerciseRows,
+      scoreRows,
+      modalityRows,
     ] = await Promise.all([
       // Clients get their own fallback: null means migration 002 hasn't run
       // yet, and the TS seed roster serves read-only.
-      fetchAll("clients", ["first_name"]).catch((e) => {
-        if (e instanceof TablesMissingError) return null;
-        throw e;
-      }),
+      fetchAll("clients", ["first_name"]).catch(nullIfMissing),
       fetchAll("routines", ["id"]),
       fetchAll("routine_exercises", ["routine_id", "sort_order"]),
       fetchAll("programs", ["id"]),
@@ -76,15 +91,19 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       // Nutrition tables get their own fallback too: null means
       // apply_nutrition.sql hasn't run — the rest of the app keeps working
       // and the Tracking tab shows a setup note.
-      fetchAll("foods", ["name"]).catch((e) => {
-        if (e instanceof TablesMissingError) return null;
-        throw e;
-      }),
-      fetchAll("food_logs", ["client_id", "date"]).catch((e) => {
-        if (e instanceof TablesMissingError) return null;
-        throw e;
-      }),
+      fetchAll("foods", ["name"]).catch(nullIfMissing),
+      fetchAll("food_logs", ["client_id", "date"]).catch(nullIfMissing),
+      // Exercise catalog: null means apply_exercises.sql hasn't run — the
+      // catalog serves read-only from the TS seed and /exercises shows a note.
+      fetchAll("exercises", ["name"]).catch(nullIfMissing),
+      fetchAll("exercise_muscle_scores", ["exercise_id", "muscle_id"]).catch(nullIfMissing),
+      fetchAll("exercise_modalities", ["exercise_id", "modality_id"]).catch(nullIfMissing),
     ]);
+
+    // The three catalog tables fall back as a unit — never mix database
+    // exercises with seed scores; a half-applied migration reads as "seed".
+    const exercisesMissing =
+      exerciseRows === null || scoreRows === null || modalityRows === null;
 
     return buildGymData({
       source: "database",
@@ -101,6 +120,16 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       nutritionSource: foodRows === null || foodLogRows === null ? "missing" : "database",
       foods: foodRows === null ? [] : foodRows.map(rowToFood),
       foodLogs: foodLogRows === null ? [] : foodLogRows.map(rowToFoodLog),
+      exercisesSource: exercisesMissing ? "seed" : "database",
+      exercises: exercisesMissing
+        ? seedExercises
+        : exerciseRows.map(rowToExercise),
+      exerciseMuscleScores: exercisesMissing
+        ? seedExerciseMuscleScores
+        : scoreRows.map(rowToExerciseMuscleScore),
+      exerciseModalities: exercisesMissing
+        ? seedExerciseModalities
+        : modalityRows.map(rowToExerciseModality),
     });
   } catch (error) {
     // Bootstrap fallback ONLY for "the migration hasn't run yet": the app

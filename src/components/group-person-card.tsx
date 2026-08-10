@@ -11,7 +11,7 @@ import type { BoardPerson } from "@/components/group-board";
 import { useSessionFlow } from "@/components/use-session-flow";
 import { useSetEditor } from "@/components/use-set-editor";
 import { finishSession } from "@/lib/actions/workout";
-import { exerciseById } from "@/lib/data/exercises";
+import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import type { Variant } from "@/lib/queries";
 import type { Block } from "@/lib/set-blocks";
 import { errorMessage } from "@/lib/format";
@@ -26,12 +26,14 @@ type PickerTarget = { mode: "add" } | { mode: "replace"; block: Block };
 export function GroupPersonCard({
   person,
   variants,
+  catalog,
   now,
   boardElapsedMinutes,
   onFinished,
 }: {
   person: BoardPerson;
   variants: Variant[];
+  catalog: ExerciseCatalog;
   now: number;
   boardElapsedMinutes: number;
   onFinished: () => void;
@@ -117,6 +119,7 @@ export function GroupPersonCard({
         editor={editor}
         flow={flow}
         prescriptions={prescriptions}
+        catalog={catalog}
         dense
         onReplace={(block) => setPicker({ mode: "replace", block })}
         onAdd={() => setPicker({ mode: "add" })}
@@ -166,7 +169,8 @@ export function GroupPersonCard({
           onClose={() => setPicker(null)}
           emphasizePattern={
             picker.mode === "replace"
-              ? exerciseById.get(picker.block.exerciseId)?.pattern
+              ? exerciseLookup(catalog).exerciseById.get(picker.block.exerciseId)
+                  ?.pattern
               : undefined
           }
         />

@@ -5,7 +5,7 @@ import { ModalityChip } from "@/components/modality-chip";
 import { SetRow } from "@/components/set-row";
 import { Button, IconButton } from "@/components/ui";
 import type { SessionFlow, SetEditor } from "@/components/use-session-flow";
-import { exerciseById } from "@/lib/data/exercises";
+import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import { mmss } from "@/lib/periods";
 import { describeTarget, rxLabel } from "@/lib/session-labels";
 import type { Block } from "@/lib/set-blocks";
@@ -40,6 +40,7 @@ export function SessionBlockList({
   editor,
   flow,
   prescriptions,
+  catalog,
   dense = false,
   onReplace,
   onAdd,
@@ -47,12 +48,14 @@ export function SessionBlockList({
   editor: SetEditor;
   flow: SessionFlow;
   prescriptions: readonly RoutineExercise[];
+  catalog: ExerciseCatalog;
   /** Tighter set rows for the group board's cards. */
   dense?: boolean;
   onReplace: (block: Block) => void;
   onAdd: () => void;
 }) {
   const { current, currentBlock, shownKey, supersets } = flow;
+  const { exerciseById, modalitiesByExercise } = exerciseLookup(catalog);
   const keyOf = (b: Block) => `${b.exerciseId}|${b.modalityId}`;
 
   return (
@@ -60,6 +63,10 @@ export function SessionBlockList({
       <ul>
         {editor.blocks.map((block, index) => {
           const exercise = exerciseById.get(block.exerciseId);
+          const blockBandRoles =
+            modalitiesByExercise
+              .get(block.exerciseId)
+              ?.find((em) => em.modalityId === block.modalityId)?.bandRoles ?? [];
           const done = block.sets.filter((s) => s.completed).length;
           const blockDone = done === block.sets.length;
           const isCurrent = block === currentBlock;
@@ -197,6 +204,7 @@ export function SessionBlockList({
                     set={set}
                     dense={dense}
                     metricType={exercise?.metricType ?? "reps"}
+                    bandRoles={blockBandRoles}
                     onChange={(changes) => editor.patchSet(set.id, changes)}
                     onRemove={() => flow.removeSetKeepingCursor(set.id)}
                   />

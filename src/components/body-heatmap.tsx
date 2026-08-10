@@ -2,8 +2,8 @@
 
 import { useId, useState } from "react";
 import { bodyMap, silhouettes, type BodyView } from "@/lib/body-map";
-import { exerciseById, exerciseMuscleScores } from "@/lib/data/exercises";
 import { muscleById } from "@/lib/data/muscles";
+import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import { heatBin, type HeatValue } from "@/lib/heat";
 import type { MuscleId } from "@/lib/types";
 
@@ -11,8 +11,12 @@ const MUSCLE_IDS = Object.keys(bodyMap) as MuscleId[];
 
 /** Exercises that meaningfully train a muscle (score ≥ 5), best first — the
  *  tap-a-region suggestion list for filling a red spot. */
-function exercisesFor(muscleId: MuscleId): { name: string; score: number }[] {
-  return exerciseMuscleScores
+function exercisesFor(
+  catalog: ExerciseCatalog,
+  muscleId: MuscleId,
+): { name: string; score: number }[] {
+  const { exerciseById } = exerciseLookup(catalog);
+  return catalog.exerciseMuscleScores
     .filter((r) => r.muscleId === muscleId && r.score >= 5)
     .sort((a, b) => b.score - a.score)
     .slice(0, 4)
@@ -30,11 +34,13 @@ function exercisesFor(muscleId: MuscleId): { name: string; score: number }[] {
  */
 export function BodyHeatmap({
   values,
+  catalog,
   title,
   maxLabel,
   ordinalMaxLabel,
 }: {
   values: ReadonlyMap<MuscleId, HeatValue>;
+  catalog: ExerciseCatalog;
   title: string;
   /** Legend label for the top of the shared scale, e.g. "12,400 lb·reps". */
   maxLabel: string;
@@ -151,7 +157,7 @@ export function BodyHeatmap({
       {active && (
         <p className="mt-1 text-xs text-muted">
           Build it:{" "}
-          {exercisesFor(active).map(({ name, score }, i) => (
+          {exercisesFor(catalog, active).map(({ name, score }, i) => (
             <span key={name}>
               {i > 0 && " · "}
               <span className="text-foreground">{name}</span>{" "}

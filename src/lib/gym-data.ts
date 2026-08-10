@@ -1,6 +1,10 @@
+import { exerciseLookup } from "./exercise-catalog";
 import type {
   Assignment,
   Client,
+  Exercise,
+  ExerciseModality,
+  ExerciseMuscleScore,
   Food,
   FoodLog,
   Program,
@@ -14,10 +18,10 @@ import type {
 
 /**
  * The mutable half of the domain, as one snapshot. Reference data (muscles,
- * exercises, modalities, equipment, clients) stays in module-level TypeScript
- * where the id unions live; everything here is loaded from the database per
- * request and threaded through the pure query functions as their first
- * argument, so the query layer stays synchronous and testable.
+ * modalities, equipment) stays in module-level TypeScript where the id unions
+ * live; the exercise catalog and everything else here is loaded from the
+ * database per request and threaded through the pure query functions as their
+ * first argument, so the query layer stays synchronous and testable.
  */
 export type GymData = {
   /** Where this snapshot came from. "seed" means the database tables don't
@@ -30,6 +34,12 @@ export type GymData = {
   /** "missing" while the nutrition tables haven't been created yet — the rest
    *  of the app keeps working; the Tracking tab shows a run-the-SQL note. */
   nutritionSource: "database" | "missing";
+  /** "seed" while the exercise tables haven't been created — the catalog is
+   *  read-only from src/lib/data/exercises.ts and /exercises shows a note. */
+  exercisesSource: "database" | "seed";
+  exercises: readonly Exercise[];
+  exerciseMuscleScores: readonly ExerciseMuscleScore[];
+  exerciseModalities: readonly ExerciseModality[];
   clients: readonly Client[];
   routines: readonly Routine[];
   routineExercises: readonly RoutineExercise[];
@@ -51,6 +61,9 @@ export type GymData = {
   programById: ReadonlyMap<string, Program>;
   clientById: ReadonlyMap<string, Client>;
   foodById: ReadonlyMap<string, Food>;
+  exerciseById: ReadonlyMap<string, Exercise>;
+  scoresByExercise: ReadonlyMap<string, ExerciseMuscleScore[]>;
+  modalitiesByExercise: ReadonlyMap<string, ExerciseModality[]>;
 };
 
 export type GymTables = Pick<
@@ -58,6 +71,10 @@ export type GymTables = Pick<
   | "source"
   | "clientsSource"
   | "clients"
+  | "exercisesSource"
+  | "exercises"
+  | "exerciseMuscleScores"
+  | "exerciseModalities"
   | "routines"
   | "routineExercises"
   | "programs"
@@ -101,5 +118,6 @@ export function buildGymData(tables: GymTables): GymData {
     programById: new Map(tables.programs.map((p) => [p.id, p])),
     clientById: new Map(tables.clients.map((c) => [c.id, c])),
     foodById: new Map(tables.foods.map((f) => [f.id, f])),
+    ...exerciseLookup(tables),
   };
 }

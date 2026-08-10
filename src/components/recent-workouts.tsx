@@ -2,7 +2,6 @@ import Link from "next/link";
 import { EyeIcon } from "@/components/icons";
 import { ModalityChip } from "@/components/modality-chip";
 import { Caret, Chip, Note, recapSetClass, Section, summaryClass } from "@/components/ui";
-import { exerciseById } from "@/lib/data/exercises";
 import type { GymData } from "@/lib/gym-data";
 import { sessionTopLifts } from "@/lib/progress";
 import { blocksFor, describeSet, sessionsFor } from "@/lib/queries";
@@ -41,7 +40,7 @@ export function RecentWorkouts({ data, client }: { data: GymData; client: Client
                         {tops
                           .map(
                             (t) =>
-                              `${exerciseById.get(t.exerciseId)?.name ?? t.exerciseId} ${Math.round(t.bestE1rmLbs)}`,
+                              `${data.exerciseById.get(t.exerciseId)?.name ?? t.exerciseId} ${Math.round(t.bestE1rmLbs)}`,
                           )
                           .join(" · ")}
                       </span>
@@ -58,7 +57,7 @@ export function RecentWorkouts({ data, client }: { data: GymData; client: Client
                           <div key={i} className="min-w-0">
                             <h4 className="flex items-center gap-1.5 text-xs font-semibold">
                               <span className="truncate">
-                                {exerciseById.get(block.exerciseId)?.name ?? block.exerciseId}
+                                {data.exerciseById.get(block.exerciseId)?.name ?? block.exerciseId}
                               </span>
                               <ModalityChip modalityId={block.modalityId} />
                               <span className="ml-auto shrink-0 font-mono text-[10px] font-normal text-muted">

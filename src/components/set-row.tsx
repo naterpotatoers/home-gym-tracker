@@ -4,7 +4,6 @@ import { TrashIcon } from "@/components/icons";
 import { Checkbox, IconButton, NumberInput, Select } from "@/components/ui";
 import { bands } from "@/lib/data/equipment";
 import { describePlates, formatPlates } from "@/lib/loading";
-import { bandRolesFor } from "@/lib/queries";
 import type { BandId, BandRole, MetricType, SetLog } from "@/lib/types";
 
 /**
@@ -16,18 +15,22 @@ import type { BandId, BandRole, MetricType, SetLog } from "@/lib/types";
 export function SetRow({
   set,
   metricType,
+  bandRoles = [],
   onChange,
   onRemove,
   dense = false,
 }: {
   set: SetLog;
   metricType: MetricType;
+  /** Valid roles for this set's variant — computed by the parent from the
+   *  catalog so this row doesn't need one. */
+  bandRoles?: readonly BandRole[];
   onChange: (changes: Partial<SetLog>) => void;
   onRemove: () => void;
   /** Tighter spacing + h-9 controls, for the group board's card list. */
   dense?: boolean;
 }) {
-  const roles = set.modalityId === "band" ? bandRolesFor(set.exerciseId, set.modalityId) : [];
+  const roles = set.modalityId === "band" ? bandRoles : [];
   const controlSize = dense ? ("sm" as const) : ("md" as const);
   const plateHint =
     set.modalityId === "barbell" && set.weightLbs !== null

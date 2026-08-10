@@ -15,12 +15,12 @@ import type {
   SetLog,
 } from "../types";
 import {
-  isExerciseId,
   isModalityId,
   isSessionCondition,
 } from "../validate";
 import { revalidateAll, run } from "./_helpers";
 import { assertClientId } from "./clients";
+import { assertExerciseIds } from "./exercises";
 
 /**
  * Start a session from a routine: a planned Session plus one editable SetLog
@@ -51,7 +51,7 @@ export async function startSession(
 
 /** Single-row upsert: the per-set edits (weight, reps, RIR, done, warmup). */
 export async function updateSetLog(set: SetLog): Promise<void> {
-  if (!isExerciseId(set.exerciseId)) throw new Error(`bad exercise id ${set.exerciseId}`);
+  await assertExerciseIds([set.exerciseId]);
   if (!isModalityId(set.modalityId)) throw new Error(`bad modality id ${set.modalityId}`);
   await run("saving set", supabase.from("set_logs").upsert(setLogToRow(set)));
   revalidateAll();
@@ -66,9 +66,9 @@ export async function syncSetLogs(
   sessionId: string,
   sets: readonly SetLog[],
 ): Promise<void> {
+  await assertExerciseIds(sets.map((set) => set.exerciseId));
   for (const set of sets) {
     if (set.sessionId !== sessionId) throw new Error("set belongs to another session");
-    if (!isExerciseId(set.exerciseId)) throw new Error(`bad exercise id ${set.exerciseId}`);
     if (!isModalityId(set.modalityId)) throw new Error(`bad modality id ${set.modalityId}`);
   }
 

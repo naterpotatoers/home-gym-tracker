@@ -4,25 +4,9 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ModalityChip } from "@/components/modality-chip";
 import { Button, Input } from "@/components/ui";
-import { exerciseById } from "@/lib/data/exercises";
+import { PATTERN_LABELS, PATTERN_ORDER } from "@/lib/exercise-catalog";
 import type { Variant } from "@/lib/queries";
 import type { MovementPattern } from "@/lib/types";
-
-const PATTERN_LABELS: Record<MovementPattern, string> = {
-  squat: "Squat",
-  hinge: "Hinge",
-  lunge: "Lunge",
-  push_h: "Horizontal Push",
-  push_v: "Vertical Push",
-  pull_h: "Horizontal Pull",
-  pull_v: "Vertical Pull",
-  carry: "Carry",
-  core: "Core",
-  isolation: "Isolation",
-  mobility: "Mobility",
-};
-
-const PATTERN_ORDER = Object.keys(PATTERN_LABELS) as MovementPattern[];
 
 /**
  * Searchable picker over the performable exercise × modality variants, grouped
@@ -68,8 +52,7 @@ export function ExercisePicker({
 
     const byPattern = new Map<MovementPattern, Variant[]>();
     for (const variant of filtered) {
-      const pattern =
-        exerciseById.get(variant.exerciseModality.exerciseId)?.pattern ?? "isolation";
+      const pattern = variant.pattern;
       const existing = byPattern.get(pattern);
       if (existing) existing.push(variant);
       else byPattern.set(pattern, [variant]);

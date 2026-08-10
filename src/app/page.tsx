@@ -175,7 +175,7 @@ export default async function Home() {
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <Stat
             label="Exercise variants"
-            value={`${availableVariants().length} across ${ownedModalities.length} modalities — lifts, ab work & stretches`}
+            value={`${availableVariants(data).length} across ${ownedModalities.length} modalities — lifts, ab work & stretches`}
           />
           <Stat
             label="Barbell"

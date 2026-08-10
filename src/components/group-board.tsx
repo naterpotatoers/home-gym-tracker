@@ -5,6 +5,7 @@ import { useState } from "react";
 import { GroupPersonCard } from "@/components/group-person-card";
 import { useSessionClock } from "@/components/use-session-clock";
 import { useWakeLock } from "@/components/use-wake-lock";
+import type { ExerciseCatalog } from "@/lib/exercise-catalog";
 import type { Variant } from "@/lib/queries";
 import type { RoutineExercise, Session, SetLog } from "@/lib/types";
 
@@ -28,9 +29,11 @@ export type BoardPerson = {
 export function GroupBoard({
   people,
   variants,
+  catalog,
 }: {
   people: BoardPerson[];
   variants: Variant[];
+  catalog: ExerciseCatalog;
 }) {
   // One clock for the whole board, keyed by the session ids so leaving and
   // coming back (or a Safari tab eviction) doesn't reset everyone's elapsed
@@ -74,6 +77,7 @@ export function GroupBoard({
             key={person.session.id}
             person={person}
             variants={variants}
+            catalog={catalog}
             now={now}
             boardElapsedMinutes={elapsedMinutes}
             onFinished={() => {

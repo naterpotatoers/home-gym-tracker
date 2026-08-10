@@ -31,3 +31,12 @@ truncate table set_logs, sessions, assignments;
 --    seed roster until you add people back at /users.)
 -- ---------------------------------------------------------------------------
 -- truncate table clients;
+
+-- ---------------------------------------------------------------------------
+-- 5. OPTIONAL: also wipe the exercise catalog. Because the tables still
+--    exist, the app does NOT fall back to the TS seed — the catalog is just
+--    empty until you press "Import seed catalog" at /exercises. Note
+--    set_logs/routine_exercises reference exercise_id as plain text, so this
+--    truncate succeeds even with history present (which then renders raw ids).
+-- ---------------------------------------------------------------------------
+-- truncate table exercise_modalities, exercise_muscle_scores, exercises;

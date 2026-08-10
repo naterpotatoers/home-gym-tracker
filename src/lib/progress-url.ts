@@ -1,7 +1,7 @@
 import { MUSCLE_GROUP_COLORS } from "./data/muscles";
 import type { GymData } from "./gym-data";
 import { defaultClientId } from "./queries";
-import { isExerciseId, isModalityId } from "./validate";
+import { isModalityId } from "./validate";
 
 /** The Progress page's full URL state, already parsed/defaulted by the
  *  server page. Shared by the server page (building Links) and the client
@@ -51,7 +51,7 @@ export function parseProgressParams(
   const client =
     raw.client && data.clientById.has(raw.client) ? raw.client : fallback;
   const selected =
-    raw.exercise && raw.modality && isExerciseId(raw.exercise) && isModalityId(raw.modality)
+    raw.exercise && raw.modality && data.exerciseById.has(raw.exercise) && isModalityId(raw.modality)
       ? { exercise: raw.exercise, modality: raw.modality }
       : { exercise: "", modality: "" };
   return {

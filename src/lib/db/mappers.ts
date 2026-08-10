@@ -1,6 +1,9 @@
 import type {
   Client,
   Assignment,
+  Exercise,
+  ExerciseModality,
+  ExerciseMuscleScore,
   Food,
   FoodLog,
   Program,
@@ -148,6 +151,32 @@ export type FoodLogRow = {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+};
+
+export type ExerciseRow = {
+  id: string;
+  name: string;
+  pattern: Exercise["pattern"];
+  metric_type: Exercise["metricType"];
+  is_compound: boolean;
+};
+
+export type ExerciseMuscleScoreRow = {
+  exercise_id: ExerciseMuscleScore["exerciseId"];
+  muscle_id: ExerciseMuscleScore["muscleId"];
+  score: number;
+};
+
+export type ExerciseModalityRow = {
+  exercise_id: ExerciseModality["exerciseId"];
+  modality_id: ExerciseModality["modalityId"];
+  is_default: boolean;
+  band_roles: ExerciseModality["bandRoles"];
+  default_unilateral_mode: ExerciseModality["defaultUnilateralMode"];
+  required_equipment: ExerciseModality["requiredEquipment"];
+  pin_risk: boolean;
+  load_factor_override: number | null;
+  notes: string;
 };
 
 export function rowToRoutine(r: RoutineRow): Routine {
@@ -393,6 +422,66 @@ export function foodToRow(f: Food): FoodRow {
     plate_protein_g: f.plateProteinG,
     plate_carbs_g: f.plateCarbsG,
     plate_fat_g: f.plateFatG,
+  };
+}
+
+export function rowToExercise(r: ExerciseRow): Exercise {
+  return {
+    id: r.id,
+    name: r.name,
+    pattern: r.pattern,
+    metricType: r.metric_type,
+    isCompound: r.is_compound,
+  };
+}
+
+export function exerciseToRow(e: Exercise): ExerciseRow {
+  return {
+    id: e.id,
+    name: e.name,
+    pattern: e.pattern,
+    metric_type: e.metricType,
+    is_compound: e.isCompound,
+  };
+}
+
+export function rowToExerciseMuscleScore(
+  r: ExerciseMuscleScoreRow,
+): ExerciseMuscleScore {
+  return { exerciseId: r.exercise_id, muscleId: r.muscle_id, score: r.score };
+}
+
+export function exerciseMuscleScoreToRow(
+  s: ExerciseMuscleScore,
+): ExerciseMuscleScoreRow {
+  return { exercise_id: s.exerciseId, muscle_id: s.muscleId, score: s.score };
+}
+
+export function rowToExerciseModality(r: ExerciseModalityRow): ExerciseModality {
+  return {
+    exerciseId: r.exercise_id,
+    modalityId: r.modality_id,
+    isDefault: r.is_default,
+    bandRoles: r.band_roles,
+    defaultUnilateralMode: r.default_unilateral_mode,
+    requiredEquipment: r.required_equipment,
+    pinRisk: r.pin_risk,
+    loadFactorOverride: r.load_factor_override,
+    notes: r.notes,
+  };
+}
+
+export function exerciseModalityToRow(m: ExerciseModality): ExerciseModalityRow {
+  return {
+    exercise_id: m.exerciseId,
+    modality_id: m.modalityId,
+    is_default: m.isDefault,
+    band_roles: m.bandRoles,
+    default_unilateral_mode: m.defaultUnilateralMode,
+    required_equipment: m.requiredEquipment,
+    pin_risk: m.pinRisk,
+    load_factor_override: m.loadFactorOverride,
+    notes: m.notes,
   };
 }
 

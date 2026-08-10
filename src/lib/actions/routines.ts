@@ -5,8 +5,9 @@ import { supabase } from "../db/client";
 import { routineExerciseToRow } from "../db/mappers";
 import { slugId } from "../ids";
 import type { RoutineExercise } from "../types";
-import { isExerciseId, isModalityId } from "../validate";
+import { isModalityId } from "../validate";
 import { assertNoRefs, revalidateAll, run } from "./_helpers";
+import { assertExerciseIds } from "./exercises";
 
 export async function createRoutine(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
@@ -29,8 +30,8 @@ export async function saveRoutine(
   rows: readonly RoutineExercise[],
 ): Promise<void> {
   if (!meta.name.trim()) throw new Error("Routine needs a name.");
+  await assertExerciseIds(rows.map((row) => row.exerciseId));
   for (const row of rows) {
-    if (!isExerciseId(row.exerciseId)) throw new Error(`bad exercise id ${row.exerciseId}`);
     if (!isModalityId(row.modalityId)) throw new Error(`bad modality id ${row.modalityId}`);
   }
 

@@ -11,8 +11,8 @@ import {
   recapSetClass,
   Stat,
 } from "@/components/ui";
-import { exerciseById } from "@/lib/data/exercises";
 import { ModalityChip } from "@/components/modality-chip";
+import { catalogSlice } from "@/lib/exercise-catalog";
 import { localDayLabel } from "@/lib/periods";
 import { loadGymData } from "@/lib/db/snapshot";
 import { bestE1rm } from "@/lib/modality";
@@ -120,7 +120,7 @@ export default async function SessionPage({
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-sm font-semibold">
-                    {exerciseById.get(block.exerciseId)?.name ?? block.exerciseId}
+                    {data.exerciseById.get(block.exerciseId)?.name ?? block.exerciseId}
                   </h2>
                   <ModalityChip modalityId={block.modalityId} />
                   {block.sets[0].bandRole === "assistance" && (
@@ -171,7 +171,8 @@ export default async function SessionPage({
         session={session}
         initialSets={data.setsBySession.get(session.id) ?? []}
         prescriptions={prescriptions}
-        variants={availableVariants()}
+        variants={availableVariants(data)}
+        catalog={catalogSlice(data)}
         clientName={client?.firstName ?? session.clientId}
         recentKeys={recentVariantKeys(data, session.clientId)}
       />

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { RoutineEditor } from "@/components/routine-editor";
 import { PageShell } from "@/components/ui";
 import { loadGymData } from "@/lib/db/snapshot";
+import { catalogSlice } from "@/lib/exercise-catalog";
 import { availableVariants, recentVariantKeys } from "@/lib/queries";
 
 export default async function RoutinePage({
@@ -19,7 +20,8 @@ export default async function RoutinePage({
       <RoutineEditor
         routine={routine}
         initialRows={data.exercisesByRoutine.get(routineId) ?? []}
-        variants={availableVariants()}
+        variants={availableVariants(data)}
+        catalog={catalogSlice(data)}
         recentKeys={recentVariantKeys(data)}
       />
     </PageShell>

@@ -24,6 +24,7 @@ import {
 } from "@/lib/actions/programs";
 import { coverageByGroup, neglectedMuscles, weekCoverage } from "@/lib/coverage";
 import { loadGymData } from "@/lib/db/snapshot";
+import { catalogSlice } from "@/lib/exercise-catalog";
 import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
 
 export default async function ProgramPage({
@@ -86,6 +87,7 @@ export default async function ProgramPage({
           <div className="shrink-0">
             <BodyHeatmap
               values={heat}
+              catalog={catalogSlice(data)}
               title={`Week ${week} body map`}
               maxLabel={`${coverageMax.toFixed(1)} sets/wk`}
             />

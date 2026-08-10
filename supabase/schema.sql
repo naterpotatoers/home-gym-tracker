@@ -1,14 +1,18 @@
 -- Nates Gym — the canonical schema. One shot, run in the Supabase SQL editor
 -- (the app's publishable key cannot DDL).
 --
--- Reference data (muscles, modalities, equipment, exercises, muscle scores,
--- exercise modalities) lives in TypeScript under src/lib/data/ where the id
--- unions make typos compile errors. Only data that grows or gets edited at
--- runtime lives here. FKs into reference data (exercise_id, modality_id,
--- band_id) are plain text validated in app code against those unions.
+-- Reference data (muscles, modalities, equipment) lives in TypeScript under
+-- src/lib/data/ where the id unions make typos compile errors. Only data that
+-- grows or gets edited at runtime lives here. FKs into reference data
+-- (modality_id, muscle_id, band_id) are plain text validated in app code
+-- against those unions.
 --
--- People are managed in the app at /users — this file creates empty tables
--- and seeds nothing.
+-- The exercise catalog is database-backed (authored at /exercises); its
+-- muscle/modality/equipment ids remain TS-union text validated in app code.
+--
+-- People are managed in the app at /users — this file creates empty tables.
+-- The exercise tables start empty too: seed them with the "Import seed
+-- catalog" button at /exercises (from src/lib/data/exercises.ts).
 
 create table routines (
   id text primary key,
@@ -127,6 +131,45 @@ create table clients (
   notes text not null default ''
 );
 
+-- Exercise catalog: database-backed so movements can be authored at
+-- /exercises. Ids are readable text slugs; set_logs/routine_exercises keep
+-- referencing exercise_id as plain text (no FK), so history survives even if
+-- a catalog row is edited.
+create table exercises (
+  id text primary key,
+  name text not null,
+  pattern text not null check (pattern in
+    ('squat', 'hinge', 'lunge', 'push_h', 'push_v', 'pull_h', 'pull_v',
+     'carry', 'core', 'isolation', 'mobility')),
+  metric_type text not null check (metric_type in ('reps', 'time', 'distance')),
+  is_compound boolean not null default false
+);
+
+-- Authored once per exercise; modality muscleModifiers adjust these in app
+-- code, they never re-author them. mobility exercises have no rows on purpose.
+create table exercise_muscle_scores (
+  exercise_id text not null references exercises(id) on delete cascade,
+  muscle_id text not null,
+  score int not null check (score between 0 and 10),
+  primary key (exercise_id, muscle_id)
+);
+
+-- One row per exercise x modality pair ("variant"). An exercise with no
+-- variants is invisible in the picker and can't be prescribed or logged.
+create table exercise_modalities (
+  exercise_id text not null references exercises(id) on delete cascade,
+  modality_id text not null,
+  is_default boolean not null default false,
+  band_roles text[] not null default '{}',
+  default_unilateral_mode text not null default 'bilateral'
+    check (default_unilateral_mode in ('bilateral', 'alternating', 'single_side')),
+  required_equipment text[] not null default '{}',
+  pin_risk boolean not null default false,
+  load_factor_override double precision,
+  notes text not null default '',
+  primary key (exercise_id, modality_id)
+);
+
 -- Nutrition: the household food catalog. `category` is a text FK into the
 -- TS reference data (src/lib/data/food-categories.ts), validated in app code
 -- like exercise_id. Values are kcal/macros for a FULL single-layer 10 1/16"
@@ -162,6 +205,11 @@ create index weigh_ins_client_idx on weigh_ins (client_id, date);
 -- Exact-duplicate guard for the food catalog ("Chicken breast" vs "chicken breast").
 create unique index foods_name_idx on foods (lower(name));
 create index food_logs_client_idx on food_logs (client_id, date);
+-- Same duplicate guard for the exercise catalog.
+create unique index exercises_name_idx on exercises (lower(name));
+-- At most one default variant per exercise.
+create unique index exercise_modalities_default_idx
+  on exercise_modalities (exercise_id) where is_default;
 
 -- RLS: enabled with a permissive anon policy on every table. This is a
 -- single-household personal app behind a publishable key; there is no
@@ -174,7 +222,8 @@ begin
   foreach t in array array[
     'routines', 'routine_exercises', 'programs', 'program_days',
     'assignments', 'sessions', 'set_logs', 'weigh_ins', 'clients',
-    'foods', 'food_logs'
+    'foods', 'food_logs',
+    'exercises', 'exercise_muscle_scores', 'exercise_modalities'
   ] loop
     execute format('alter table %I enable row level security', t);
     execute format(

@@ -1,5 +1,5 @@
-import { exerciseById, scoresByExercise } from "./data/exercises";
 import { muscleById } from "./data/muscles";
+import { exerciseLookup } from "./exercise-catalog";
 import type { GymData } from "./gym-data";
 import { bestE1rm, e1rm, setLoad } from "./modality";
 import { addDaysIso, utcDay } from "./periods";
@@ -211,8 +211,11 @@ export function trendSegment(
 
 /** The muscle group an exercise most directly trains — its highest-scored
  *  muscle's group. Null for mobility work (no scores on purpose). */
-function primaryMuscleGroup(exerciseId: ExerciseId): MuscleGroupId | null {
-  const scores = scoresByExercise.get(exerciseId);
+function primaryMuscleGroup(
+  data: GymData,
+  exerciseId: ExerciseId,
+): MuscleGroupId | null {
+  const scores = data.scoresByExercise.get(exerciseId);
   if (!scores || scores.length === 0) return null;
   const top = scores.reduce((a, b) => (b.score > a.score ? b : a));
   return muscleById.get(top.muscleId)?.groupId ?? null;
@@ -229,6 +232,7 @@ export type LiftOverviewRow = LiftFrequency & {
  *  "—" rows); `liftFrequency` itself keeps it — frequency stays honest, and any
  *  future consumer wanting a mobility-free list must filter like this. */
 export function liftOverview(data: GymData, clientId: ClientId): LiftOverviewRow[] {
+  const { exerciseById } = exerciseLookup(data);
   return liftFrequency(data, clientId)
     .filter((row) => exerciseById.get(row.exerciseId)?.pattern !== "mobility")
     .map((row) => {
@@ -239,7 +243,7 @@ export function liftOverview(data: GymData, clientId: ClientId): LiftOverviewRow
     return {
       ...row,
       trendPerWeek: trend === null ? null : trend.slopePerWeek,
-      groupId: primaryMuscleGroup(row.exerciseId),
+      groupId: primaryMuscleGroup(data, row.exerciseId),
     };
   });
 }

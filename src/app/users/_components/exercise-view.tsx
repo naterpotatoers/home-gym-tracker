@@ -1,7 +1,6 @@
 import { ProgressChart } from "@/components/progress-chart";
 import { LoadExplorerControls } from "@/components/progress-controls";
 import { ColorDot, Note, Stat } from "@/components/ui";
-import { exerciseById } from "@/lib/data/exercises";
 import { modalityById } from "@/lib/data/modalities";
 import type { GymData } from "@/lib/gym-data";
 import type { ChartPoint } from "@/lib/meters";
@@ -33,7 +32,7 @@ export function ExerciseDetail({
   modalityId: ModalityId;
   params: ProgressParams;
 }) {
-  const exerciseName = exerciseById.get(exerciseId)?.name ?? exerciseId;
+  const exerciseName = data.exerciseById.get(exerciseId)?.name ?? exerciseId;
   const modalityName = modalityById.get(modalityId)?.name ?? modalityId;
   const history = exerciseHistory(data, client, exerciseId, modalityId);
   const ordinalOnly = history.length > 0 && history.every((p) => p.bestE1rmLbs === null);
