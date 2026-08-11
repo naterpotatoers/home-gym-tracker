@@ -1,5 +1,6 @@
 "use client";
 
+import { unstable_rethrow } from "next/navigation";
 import { useMemo, useState } from "react";
 import { BodyHeatmap } from "@/components/body-heatmap";
 import { ExercisePicker } from "@/components/exercise-picker";
@@ -242,6 +243,9 @@ export function RoutineEditor({
     try {
       await deleteRoutine(routine.id);
     } catch (e) {
+      // deleteRoutine redirects on success — that internal throw must pass
+      // through or the redirect would render as "Delete failed."
+      unstable_rethrow(e);
       setError(errorMessage(e, "Delete failed."));
     }
   }
@@ -419,6 +423,7 @@ export function RoutineEditor({
             try {
               await duplicateRoutine(routine.id);
             } catch (e) {
+              unstable_rethrow(e);
               setError(errorMessage(e, "Duplicate failed."));
             }
           }}

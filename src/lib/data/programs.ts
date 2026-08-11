@@ -1,12 +1,11 @@
 import type {
   Assignment,
-  ExerciseId,
-  ModalityId,
   Program,
   ProgramDay,
   Routine,
   RoutineExercise,
 } from "../types";
+import { re } from "./routine-builder";
 
 export const routines: readonly Routine[] = [
   { id: "r_full_a", name: "Full Body A", notes: "Squat-led. Beginner." },
@@ -96,32 +95,6 @@ export const assignments: readonly Assignment[] = [
 // ---------------------------------------------------------------------------
 // Builders
 // ---------------------------------------------------------------------------
-
-function re(
-  routineId: string,
-  order: number,
-  exerciseId: ExerciseId,
-  modalityId: ModalityId,
-  o: Partial<Omit<RoutineExercise, "routineId" | "order" | "exerciseId" | "modalityId">>,
-): RoutineExercise {
-  return {
-    routineId,
-    order,
-    exerciseId,
-    modalityId,
-    bandRole: null,
-    unilateralMode: "bilateral",
-    sets: 3,
-    repMin: null,
-    repMax: null,
-    durationSeconds: null,
-    restSeconds: 90,
-    targetRir: null,
-    supersetGroup: null,
-    notes: "",
-    ...o,
-  };
-}
 
 /** The same weekly layout repeated for every week of the program. */
 function weeklyPattern(

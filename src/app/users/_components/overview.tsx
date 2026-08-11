@@ -14,7 +14,7 @@ import { liftOverview } from "@/lib/progress";
 import { progressHref, type ProgressParams } from "@/lib/progress-url";
 import { muscleVolume } from "@/lib/queries";
 import { isModalityId } from "@/lib/validate";
-import type { ClientId, MuscleGroupId } from "@/lib/types";
+import type { ClientId } from "@/lib/types";
 import { ExerciseDetail } from "./exercise-view";
 import { dash, lbs } from "@/lib/format";
 
@@ -37,9 +37,7 @@ export function Overview({
       : null;
   const lifts = liftOverview(data, client)
     .filter((row) => (params.mod ? row.modalityId === params.mod : true))
-    .filter((row) =>
-      params.group ? row.groupId === (params.group as MuscleGroupId) : true,
-    );
+    .filter((row) => (params.group ? row.groupId === params.group : true));
 
   const liftRows: SortableRow[] = lifts.map((row) => {
     const isOpen =

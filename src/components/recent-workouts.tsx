@@ -6,6 +6,7 @@ import type { GymData } from "@/lib/gym-data";
 import { sessionTopLifts } from "@/lib/progress";
 import { blocksFor, describeSet, sessionsFor } from "@/lib/queries";
 import type { ClientId } from "@/lib/types";
+import { completedCount } from "@/lib/session-labels";
 
 /**
  * One person's completed sessions as an in-place accordion list — shared by
@@ -52,7 +53,7 @@ export function RecentWorkouts({ data, client }: { data: GymData; client: Client
                   <div className="mb-2 ml-5 mt-1 rounded-lg bg-background px-4 py-3">
                     <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
                       {blocksFor(data, session.id).map((block, i) => {
-                        const done = block.sets.filter((s) => s.completed).length;
+                        const done = completedCount(block.sets);
                         return (
                           <div key={i} className="min-w-0">
                             <h4 className="flex items-center gap-1.5 text-xs font-semibold">

@@ -51,10 +51,16 @@ npm run lint
 ## Architecture
 
 **Hybrid storage.** Hand-curated reference data lives in TypeScript
-(`src/lib/data/`: muscles, modalities, equipment, exercises) where union
-types make a typo'd id a compile error. Data that grows or gets edited —
-clients, routines, programs, assignments, sessions, set logs, weigh-ins —
-lives in Supabase; the schema is `supabase/schema.sql`.
+(`src/lib/data/`: muscles, modalities, equipment) where union types make a
+typo'd id a compile error. Data that grows or gets edited — clients, the
+exercise catalog (with muscle scores and variants), routines, programs,
+assignments, sessions, set logs, weigh-ins, foods, food logs — lives in
+Supabase; the schema is `supabase/schema.sql`. The exercise catalog and the
+pre-built Care routines are seeded from TypeScript via import buttons at
+`/exercises` and `/programs`, with the TS files doubling as the read-only
+fallback before the tables exist. The evidence behind the muscle scores and
+care prescriptions is documented in `docs/exercise-scoring-references.md` and
+`docs/pt-exercise-references.md`.
 
 **Snapshot reads.** `loadGymData()` (`src/lib/db/snapshot.ts`, server-only)
 fetches all mutable tables per request into a `GymData` object. Every query

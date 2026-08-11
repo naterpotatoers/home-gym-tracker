@@ -7,7 +7,7 @@ import { Button, IconButton } from "@/components/ui";
 import type { SessionFlow, SetEditor } from "@/components/use-session-flow";
 import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import { mmss } from "@/lib/periods";
-import { describeTarget, rxLabel } from "@/lib/session-labels";
+import { completedCount, describeTarget, rxLabel } from "@/lib/session-labels";
 import type { Block } from "@/lib/set-blocks";
 import type { RoutineExercise } from "@/lib/types";
 
@@ -67,7 +67,7 @@ export function SessionBlockList({
             modalitiesByExercise
               .get(block.exerciseId)
               ?.find((em) => em.modalityId === block.modalityId)?.bandRoles ?? [];
-          const done = block.sets.filter((s) => s.completed).length;
+          const done = completedCount(block.sets);
           const blockDone = done === block.sets.length;
           const isCurrent = block === currentBlock;
           const isExpanded = block.key === shownKey;

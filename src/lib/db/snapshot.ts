@@ -88,12 +88,12 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       fetchAll("sessions", ["date"]),
       fetchAll("set_logs", ["session_id", "position"]),
       fetchAll("weigh_ins", ["client_id", "date"]),
-      // Nutrition tables get their own fallback too: null means
-      // apply_nutrition.sql hasn't run — the rest of the app keeps working
-      // and the Tracking tab shows a setup note.
+      // Nutrition tables get their own fallback too: null means they don't
+      // exist yet — the rest of the app keeps working and the Tracking tab
+      // shows a setup note.
       fetchAll("foods", ["name"]).catch(nullIfMissing),
       fetchAll("food_logs", ["client_id", "date"]).catch(nullIfMissing),
-      // Exercise catalog: null means apply_exercises.sql hasn't run — the
+      // Exercise catalog: null means those tables don't exist yet — the
       // catalog serves read-only from the TS seed and /exercises shows a note.
       fetchAll("exercises", ["name"]).catch(nullIfMissing),
       fetchAll("exercise_muscle_scores", ["exercise_id", "muscle_id"]).catch(nullIfMissing),

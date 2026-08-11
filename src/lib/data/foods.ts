@@ -3,8 +3,8 @@ import type { Food } from "../types";
 /**
  * SEED FIXTURE — a handful of foods for the read-only fallback and the vitest
  * fixtures (`seedSnapshot()`). The CANONICAL starter catalog lives in
- * supabase/schema.sql (and apply_nutrition.sql); the live app reads foods from
- * the database, never from here. Values are per full 10 1/16" plate.
+ * supabase/schema.sql; the live app reads foods from the database, never from
+ * here. Values are per full 10 1/16" plate.
  */
 export const foods: readonly Food[] = [
   { id: "f_chicken_breast", name: "Chicken breast", category: "lean_protein", plateKcal: 800, plateProteinG: 150, plateCarbsG: 0, plateFatG: 18 },

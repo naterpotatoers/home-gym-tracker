@@ -2,7 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { supabase } from "../db/client";
+import {
+  assignmentToRow,
+  programDayToRow,
+  programToRow,
+} from "../db/mappers";
 import { newId, slugId } from "../ids";
+import { isIsoDate, MAX_PROGRAM_WEEKS } from "../validate";
 import { assertNoRefs, revalidateAll, run } from "./_helpers";
 import { assertClientId } from "./clients";
 
@@ -13,7 +19,7 @@ export async function createProgram(formData: FormData): Promise<void> {
   // Programs start at one week; the editor grows them row by row.
   await run(
     "creating program",
-    supabase.from("programs").insert({ id, name, weeks: 1, notes: "" }),
+    supabase.from("programs").insert(programToRow({ id, name, weeks: 1, notes: "" })),
   );
   revalidateAll();
   redirect(`/programs/${id}`);
@@ -111,7 +117,7 @@ export async function addWeek(
   copyFromWeek?: number,
 ): Promise<void> {
   const state = await weekState(programId, copyFromWeek);
-  if (state.weeks >= 52) throw new Error("Programs cap at 52 weeks.");
+  if (state.weeks >= MAX_PROGRAM_WEEKS) throw new Error(`Programs cap at ${MAX_PROGRAM_WEEKS} weeks.`);
   const newWeek = state.weeks + 1;
 
   await run(
@@ -132,7 +138,7 @@ export async function addWeek(
 /** Insert a copy of `week` directly after it, shifting later weeks down. */
 export async function duplicateWeek(programId: string, week: number): Promise<void> {
   const state = await weekState(programId, week);
-  if (state.weeks >= 52) throw new Error("Programs cap at 52 weeks.");
+  if (state.weeks >= MAX_PROGRAM_WEEKS) throw new Error(`Programs cap at ${MAX_PROGRAM_WEEKS} weeks.`);
   const later = state.all.filter((d) => d.week > week);
 
   // Rewrite: delete everything after the source week, then reinsert shifted
@@ -192,12 +198,9 @@ export async function setProgramDay(
 ): Promise<void> {
   await run(
     "scheduling day",
-    supabase.from("program_days").upsert({
-      program_id: programId,
-      week,
-      day_of_week: dayOfWeek,
-      routine_id: routineId,
-    }),
+    supabase
+      .from("program_days")
+      .upsert(programDayToRow({ programId, week, dayOfWeek, routineId })),
   );
   revalidateAll();
 }
@@ -236,16 +239,18 @@ export async function createAssignment(formData: FormData): Promise<void> {
   const clientId = String(formData.get("clientId") ?? "");
   const startDate = String(formData.get("startDate") ?? "");
   await assertClientId(clientId);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) throw new Error("Pick a start date.");
+  if (!isIsoDate(startDate)) throw new Error("Pick a start date.");
   await run(
     "assigning program",
-    supabase.from("assignments").insert({
-      id: newId("a"),
-      program_id: programId,
-      client_id: clientId,
-      start_date: startDate,
-      status: "active",
-    }),
+    supabase.from("assignments").insert(
+      assignmentToRow({
+        id: newId("a"),
+        programId,
+        clientId,
+        startDate,
+        status: "active",
+      }),
+    ),
   );
   revalidateAll();
 }

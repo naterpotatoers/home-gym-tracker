@@ -130,4 +130,7 @@ export const bodyMap: Record<MuscleId, readonly MuscleRegion[]> = {
   calves: [
     { view: "back", mirror: true, d: "M60 330 C68 322 82 324 88 332 L86 372 C82 398 70 398 66 384 L58 352 Z" },
   ],
+  tibialis: [
+    { view: "front", mirror: true, d: "M62 328 C68 322 78 324 84 330 L82 372 C78 394 68 394 64 382 L58 350 Z" },
+  ],
 };

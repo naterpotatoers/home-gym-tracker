@@ -122,7 +122,7 @@ export default async function UsersPage({
                 {data.nutritionSource === "missing" ? (
                   <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
                     The nutrition tables don&apos;t exist yet — run{" "}
-                    <code className="font-mono">supabase/apply_nutrition.sql</code>{" "}
+                    <code className="font-mono">supabase/schema.sql</code>{" "}
                     in the Supabase SQL editor once, then reload.
                   </p>
                 ) : (

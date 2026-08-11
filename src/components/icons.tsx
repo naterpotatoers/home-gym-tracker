@@ -13,7 +13,7 @@
  * - SwapIcon  = swap / replace an exercise
  */
 
-export function iconProps(size = 18) {
+function iconProps(size = 18) {
   return {
     width: size,
     height: size,

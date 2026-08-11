@@ -156,6 +156,7 @@ export type FoodLogRow = {
 export type ExerciseRow = {
   id: string;
   name: string;
+  aliases: string[];
   pattern: Exercise["pattern"];
   metric_type: Exercise["metricType"];
   is_compound: boolean;
@@ -429,6 +430,9 @@ export function rowToExercise(r: ExerciseRow): Exercise {
   return {
     id: r.id,
     name: r.name,
+    // `?? []` tolerates a DB whose exercises table predates the aliases
+    // column, so reads stay safe until schema.sql's current shape is applied.
+    aliases: r.aliases ?? [],
     pattern: r.pattern,
     metricType: r.metric_type,
     isCompound: r.is_compound,
@@ -439,6 +443,7 @@ export function exerciseToRow(e: Exercise): ExerciseRow {
   return {
     id: e.id,
     name: e.name,
+    aliases: [...(e.aliases ?? [])],
     pattern: e.pattern,
     metric_type: e.metricType,
     is_compound: e.isCompound,

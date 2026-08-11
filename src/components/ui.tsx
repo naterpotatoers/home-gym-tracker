@@ -9,7 +9,7 @@
 
 /** Base classes for text controls. `size="sm"` (h-9) is an escape hatch for
  *  dense desktop-only table cells — never for primary touch flows. */
-export const inputClass =
+const inputClass =
   "rounded-md border border-border-strong bg-surface-input text-base " +
   "text-foreground placeholder:text-muted/70 focus-visible:outline-none " +
   "focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:border-accent";

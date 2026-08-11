@@ -1,7 +1,12 @@
 import { MUSCLE_GROUP_COLORS } from "./data/muscles";
 import type { GymData } from "./gym-data";
 import { defaultClientId } from "./queries";
+import type { MuscleGroupId } from "./types";
 import { isModalityId } from "./validate";
+
+function isMuscleGroupId(value: string): value is MuscleGroupId {
+  return value in MUSCLE_GROUP_COLORS;
+}
 
 /** The Progress page's full URL state, already parsed/defaulted by the
  *  server page. Shared by the server page (building Links) and the client
@@ -21,9 +26,9 @@ export type ProgressParams = {
   repMin: number;
   repMax: number;
   weight: number;
-  /** Lift-list filters: modality + muscle group. */
+  /** Lift-list filters: modality + muscle group ("" = no filter). */
   mod: string;
-  group: string;
+  group: MuscleGroupId | "";
 };
 
 export const PROGRESS_DEFAULTS = {
@@ -63,7 +68,7 @@ export function parseProgressParams(
     repMax: clampInt(raw.repMax, PROGRESS_DEFAULTS.repMax, 1),
     weight: clampInt(raw.weight, PROGRESS_DEFAULTS.weight, 0),
     mod: raw.mod && isModalityId(raw.mod) ? raw.mod : "",
-    group: raw.group && raw.group in MUSCLE_GROUP_COLORS ? raw.group : "",
+    group: raw.group && isMuscleGroupId(raw.group) ? raw.group : "",
   };
 }
 

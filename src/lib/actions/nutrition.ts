@@ -2,12 +2,13 @@
 
 import { foodCategoryById } from "../data/food-categories";
 import { supabase } from "../db/client";
-import { foodToRow, rowToFood, type FoodRow } from "../db/mappers";
+import { foodLogToRow, foodToRow, rowToFood, type FoodRow } from "../db/mappers";
 import { newId, slugId } from "../ids";
-import { normalizeFoodName, scaledMacros } from "../nutrition";
+import { normalizeName } from "../names";
+import { scaledMacros } from "../nutrition";
 import type { Food } from "../types";
-import { isFoodCategoryId } from "../validate";
-import { revalidateAll, run } from "./_helpers";
+import { isFoodCategoryId, isIsoDate } from "../validate";
+import { revalidateAll, run, runOrDuplicate } from "./_helpers";
 import { assertClientId } from "./clients";
 
 export type CreateFoodInput = {
@@ -25,7 +26,7 @@ export type CreateFoodInput = {
  *  a clean failure rather than clutter. Returns the created food so the UI
  *  can log it immediately. */
 export async function createFood(input: CreateFoodInput): Promise<Food> {
-  const name = normalizeFoodName(input.name);
+  const name = normalizeName(input.name);
   if (!name) throw new Error("A food needs a name.");
   if (!isFoodCategoryId(input.category)) throw new Error(`bad category ${input.category}`);
   const defaults = foodCategoryById.get(input.category)!;
@@ -48,14 +49,11 @@ export async function createFood(input: CreateFoodInput): Promise<Food> {
     plateFatG: value(input.plateFatG, defaults.plateFatG, "Fat"),
   };
 
-  const { error } = await supabase.from("foods").insert(foodToRow(food));
-  if (error) {
-    // 23505 = unique_violation on lower(name): the food already exists.
-    if (error.code === "23505") {
-      throw new Error(`"${name}" is already in the catalog — search for it instead.`);
-    }
-    throw new Error(`adding food: ${error.message}`);
-  }
+  await runOrDuplicate(
+    "adding food",
+    supabase.from("foods").insert(foodToRow(food)),
+    `"${name}" is already in the catalog — search for it instead.`,
+  );
   revalidateAll();
   return food;
 }
@@ -70,7 +68,7 @@ export async function logFood(
   plateFraction: number,
 ): Promise<void> {
   await assertClientId(clientId);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Pick a date.");
+  if (!isIsoDate(date)) throw new Error("Pick a date.");
   if (!Number.isFinite(plateFraction) || plateFraction <= 0 || plateFraction > 1) {
     throw new Error("Plate fraction must be between 0 and 1.");
   }
@@ -85,17 +83,19 @@ export async function logFood(
 
   await run(
     "logging food",
-    supabase.from("food_logs").insert({
-      id: newId("fl"),
-      client_id: clientId,
-      date,
-      food_id: foodId,
-      plate_fraction: plateFraction,
-      kcal: macros.kcal,
-      protein_g: macros.proteinG,
-      carbs_g: macros.carbsG,
-      fat_g: macros.fatG,
-    }),
+    supabase.from("food_logs").insert(
+      foodLogToRow({
+        id: newId("fl"),
+        clientId,
+        date,
+        foodId,
+        plateFraction,
+        kcal: macros.kcal,
+        proteinG: macros.proteinG,
+        carbsG: macros.carbsG,
+        fatG: macros.fatG,
+      }),
+    ),
   );
   revalidateAll();
 }

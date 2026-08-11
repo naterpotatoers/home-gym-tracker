@@ -1,7 +1,9 @@
+import { nameKey } from "./names";
 import type {
   Exercise,
   ExerciseModality,
   ExerciseMuscleScore,
+  MetricType,
   MovementPattern,
 } from "./types";
 
@@ -78,6 +80,45 @@ export const PATTERN_LABELS: Record<MovementPattern, string> = {
 };
 
 export const PATTERN_ORDER = Object.keys(PATTERN_LABELS) as MovementPattern[];
+
+/** Display labels for metric types — same compile-error guarantee. */
+export const METRIC_LABELS: Record<MetricType, string> = {
+  reps: "Reps",
+  time: "Time",
+  distance: "Distance",
+};
+
+export const METRIC_ORDER = Object.keys(METRIC_LABELS) as MetricType[];
+
+// ---------------------------------------------------------------------------
+// Names and aliases — the duplicate guard (normalization lives in names.ts)
+// ---------------------------------------------------------------------------
+
+export const MAX_ALIASES = 8;
+
+/** What the duplicate guard needs to know about an exercise — a full
+ *  `Exercise` satisfies it, and so does a narrow `select id, name, aliases`. */
+export type NamedExercise = Pick<Exercise, "id" | "name" | "aliases">;
+
+/**
+ * First exercise whose name or alias matches one of `candidateKeys`
+ * (exercise-name keys). `excludeId` skips the exercise being renamed so its
+ * own name doesn't count as a collision.
+ */
+export function findNameCollision(
+  exercises: readonly NamedExercise[],
+  candidateKeys: readonly string[],
+  excludeId?: string,
+): { exercise: NamedExercise; matched: string } | null {
+  const wanted = new Set(candidateKeys);
+  for (const exercise of exercises) {
+    if (exercise.id === excludeId) continue;
+    for (const known of [exercise.name, ...(exercise.aliases ?? [])]) {
+      if (wanted.has(nameKey(known))) return { exercise, matched: known };
+    }
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Muscle-score roles — the authoring guardrail

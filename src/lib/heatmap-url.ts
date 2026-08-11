@@ -30,6 +30,11 @@ export const HEATMAP_DEFAULTS = {
 } as const;
 
 const PERIOD_KINDS: readonly PeriodKind[] = ["day", "week", "program", "custom"];
+const periodKindSet = new Set<string>(PERIOD_KINDS);
+
+function isPeriodKind(value: string): value is PeriodKind {
+  return periodKindSet.has(value);
+}
 
 export function parseHeatmapParams(
   raw: Record<string, string | undefined>,
@@ -40,9 +45,8 @@ export function parseHeatmapParams(
     client: raw.client && data.clientById.has(raw.client) ? raw.client : fallback,
     defaultClient: fallback,
     mode: raw.mode === "prescribed" ? "prescribed" : HEATMAP_DEFAULTS.mode,
-    period: PERIOD_KINDS.includes(raw.period as PeriodKind)
-      ? (raw.period as PeriodKind)
-      : HEATMAP_DEFAULTS.period,
+    period:
+      raw.period && isPeriodKind(raw.period) ? raw.period : HEATMAP_DEFAULTS.period,
     date: raw.date,
     from: raw.from,
     to: raw.to,

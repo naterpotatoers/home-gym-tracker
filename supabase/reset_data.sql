@@ -40,3 +40,11 @@ truncate table set_logs, sessions, assignments;
 --    truncate succeeds even with history present (which then renders raw ids).
 -- ---------------------------------------------------------------------------
 -- truncate table exercise_modalities, exercise_muscle_scores, exercises;
+
+-- ---------------------------------------------------------------------------
+-- 6. OPTIONAL: also wipe nutrition. food_logs is eating history; foods is the
+--    catalog — wiping foods leaves nutrition unusable until you re-run
+--    schema.sql's starter foods insert (idempotent) or add foods in the app.
+-- ---------------------------------------------------------------------------
+-- truncate table food_logs;
+-- truncate table foods cascade;

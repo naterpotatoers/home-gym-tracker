@@ -1,4 +1,5 @@
 import type { GymData } from "./gym-data";
+import { nameKey } from "./names";
 import type { ClientId, Food, FoodLog } from "./types";
 
 /**
@@ -26,30 +27,14 @@ export function scaledMacros(food: Food, fraction: number): Macros {
   };
 }
 
-/** Display name cleanup: trimmed, single-spaced. */
-export function normalizeFoodName(raw: string): string {
-  return raw.trim().replace(/\s+/g, " ");
-}
-
-/** Case-insensitive comparison key — matches the DB's lower(name) unique
- *  index, so "exists already?" checks agree with what an insert would hit. */
-export function foodNameKey(raw: string): string {
-  return normalizeFoodName(raw).toLowerCase();
-}
-
 /** Foods whose name contains the query (case-insensitive), name-sorted.
  *  Empty query returns the whole catalog. Takes the plain array (not
  *  GymData) so the client-side search box can reuse it. */
 export function searchFoods(foods: readonly Food[], query: string): Food[] {
-  const q = foodNameKey(query);
+  const q = nameKey(query);
   return foods
     .filter((f) => f.name.toLowerCase().includes(q))
     .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-/** One client's logs for one local ISO day, in logged order. */
-export function foodLogsFor(data: GymData, clientId: ClientId, date: string): FoodLog[] {
-  return data.foodLogs.filter((l) => l.clientId === clientId && l.date === date);
 }
 
 /** Sum of the snapshot values — never recomputed from current food data. */

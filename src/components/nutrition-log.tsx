@@ -16,9 +16,9 @@ import {
 import { createFood, deleteFoodLog, logFood } from "@/lib/actions/nutrition";
 import { foodCategories, foodCategoryById } from "@/lib/data/food-categories";
 import { errorMessage } from "@/lib/format";
+import { nameKey } from "@/lib/names";
 import {
   dayTotals,
-  foodNameKey,
   fractionLabel,
   searchFoods,
   type RecentFood,
@@ -62,7 +62,7 @@ export function NutritionLog({
   const dayLogs = logs.filter((l) => l.date === date);
   const totals = dayTotals(dayLogs);
   const results = searchFoods(foods, search);
-  const hasExactMatch = results.some((f) => foodNameKey(f.name) === foodNameKey(search));
+  const hasExactMatch = results.some((f) => nameKey(f.name) === nameKey(search));
   const categoryDefaults = foodCategoryById.get(category)!;
   const foodName = (id: string) => foods.find((f) => f.id === id)?.name ?? id;
 

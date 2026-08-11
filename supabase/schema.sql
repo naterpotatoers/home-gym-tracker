@@ -142,7 +142,10 @@ create table exercises (
     ('squat', 'hinge', 'lunge', 'push_h', 'push_v', 'pull_h', 'pull_v',
      'carry', 'core', 'isolation', 'mobility')),
   metric_type text not null check (metric_type in ('reps', 'time', 'distance')),
-  is_compound boolean not null default false
+  is_compound boolean not null default false,
+  -- Alternative names ("Overhead Press" for Shoulder Press) — searched by the
+  -- picker and checked by the duplicate guard, never displayed as the title.
+  aliases text[] not null default '{}'
 );
 
 -- Authored once per exercise; modality muscleModifiers adjust these in app
@@ -233,7 +236,7 @@ begin
   end loop;
 end $$;
 
--- Starter food catalog — ~40 household staples so day-one logging is picking,
+-- Starter food catalog — 48 household staples so day-one logging is picking,
 -- not creating. Values are per FULL 10 1/16" plate (drinks: 12 oz glass),
 -- curated rough estimates. Idempotent: safe to re-run.
 insert into foods (id, name, category, plate_kcal, plate_protein_g, plate_carbs_g, plate_fat_g) values

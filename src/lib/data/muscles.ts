@@ -51,6 +51,7 @@ export const muscles: readonly Muscle[] = [
   { id: "glute_med", name: "Glute Med (Hip Abductors)", groupId: "legs" },
   { id: "adductors", name: "Adductors (Inner Thigh)", groupId: "legs" },
   { id: "calves", name: "Calves", groupId: "legs" },
+  { id: "tibialis", name: "Tibialis (Shin)", groupId: "legs" },
   { id: "hip_flexors", name: "Hip Flexors", groupId: "legs" },
   // core
   { id: "abs", name: "Abdominals", groupId: "core" },

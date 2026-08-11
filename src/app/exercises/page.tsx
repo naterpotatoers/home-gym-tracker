@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { PlusIcon } from "@/components/icons";
 import { Button, Card, Note, PageShell } from "@/components/ui";
-import { createExercise, importSeedExercises } from "@/lib/actions/exercises";
+import {
+  importSeedExercises,
+  resyncSeedCatalogScores,
+} from "@/lib/actions/exercises";
+import { exercises as seedExercises } from "@/lib/data/exercises";
 import { loadGymData } from "@/lib/db/snapshot";
 import {
   catalogSlice,
   PATTERN_LABELS,
   PATTERN_ORDER,
 } from "@/lib/exercise-catalog";
-import { AddExerciseFields } from "./_components/add-exercise-fields";
+import { AddExerciseForm } from "./_components/add-exercise-form";
 import { ExerciseEditor } from "./_components/exercise-editor";
 
 /**
@@ -32,7 +36,7 @@ export default async function ExercisesPage({
   const migrationNote = readOnly && (
     <p className="mb-6 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
       The exercise tables don&apos;t exist yet — run{" "}
-      <code className="font-mono">supabase/apply_exercises.sql</code> in the
+      <code className="font-mono">supabase/schema.sql</code> in the
       Supabase SQL editor once, then import the catalog here. Until then this
       page is read-only.
     </p>
@@ -42,8 +46,9 @@ export default async function ExercisesPage({
     <Card className="mt-4">
       <h2 className="mb-2 text-lg font-semibold">Import the seed catalog</h2>
       <p className="mb-3 text-sm text-muted">
-        The exercise tables are empty. Import the built-in catalog (~110
-        exercises with muscle scores and equipment variants) to start.
+        The exercise tables are empty. Import the built-in catalog (
+        {seedExercises.length} exercises with muscle scores and equipment
+        variants) to start.
       </p>
       <form action={importSeedExercises}>
         <Button type="submit" variant="primary" size="sm">
@@ -59,20 +64,32 @@ export default async function ExercisesPage({
       {readOnly ? (
         <Note>Run the migration above first — the catalog is read-only.</Note>
       ) : (
-        <>
-          <form action={createExercise} className="space-y-3">
-            <AddExerciseFields />
-            <Button type="submit" variant="primary" size="sm">
-              <PlusIcon size={16} /> Add exercise
-            </Button>
-          </form>
-          <Note>
-            Basics first — muscle roles and equipment variants are authored on
-            the next screen. An exercise with no variant can&apos;t be picked
-            in a routine yet.
-          </Note>
-        </>
+        <AddExerciseForm
+          existing={data.exercises.map((e) => ({
+            name: e.name,
+            aliases: e.aliases ?? [],
+          }))}
+        />
       )}
+    </Card>
+  );
+
+  const resyncCard = !readOnly && data.exercises.length > 0 && (
+    <Card className="mt-4">
+      <h2 className="mb-2 text-lg font-semibold">Re-sync the seed catalog</h2>
+      <p className="mb-3 text-sm text-muted">
+        Adds any built-in exercises missing from your catalog, then overwrites
+        muscle scores and alternative names for all {seedExercises.length}{" "}
+        built-ins with the app&apos;s current seed values — use after a seed
+        correction or new built-ins land. Any score edits you made to
+        built-ins are discarded; custom exercises, names, and equipment
+        variants are untouched.
+      </p>
+      <form action={resyncSeedCatalogScores}>
+        <Button type="submit" size="sm">
+          Re-sync seed scores &amp; aliases
+        </Button>
+      </form>
     </Card>
   );
 
@@ -139,7 +156,10 @@ export default async function ExercisesPage({
               readOnly={readOnly}
             />
           ) : (
-            addCard
+            <>
+              {addCard}
+              {resyncCard}
+            </>
           )}
         </main>
       </div>

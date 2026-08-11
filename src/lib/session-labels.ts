@@ -5,6 +5,11 @@ import type { RoutineExercise, SetLog } from "./types";
 /** Pure label + cursor helpers for the live session cards — extracted so the
  *  self-healing cursor logic is unit-testable outside the client component. */
 
+/** How many of a session's sets are done — the "3/8 sets" numerator. */
+export function completedCount(sets: readonly SetLog[]): number {
+  return sets.filter((s) => s.completed).length;
+}
+
 /** Short prefilled-target label for the one-tap hero row. */
 export function describeTarget(set: SetLog): string {
   if (set.durationSeconds !== null) return `${set.durationSeconds}s`;

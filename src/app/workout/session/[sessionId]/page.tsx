@@ -25,6 +25,7 @@ import {
   sessionVolumeLbs,
 } from "@/lib/queries";
 import { lbs } from "@/lib/format";
+import { completedCount } from "@/lib/session-labels";
 
 export default async function SessionPage({
   params,
@@ -111,7 +112,7 @@ export default async function SessionPage({
                 : null;
             const isPr =
               sessionBest !== null && prior !== null && sessionBest > prior;
-            const done = block.sets.filter((s) => s.completed).length;
+            const done = completedCount(block.sets);
             return (
               <div
                 key={i}

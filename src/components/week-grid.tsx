@@ -15,6 +15,7 @@ import {
 import type { Program, ProgramDay, Routine } from "@/lib/types";
 import { errorMessage } from "@/lib/format";
 import { DAY_LABELS } from "@/lib/periods";
+import { MAX_PROGRAM_WEEKS } from "@/lib/validate";
 
 
 /**
@@ -105,7 +106,7 @@ export function ProgramEditor({
       <span className="flex gap-1">
         <IconButton
           variant="ghost"
-          disabled={pending || program.weeks >= 52}
+          disabled={pending || program.weeks >= MAX_PROGRAM_WEEKS}
           onClick={() => run(() => duplicateWeek(program.id, week))}
           title={`Duplicate week ${week}`}
           aria-label={`Duplicate week ${week}`}
@@ -213,14 +214,14 @@ export function ProgramEditor({
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Button
-          disabled={pending || program.weeks >= 52}
+          disabled={pending || program.weeks >= MAX_PROGRAM_WEEKS}
           onClick={() => run(() => addWeek(program.id))}
         >
           <PlusIcon size={16} /> Add week
         </Button>
         <Button
           variant="ghost"
-          disabled={pending || program.weeks >= 52}
+          disabled={pending || program.weeks >= MAX_PROGRAM_WEEKS}
           onClick={() => run(() => addWeek(program.id, program.weeks))}
         >
           <CopyIcon size={16} /> Add week (copy last)

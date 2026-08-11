@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
 import { buildGymData } from "./gym-data";
+import { nameKey, normalizeName } from "./names";
 import {
   dayTotals,
-  foodLogsFor,
-  foodNameKey,
   fractionLabel,
-  normalizeFoodName,
   recentFoods,
   scaledMacros,
   searchFoods,
@@ -41,11 +39,11 @@ describe("scaledMacros", () => {
 
 describe("food name normalization", () => {
   it("trims and collapses whitespace", () => {
-    expect(normalizeFoodName("  chicken   breast ")).toBe("chicken breast");
+    expect(normalizeName("  chicken   breast ")).toBe("chicken breast");
   });
 
   it("compare key is case-insensitive", () => {
-    expect(foodNameKey("Chicken Breast")).toBe(foodNameKey("  chicken  BREAST"));
+    expect(nameKey("Chicken Breast")).toBe(nameKey("  chicken  BREAST"));
   });
 });
 
@@ -73,12 +71,10 @@ describe("day logs and totals", () => {
     ],
   });
 
-  it("foodLogsFor filters by client and day", () => {
-    expect(foodLogsFor(custom, "nate", "2026-08-01").map((l) => l.id)).toEqual(["a", "b"]);
-  });
-
   it("dayTotals sums the logged snapshots", () => {
-    const totals = dayTotals(foodLogsFor(custom, "nate", "2026-08-01"));
+    const totals = dayTotals(
+      custom.foodLogs.filter((l) => l.clientId === "nate" && l.date === "2026-08-01"),
+    );
     expect(totals.kcal).toBe(850);
     expect(totals.proteinG).toBe(84);
     expect(totals.carbsG).toBe(97.5);

@@ -44,6 +44,7 @@ export type MuscleId =
   | "glute_med"
   | "adductors"
   | "calves"
+  | "tibialis"
   | "hip_flexors"
   // core
   | "abs"
@@ -243,6 +244,10 @@ export type Modality = {
 export type Exercise = {
   id: ExerciseId;
   name: string;
+  /** Alternative names for the same movement ("Overhead Press" for Shoulder
+   *  Press). Searched by the picker and checked by the duplicate guard;
+   *  absent means none. */
+  aliases?: readonly string[];
   pattern: MovementPattern;
   metricType: MetricType;
   isCompound: boolean;

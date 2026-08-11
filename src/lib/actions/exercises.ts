@@ -13,12 +13,16 @@ import {
   exerciseToRow,
 } from "../db/mappers";
 import {
+  findNameCollision,
+  MAX_ALIASES,
   MAX_PRIMARY_MUSCLES,
   MAX_SCORED_MUSCLES,
   ROLE_SCORES,
   scoreForRole,
+  type NamedExercise,
 } from "../exercise-catalog";
 import { slugId } from "../ids";
+import { nameKey, normalizeName } from "../names";
 import type { ExerciseModality, MetricType, MovementPattern, MuscleId } from "../types";
 import {
   isBandRole,
@@ -29,14 +33,14 @@ import {
   isMuscleId,
   isUnilateralMode,
 } from "../validate";
-import { assertNoRefs, revalidateAll, run } from "./_helpers";
+import { assertNoRefs, revalidateAll, run, runOrDuplicate } from "./_helpers";
 
 /**
  * Exercise ids used to be a compile-time union; now they're rows, so actions
  * that take them verify existence before writing. Batched: one query for N
  * ids. Falls back to the TS seed set while the exercise tables don't exist
  * yet (PGRST205), mirroring the read-side fallback, so routine and set writes
- * keep working before apply_exercises.sql has run.
+ * keep working before the exercise tables exist in the DB.
  */
 export async function assertExerciseIds(ids: Iterable<string>): Promise<void> {
   const unique = [...new Set(ids)];
@@ -59,10 +63,45 @@ export async function assertExerciseIds(ids: Iterable<string>): Promise<void> {
   }
 }
 
+/**
+ * The duplicate guard: throws when any of `keys` (exercise-name keys) is
+ * already taken by another exercise's name or alias. Same seed fallback as
+ * assertExerciseIds. The DB's lower(name) unique index still backstops the
+ * name itself against a concurrent insert; aliases have no index, so this
+ * check is their only guard.
+ */
+async function assertNameAvailable(
+  keys: readonly string[],
+  excludeId?: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("exercises")
+    .select("id, name, aliases");
+  let catalog: readonly NamedExercise[];
+  if (error?.code === "PGRST205") {
+    catalog = seedExercises;
+  } else if (error) {
+    throw new Error(`checking exercise names: ${error.message}`);
+  } else {
+    catalog = (data ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      aliases: r.aliases ?? [],
+    }));
+  }
+  const hit = findNameCollision(catalog, keys, excludeId);
+  if (!hit) return;
+  const detail =
+    nameKey(hit.matched) === nameKey(hit.exercise.name)
+      ? `"${hit.exercise.name}" is already in the catalog`
+      : `"${hit.matched}" is already in the catalog as "${hit.exercise.name}"`;
+  throw new Error(`${detail} — edit that exercise instead.`);
+}
+
 /** Basics-only create from the /exercises add card; scores and variants are
  *  authored in the editor afterwards. */
 export async function createExercise(formData: FormData): Promise<void> {
-  const name = String(formData.get("name") ?? "").trim();
+  const name = normalizeName(String(formData.get("name") ?? ""));
   if (!name) throw new Error("Exercise needs a name.");
   const pattern = String(formData.get("pattern") ?? "");
   if (!isMovementPattern(pattern)) throw new Error(`bad pattern ${pattern}`);
@@ -70,12 +109,17 @@ export async function createExercise(formData: FormData): Promise<void> {
   if (!isMetricType(metricType)) throw new Error(`bad metric type ${metricType}`);
   const isCompound = formData.get("isCompound") === "on";
 
+  await assertNameAvailable([nameKey(name)]);
+
   const id = slugId("ex", name);
-  await run(
+  // runOrDuplicate: the lower(name) index backstops a concurrent duplicate
+  // with a readable message instead of a crash.
+  await runOrDuplicate(
     "adding exercise",
     supabase.from("exercises").insert(
-      exerciseToRow({ id, name, pattern, metricType, isCompound }),
+      exerciseToRow({ id, name, aliases: [], pattern, metricType, isCompound }),
     ),
+    `"${name}" is already in the catalog — edit that exercise instead.`,
   );
   revalidateAll();
   redirect(`/exercises?exercise=${id}`);
@@ -83,6 +127,7 @@ export async function createExercise(formData: FormData): Promise<void> {
 
 export type ExercisePayload = {
   name: string;
+  aliases: string[];
   pattern: MovementPattern;
   metricType: MetricType;
   isCompound: boolean;
@@ -97,6 +142,25 @@ function validatePayload(payload: ExercisePayload): void {
   }
   if (!isMetricType(payload.metricType)) {
     throw new Error(`bad metric type ${payload.metricType}`);
+  }
+
+  if (payload.aliases.length > MAX_ALIASES) {
+    throw new Error(`Too many aliases — ${MAX_ALIASES} at most.`);
+  }
+  const ownNameKey = nameKey(payload.name);
+  const seenAliases = new Set<string>();
+  for (const alias of payload.aliases) {
+    const clean = normalizeName(alias);
+    if (!clean) throw new Error("Aliases can't be empty.");
+    if (clean.length > 60) {
+      throw new Error(`Alias "${clean}" is too long — 60 characters at most.`);
+    }
+    const key = nameKey(clean);
+    if (key === ownNameKey) {
+      throw new Error(`"${clean}" is already the exercise's name.`);
+    }
+    if (seenAliases.has(key)) throw new Error(`duplicate alias ${clean}`);
+    seenAliases.add(key);
   }
 
   // Muscle scores are authored as roles (see exercise-catalog.ts), which is
@@ -169,17 +233,28 @@ export async function saveExercise(
   await assertExerciseIds([exerciseId]);
   validatePayload(payload);
 
-  await run(
+  const name = normalizeName(payload.name);
+  const aliases = payload.aliases.map(normalizeName);
+  // Covers renames and new aliases; excludeId lets an exercise keep its own
+  // name/aliases on every save.
+  await assertNameAvailable(
+    [nameKey(name), ...aliases.map(nameKey)],
+    exerciseId,
+  );
+
+  await runOrDuplicate(
     "saving exercise",
     supabase.from("exercises").upsert(
       exerciseToRow({
         id: exerciseId,
-        name: payload.name.trim(),
+        name,
+        aliases,
         pattern: payload.pattern,
         metricType: payload.metricType,
         isCompound: payload.isCompound,
       }),
     ),
+    `"${name}" is already in the catalog — edit that exercise instead.`,
   );
   await run(
     "saving exercise",
@@ -264,5 +339,50 @@ export async function importSeedExercises(): Promise<void> {
         ignoreDuplicates: true,
       }),
   );
+  revalidateAll();
+}
+
+/**
+ * Make the DB's built-in exercises match the CURRENT seed: first the same
+ * add-only upserts as importSeedExercises (so built-ins added to the seed
+ * after the first import — or ones you deleted — come back with their scores
+ * and variants), then an overwrite of muscle scores and aliases for every
+ * built-in. The explicit opt-in counterpart to importSeedExercises'
+ * never-overwrite contract, for when the seed data itself gets corrected
+ * (e.g. after a literature review). Deliberately narrow: names, patterns,
+ * variants, and custom (non-seed-id) exercises are untouched. Not
+ * transactional under PostgREST — same caveat as saveExercise.
+ */
+export async function resyncSeedCatalogScores(): Promise<void> {
+  // Restore/add any missing built-ins first. This is what makes the button
+  // sufficient on its own — the "Import seed catalog" card is only rendered
+  // while the exercises table is EMPTY, so an already-imported DB has no
+  // other way to receive newly added seed exercises.
+  await importSeedExercises();
+
+  // Every seed id exists now, so the score overwrite is FK-safe.
+  const seedIds = seedExercises.map((e) => e.id);
+  await run(
+    "re-syncing seed scores",
+    supabase.from("exercise_muscle_scores").delete().in("exercise_id", seedIds),
+  );
+  await run(
+    "re-syncing seed scores",
+    supabase
+      .from("exercise_muscle_scores")
+      .insert(seedExerciseMuscleScores.map(exerciseMuscleScoreToRow)),
+  );
+
+  // Targeted alias update per exercise — an upsert of the whole row would
+  // also revert name/pattern edits, which stay the user's.
+  for (const exercise of seedExercises) {
+    await run(
+      "re-syncing seed aliases",
+      supabase
+        .from("exercises")
+        .update({ aliases: [...(exercise.aliases ?? [])] })
+        .eq("id", exercise.id),
+    );
+  }
   revalidateAll();
 }

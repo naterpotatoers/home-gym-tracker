@@ -1,4 +1,4 @@
-import { exerciseLookup } from "./exercise-catalog";
+import { exerciseLookup, groupBy } from "./exercise-catalog";
 import type {
   Assignment,
   Client,
@@ -89,22 +89,12 @@ export type GymTables = Pick<
 >;
 
 export function buildGymData(tables: GymTables): GymData {
-  const setsBySession = new Map<string, SetLog[]>();
-  for (const set of tables.setLogs) {
-    const existing = setsBySession.get(set.sessionId);
-    if (existing) existing.push(set);
-    else setsBySession.set(set.sessionId, [set]);
-  }
+  const setsBySession = groupBy(tables.setLogs, (s) => s.sessionId);
   for (const list of setsBySession.values()) {
     list.sort((a, b) => a.position - b.position);
   }
 
-  const exercisesByRoutine = new Map<string, RoutineExercise[]>();
-  for (const row of tables.routineExercises) {
-    const existing = exercisesByRoutine.get(row.routineId);
-    if (existing) existing.push(row);
-    else exercisesByRoutine.set(row.routineId, [row]);
-  }
+  const exercisesByRoutine = groupBy(tables.routineExercises, (r) => r.routineId);
   for (const list of exercisesByRoutine.values()) {
     list.sort((a, b) => a.order - b.order);
   }

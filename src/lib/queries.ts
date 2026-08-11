@@ -243,14 +243,14 @@ export function repsForWeight(e1rmLbs: number, weightLbs: number): number {
 
 /** Every exercise × modality anyone has actually trained — the picker list for
  *  the metrics explorer. */
-export type TrainedVariant = {
+type TrainedVariant = {
   exerciseId: ExerciseId;
   modalityId: ModalityId;
   clients: ClientId[];
   lastDate: string;
 };
 
-export function trainedVariants(data: GymData): TrainedVariant[] {
+function trainedVariants(data: GymData): TrainedVariant[] {
   const byKey = new Map<string, TrainedVariant & { clientSet: Set<ClientId> }>();
   for (const set of data.setLogs) {
     if (set.isWarmup || !set.completed) continue;
@@ -535,6 +535,8 @@ export function muscleVolume(
 export type Variant = {
   exerciseModality: ExerciseModality;
   exerciseName: string;
+  /** Alternative names ("Overhead Press") so picker search finds them. */
+  exerciseAliases: readonly string[];
   modalityName: string;
   /** Carried on the variant so client components (picker, set editor) don't
    *  need the whole catalog just to group by pattern or default a duration. */
@@ -560,6 +562,7 @@ export function availableVariants(
     .map((em) => ({
       exerciseModality: em,
       exerciseName: exerciseById.get(em.exerciseId)?.name ?? em.exerciseId,
+      exerciseAliases: exerciseById.get(em.exerciseId)?.aliases ?? [],
       modalityName: modalityById.get(em.modalityId)?.name ?? em.modalityId,
       pattern: exerciseById.get(em.exerciseId)?.pattern ?? "isolation",
       metricType: exerciseById.get(em.exerciseId)?.metricType ?? "reps",

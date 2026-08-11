@@ -28,6 +28,8 @@ import {
   exerciseLookup,
   MAX_PRIMARY_MUSCLES,
   MAX_SCORED_MUSCLES,
+  METRIC_LABELS,
+  METRIC_ORDER,
   PATTERN_LABELS,
   PATTERN_ORDER,
   roleForScore,
@@ -36,11 +38,11 @@ import {
   type ExerciseCatalog,
   type ScoreRole,
 } from "@/lib/exercise-catalog";
+import { nameKey, normalizeName } from "@/lib/names";
+import { BAND_ROLES, UNILATERAL_MODES } from "@/lib/validate";
 import { errorMessage } from "@/lib/format";
 import type { HeatValue } from "@/lib/heat";
 import type {
-  BandRole,
-  EquipmentId,
   Exercise,
   ExerciseModality,
   ExerciseMuscleScore,
@@ -52,13 +54,6 @@ import type {
 
 type ScoreRow = { muscleId: MuscleId; role: ScoreRole };
 type VariantRow = Omit<ExerciseModality, "exerciseId">;
-
-const BAND_ROLES: readonly BandRole[] = ["resistance", "assistance"];
-const UNILATERAL_MODES: readonly UnilateralMode[] = [
-  "bilateral",
-  "alternating",
-  "single_side",
-];
 
 function toScoreRows(scores: readonly ExerciseMuscleScore[]): ScoreRow[] {
   return scores.map((s) => ({ muscleId: s.muscleId, role: roleForScore(s.score) }));
@@ -111,6 +106,7 @@ export function ExerciseEditor({
   readOnly: boolean;
 }) {
   const [name, setName] = useState(exercise.name);
+  const [aliasText, setAliasText] = useState((exercise.aliases ?? []).join(", "));
   const [pattern, setPattern] = useState<MovementPattern>(exercise.pattern);
   const [metricType, setMetricType] = useState<MetricType>(exercise.metricType);
   const [isCompound, setIsCompound] = useState(exercise.isCompound);
@@ -198,8 +194,18 @@ export function ExerciseEditor({
     setError(null);
     setSaveState("saving");
     try {
+      const seenAliases = new Set<string>();
+      const aliases: string[] = [];
+      for (const raw of aliasText.split(",")) {
+        const alias = normalizeName(raw);
+        const key = nameKey(alias);
+        if (!alias || seenAliases.has(key)) continue;
+        seenAliases.add(key);
+        aliases.push(alias);
+      }
       const payload: ExercisePayload = {
         name,
+        aliases,
         pattern,
         metricType,
         isCompound,
@@ -259,11 +265,25 @@ export function ExerciseEditor({
             onChange={(e) => setMetricType(e.target.value as MetricType)}
             disabled={readOnly}
           >
-            <option value="reps">Reps</option>
-            <option value="time">Time</option>
-            <option value="distance">Distance</option>
+            {METRIC_ORDER.map((metric) => (
+              <option key={metric} value={metric}>
+                {METRIC_LABELS[metric]}
+              </option>
+            ))}
           </Select>
         </Field>
+        <div className="col-span-2 sm:col-span-3">
+          <Field label="Also known as (comma-separated)">
+            <Input
+              type="text"
+              value={aliasText}
+              onChange={(e) => setAliasText(e.target.value)}
+              disabled={readOnly}
+              placeholder="Overhead Press, OHP"
+              className="w-full"
+            />
+          </Field>
+        </div>
         <label className="col-span-2 flex min-h-11 items-center gap-2 text-sm sm:col-span-3">
           <Checkbox
             checked={isCompound}
@@ -529,7 +549,7 @@ export function ExerciseEditor({
                             : "border-border text-muted hover:bg-current/5"
                         }`}
                       >
-                        {(item.id as EquipmentId).replace(/_/g, " ")}
+                        {item.id.replace(/_/g, " ")}
                       </button>
                     );
                   })}

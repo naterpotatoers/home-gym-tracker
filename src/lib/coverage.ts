@@ -82,23 +82,6 @@ export function coverageStatus(row: MuscleCoverage): CoverageStatus {
   return "solid";
 }
 
-/**
- * Status band for LOGGED volume (`MuscleVolume`), relative to the largest bar
- * on screen — the question there is balance, not absolute dose. Ordinal-only
- * muscles (hip-band work: reps, no pounds) are at most `light`, never
- * `neglected` — they are trained, just not lbs-measurable.
- */
-export function volumeStatus(
-  row: { weightedVolumeLbs: number; ordinalReps: number; peakScore: number },
-  max: number,
-): CoverageStatus {
-  if (row.weightedVolumeLbs === 0 && row.ordinalReps === 0) return "neglected";
-  if (row.ordinalReps > 0 && row.weightedVolumeLbs === 0) return "light";
-  if (row.peakScore < 5) return "neglected";
-  if (max > 0 && row.weightedVolumeLbs < 0.25 * max) return "light";
-  return "solid";
-}
-
 export type GroupedCoverage = {
   groupId: MuscleGroupId;
   label: string;

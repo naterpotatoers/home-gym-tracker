@@ -46,7 +46,10 @@ export function ExercisePicker({
     const q = search.trim().toLowerCase();
     const filtered = q
       ? variants.filter((v) =>
-          `${v.exerciseName} ${v.modalityName}`.toLowerCase().includes(q),
+          [v.exerciseName, ...v.exerciseAliases, v.modalityName]
+            .join(" ")
+            .toLowerCase()
+            .includes(q),
         )
       : variants;
 

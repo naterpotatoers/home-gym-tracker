@@ -5,6 +5,7 @@ import { Select, StepperInput } from "@/components/ui";
 import { muscleGroups } from "@/lib/data/muscles";
 import { modalities } from "@/lib/data/modalities";
 import { progressHref, type ProgressParams } from "@/lib/progress-url";
+import type { MuscleGroupId } from "@/lib/types";
 
 function useNavigate(params: ProgressParams) {
   const router = useRouter();
@@ -77,7 +78,12 @@ export function LiftListControls({ params }: { params: ProgressParams }) {
       </label>
       <label className="flex items-center gap-1.5 text-xs text-muted">
         Muscle
-        <Select value={params.group} onChange={(e) => navigate({ group: e.target.value })}>
+        <Select
+          value={params.group}
+          onChange={(e) =>
+            navigate({ group: e.target.value as MuscleGroupId | "" })
+          }
+        >
           <option value="">all</option>
           {[...muscleGroups]
             .sort((a, b) => a.order - b.order)

@@ -15,6 +15,7 @@ import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import type { Variant } from "@/lib/queries";
 import type { Block } from "@/lib/set-blocks";
 import { errorMessage } from "@/lib/format";
+import { completedCount } from "@/lib/session-labels";
 
 type PickerTarget = { mode: "add" } | { mode: "replace"; block: Block };
 
@@ -47,7 +48,7 @@ export function GroupPersonCard({
   /** Set once the session is saved as completed — holds the recap payload. */
   const [finishedAs, setFinishedAs] = useState<FinishPayload | null>(null);
 
-  const doneCount = editor.sets.filter((s) => s.completed).length;
+  const doneCount = completedCount(editor.sets);
   const finished = finishedAs !== null;
   const resting = flow.resting && !finished;
   const ready = flow.ready && !finished;

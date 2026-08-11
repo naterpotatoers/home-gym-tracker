@@ -2,11 +2,11 @@
 
 import { useMemo, useRef, useState } from "react";
 import { getSuggestedLoad, syncSetLogs, updateSetLog } from "@/lib/actions/workout";
+import { errorMessage } from "@/lib/format";
 import { randomSuffix } from "@/lib/ids";
 import type { Variant } from "@/lib/queries";
 import { renumber, toBlocks, type Block } from "@/lib/set-blocks";
 import type { Session, SetLog } from "@/lib/types";
-import { errorMessage } from "@/lib/format";
 
 function clientSetId(): string {
   return `sl_${randomSuffix(8)}`;

@@ -1,4 +1,5 @@
 import { buildGymData, type GymData } from "../gym-data";
+import { careRoutineExercises, careRoutines } from "./care-routines";
 import { clients, weighIns } from "./clients";
 import {
   exerciseModalities,
@@ -23,8 +24,10 @@ import { sessions, setLogs } from "./sessions";
 export function seedSnapshot(): GymData {
   return buildGymData({
     source: "seed",
-    routines,
-    routineExercises,
+    // Care routines append after the training fixtures so routines[0] stays
+    // r_full_a for tests that lean on it.
+    routines: [...routines, ...careRoutines],
+    routineExercises: [...routineExercises, ...careRoutineExercises],
     programs,
     programDays,
     assignments,

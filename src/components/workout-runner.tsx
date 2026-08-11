@@ -15,6 +15,7 @@ import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import type { Variant } from "@/lib/queries";
 import type { RoutineExercise, Session, SetLog } from "@/lib/types";
 import { errorMessage } from "@/lib/format";
+import { completedCount } from "@/lib/session-labels";
 
 type PickerTarget = { mode: "add" } | { mode: "replace"; index: number };
 
@@ -50,7 +51,7 @@ export function WorkoutRunner({
   /** Manual minutes correction; null = trust the clock. */
   const [durationOverride, setDurationOverride] = useState<number | null>(null);
 
-  const doneCount = editor.sets.filter((s) => s.completed).length;
+  const doneCount = completedCount(editor.sets);
   const durationMinutes = durationOverride ?? clock.elapsedMinutes;
 
   async function handleFinish(payload: FinishPayload) {
