@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next"
 import { Nav } from "@/components/nav";
 import { SeedBanner } from "@/components/ui";
 import { loadGymData } from "@/lib/db/snapshot";
@@ -51,6 +52,7 @@ export default async function RootLayout({
           </div>
         )}
         {children}
+        <Analytics />
       </body>
     </html>
   );
