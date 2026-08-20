@@ -8,7 +8,7 @@ import { muscles } from "./data/muscles";
 import { exerciseLookup, type ExerciseCatalog } from "./exercise-catalog";
 import type { GymData } from "./gym-data";
 import { nearestLoadableWeight } from "./loading";
-import { currentProgramWeek, localIso, localTodayIso } from "./periods";
+import { ageOnIso, currentProgramWeek, localIso, localTodayIso } from "./periods";
 import { toBlocks, type Block } from "./set-blocks";
 import {
   bestE1rm,
@@ -38,15 +38,6 @@ import type {
 // People
 // ---------------------------------------------------------------------------
 
-/** Age from date of birth, so it never goes stale. */
-function ageOn(dateOfBirth: string, asOf: Date = new Date()): number {
-  const dob = new Date(`${dateOfBirth}T00:00:00`);
-  let age = asOf.getFullYear() - dob.getFullYear();
-  const monthDiff = asOf.getMonth() - dob.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && asOf.getDate() < dob.getDate())) age--;
-  return age;
-}
-
 /** The roster's first client — the fallback wherever a page needs SOME
  *  client and the URL didn't name one. Never hardcode a client id: they're
  *  DB rows now and any given roster may lack it. */
@@ -73,7 +64,7 @@ export function clientSummaries(data: GymData, asOf: Date = new Date()): ClientS
     const atJoin = latestBodyweight(data, client.id, client.joinDate);
     return {
       client,
-      age: ageOn(client.dateOfBirth, asOf),
+      age: ageOnIso(client.dateOfBirth, isoToday),
       bodyweightLbs: current,
       bodyweightChangeLbs:
         current !== null && atJoin !== null && atJoin !== current
@@ -112,6 +103,29 @@ export function openBoardGroups(
     .filter(([, ids]) => ids.length >= 2)
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([date, sessionIds]) => ({ date, sessionIds }));
+}
+
+/** Where a one-tap start should send a client who already has an unfinished
+ *  session: the shared board when it belongs to an open board group,
+ *  otherwise the solo runner. Null when nothing is planned. Entry points use
+ *  this to offer Resume instead of silently starting a duplicate session. */
+export function resumeTargetForClient(
+  data: GymData,
+  clientId: ClientId,
+): { href: string; sessionId: string; routineId: string | null; date: string } | null {
+  const session = data.sessions
+    .filter((s) => s.clientId === clientId && s.status === "planned")
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (!session) return null;
+  const group = openBoardGroups(data).find((g) => g.sessionIds.includes(session.id));
+  return {
+    href: group
+      ? `/workout/group/board?s=${group.sessionIds.join(",")}`
+      : `/workout/session/${session.id}`,
+    sessionId: session.id,
+    routineId: session.routineId,
+    date: session.date,
+  };
 }
 
 function setsFor(data: GymData, sessionId: string): SetLog[] {

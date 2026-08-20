@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getSuggestedLoad, syncSetLogs, updateSetLog } from "@/lib/actions/workout";
 import { errorMessage } from "@/lib/format";
 import { randomSuffix } from "@/lib/ids";
@@ -22,12 +22,60 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const saveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  /** Rows edited but not yet saved — what a flush must persist. */
+  const pendingSaves = useRef(new Map<string, SetLog>());
+  /** Always the latest list — async code (post-await, flush handlers) must
+   *  read this, never a `sets` closure that may predate an await or event. */
+  const setsRef = useRef(initialSets);
 
   const blocks = useMemo(() => toBlocks(sets), [sets]);
+
+  function commit(next: SetLog[]) {
+    setsRef.current = next;
+    setSets(next);
+  }
 
   function report(e: unknown) {
     setError(errorMessage(e, "Save failed."));
   }
+
+  function clearTimers() {
+    for (const timer of saveTimers.current.values()) clearTimeout(timer);
+    saveTimers.current.clear();
+  }
+
+  /** Persist every pending row NOW — the tab may be about to be evicted, so
+   *  fire-and-forget; there may be no state left to report errors into. */
+  function flushPending() {
+    clearTimers();
+    const rows = [...pendingSaves.current.values()];
+    pendingSaves.current.clear();
+    for (const row of rows) void updateSetLog(row).catch(() => {});
+  }
+  // Latest-ref pattern (as in use-debounced-save): the once-registered
+  // listeners always call the newest closure.
+  const flushPendingRef = useRef(flushPending);
+  useEffect(() => {
+    flushPendingRef.current = flushPending;
+  });
+
+  // Safari evicts backgrounded iPad tabs, killing debounce timers with them
+  // (use-session-clock survives this via localStorage; the sets survive by
+  // saving the moment the tab hides). pagehide covers bfcache navigations,
+  // unmount covers in-app route changes.
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flushPendingRef.current();
+    };
+    const onPageHide = () => flushPendingRef.current();
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onPageHide);
+      flushPendingRef.current();
+    };
+  }, []);
 
   /** Load fields cascade forward when edited — "update once, rolls out". */
   const LOAD_KEYS = ["weightLbs", "addedWeightLbs", "bandId", "bandRole"] as const;
@@ -37,16 +85,23 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
    * load field on an INCOMPLETE set also applies it to every later incomplete
    * set of the same exercise block; completed sets are never touched, and
    * fixing a completed set never cascades.
+   *
+   * Everything is computed synchronously from setsRef — never inside the
+   * setSets updater, whose execution React may defer past this function's
+   * return (dropping the save and letting an older timer persist a stale
+   * value, e.g. "13" from a fast-typed "135").
    */
   function patchSet(id: string, changes: Partial<SetLog>) {
-    const target = sets.find((s) => s.id === id);
+    const current = setsRef.current;
+    const target = current.find((s) => s.id === id);
+    if (!target) return;
     const loadPatch: Partial<SetLog> = {};
     for (const key of LOAD_KEYS) {
       if (key in changes) (loadPatch as Record<string, unknown>)[key] = changes[key];
     }
     let cascadeIds: ReadonlySet<string> = new Set();
-    if (target && !target.completed && Object.keys(loadPatch).length > 0) {
-      const block = blocks.find((b) => b.sets.some((s) => s.id === id));
+    if (!target.completed && Object.keys(loadPatch).length > 0) {
+      const block = toBlocks(current).find((b) => b.sets.some((s) => s.id === id));
       if (block) {
         cascadeIds = new Set(
           block.sets
@@ -57,39 +112,45 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
     }
 
     const updated = new Map<string, SetLog>();
-    setSets((prev) =>
-      prev.map((set) => {
-        if (set.id === id) {
-          const next = { ...set, ...changes };
-          updated.set(set.id, next);
-          return next;
-        }
-        if (cascadeIds.has(set.id)) {
-          const next = { ...set, ...loadPatch };
-          updated.set(set.id, next);
-          return next;
-        }
-        return set;
-      }),
-    );
+    const next = current.map((set) => {
+      if (set.id === id) {
+        const row = { ...set, ...changes };
+        updated.set(set.id, row);
+        return row;
+      }
+      if (cascadeIds.has(set.id)) {
+        const row = { ...set, ...loadPatch };
+        updated.set(set.id, row);
+        return row;
+      }
+      return set;
+    });
+    commit(next);
 
     const timers = saveTimers.current;
-    for (const [setId] of updated) {
+    for (const [setId, row] of updated) {
+      pendingSaves.current.set(setId, row);
       clearTimeout(timers.get(setId));
       timers.set(
         setId,
         setTimeout(() => {
-          const row = updated.get(setId);
-          if (row) updateSetLog(row).catch(report);
+          timers.delete(setId);
+          const pending = pendingSaves.current.get(setId);
+          pendingSaves.current.delete(setId);
+          if (pending) updateSetLog(pending).catch(report);
         }, 600),
       );
     }
   }
 
-  /** Structural change: renumber locally, then sync the whole list. */
+  /** Structural change: renumber locally, then sync the whole list. The sync
+   *  supersedes every pending single-row save — a debounced upsert firing
+   *  after the sync would resurrect a deleted row, so drop them first. */
   function restructure(next: SetLog[]) {
+    clearTimers();
+    pendingSaves.current.clear();
     const renumbered = renumber(next);
-    setSets(renumbered);
+    commit(renumbered);
     setBusy(true);
     syncSetLogs(session.id, renumbered)
       .catch(report)
@@ -97,21 +158,22 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
   }
 
   function addSet(block: Block) {
+    const current = setsRef.current;
     const template = block.sets.at(-1)!;
-    const index = sets.findIndex((s) => s.id === template.id);
-    const next = [...sets];
+    const index = current.findIndex((s) => s.id === template.id);
+    const next = [...current];
     next.splice(index + 1, 0, { ...template, id: clientSetId(), completed: false });
     restructure(next);
   }
 
   function removeSet(id: string) {
-    restructure(sets.filter((s) => s.id !== id));
+    restructure(setsRef.current.filter((s) => s.id !== id));
   }
 
   /** Drop an entire exercise from the session — one structural sync. */
   function removeBlock(block: Block) {
     const ids = new Set(block.sets.map((s) => s.id));
-    restructure(sets.filter((s) => !ids.has(s.id)));
+    restructure(setsRef.current.filter((s) => !ids.has(s.id)));
   }
 
   /** The client's last-used load for a variant, with the variant's own band
@@ -137,10 +199,13 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
   async function swapExercise(block: Block, variant: Variant) {
     const em = variant.exerciseModality;
     const prefill = await fetchPrefill(em);
-    const blockIds = new Set(block.sets.filter((s) => !s.completed).map((s) => s.id));
+    // Re-read AFTER the await — edits made while the prefill was in flight
+    // must survive the sync (which deletes rows missing from its list). A set
+    // completed during the await stays as performed.
+    const blockIds = new Set(block.sets.map((s) => s.id));
     restructure(
-      sets.map((set) =>
-        blockIds.has(set.id)
+      setsRef.current.map((set) =>
+        blockIds.has(set.id) && !set.completed
           ? {
               ...set,
               exerciseId: em.exerciseId,
@@ -159,6 +224,8 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
   async function addExercise(variant: Variant, count = 3): Promise<SetLog[]> {
     const em = variant.exerciseModality;
     const prefill = await fetchPrefill(em);
+    // Re-read AFTER the await, same as swapExercise.
+    const current = setsRef.current;
     const timed = variant.metricType === "time";
     const newSets = Array.from({ length: count }, (_, i): SetLog => ({
       id: clientSetId(),
@@ -166,7 +233,7 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
       exerciseId: em.exerciseId,
       modalityId: em.modalityId,
       // renumber() inside restructure re-derives both of these
-      position: sets.length + i + 1,
+      position: current.length + i + 1,
       setNumber: i + 1,
       unilateralMode: em.defaultUnilateralMode,
       side: null,
@@ -179,16 +246,16 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
       completed: false,
       notes: "",
     }));
-    restructure([...sets, ...newSets]);
+    restructure([...current, ...newSets]);
     return newSets;
   }
 
   /** Cancel pending debounced saves and persist the current list — call
    *  before finishing the session. */
   async function flush() {
-    for (const timer of saveTimers.current.values()) clearTimeout(timer);
-    saveTimers.current.clear();
-    await syncSetLogs(session.id, sets);
+    clearTimers();
+    pendingSaves.current.clear();
+    await syncSetLogs(session.id, setsRef.current);
   }
 
   return {

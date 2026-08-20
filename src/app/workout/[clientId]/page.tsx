@@ -5,7 +5,9 @@ import { RecentWorkouts } from "@/components/recent-workouts";
 import { Button, Note, PageShell, Section, TableScroll, Td, Th } from "@/components/ui";
 import { startSession } from "@/lib/actions/workout";
 import { loadGymData } from "@/lib/db/snapshot";
+import { StartRowButton } from "@/components/start-row-button";
 import { addDaysIso, currentProgramWeek, DAY_LABELS, localTodayIso } from "@/lib/periods";
+import { resumeTargetForClient } from "@/lib/queries";
 
 
 /**
@@ -28,6 +30,7 @@ export default async function ClientWorkoutPage({
   const assignment = data.assignments.find(
     (a) => a.clientId === clientId && a.status === "active",
   );
+  const resume = resumeTargetForClient(data, clientId);
   const program = assignment ? data.programById.get(assignment.programId) : undefined;
 
   // Which program week is this calendar week?
@@ -91,6 +94,10 @@ export default async function ClientWorkoutPage({
                       <Td>
                         {day.done ? (
                           <span className="text-xs text-success-text">✓ done</span>
+                        ) : resume && resume.routineId === day.routineId ? (
+                          // An unfinished session of this routine exists —
+                          // Start here would silently duplicate it.
+                          <StartRowButton isResume href={resume.href} />
                         ) : (
                           <form
                             action={startSession.bind(null, clientId, day.routineId, assignment.id)}

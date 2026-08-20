@@ -34,6 +34,15 @@ export async function startSession(
 ): Promise<void> {
   await assertClientId(clientId);
   const data = await loadGymData();
+
+  // A planned session of this routine already exists — a stale Play button
+  // (cached page, double tap) must land back in it, not strand it behind a
+  // fresh duplicate. Starting a DIFFERENT routine stays an explicit choice.
+  const existing = data.sessions.find(
+    (s) => s.clientId === clientId && s.routineId === routineId && s.status === "planned",
+  );
+  if (existing) redirect(`/workout/session/${existing.id}`);
+
   const { session, sets } = plannedSessionFromRoutine(
     data,
     clientId,

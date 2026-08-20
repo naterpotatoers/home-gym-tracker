@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PlayIcon } from "@/components/icons";
+import { StartRowButton } from "@/components/start-row-button";
 import {
   chipClass,
   clientBorderStyle,
@@ -16,7 +17,13 @@ import { modalities } from "@/lib/data/modalities";
 import { loadGymData } from "@/lib/db/snapshot";
 import { localDayLabel, localTodayIso, todayDow } from "@/lib/periods";
 import { loadableWeights, smallestIncrement } from "@/lib/loading";
-import { availableVariants, hipBandLadder, openBoardGroups, routineForDay } from "@/lib/queries";
+import {
+  availableVariants,
+  hipBandLadder,
+  openBoardGroups,
+  resumeTargetForClient,
+  routineForDay,
+} from "@/lib/queries";
 
 const FLOWS = [
   {
@@ -55,6 +62,9 @@ export default async function Home() {
       client,
       assignmentId: assignment?.id ?? null,
       prescribed: routineForDay(data, client.id, dow, todayIso),
+      // An unfinished session diverts the one-tap path to Resume — a second
+      // Play here would silently strand everything already logged in it.
+      resume: resumeTargetForClient(data, client.id),
     };
   });
 
@@ -85,7 +95,7 @@ export default async function Home() {
           </p>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
-            {today.map(({ client, assignmentId, prescribed }) => (
+            {today.map(({ client, assignmentId, prescribed, resume }) => (
               <li
                 key={client.id}
                 className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3"
@@ -95,12 +105,16 @@ export default async function Home() {
                 <span className="min-w-0">
                   <span className="block font-semibold">{client.firstName}</span>
                   <span className="block truncate text-xs text-muted">
-                    {prescribed
-                      ? `${data.routineById.get(prescribed.routineId)?.name} · ${prescribed.exercises.length} exercises`
-                      : "No plan today"}
+                    {resume
+                      ? `Unfinished: ${data.routineById.get(resume.routineId ?? "")?.name ?? "session"} (${resume.date})`
+                      : prescribed
+                        ? `${data.routineById.get(prescribed.routineId)?.name} · ${prescribed.exercises.length} exercises`
+                        : "No plan today"}
                   </span>
                 </span>
-                {prescribed ? (
+                {resume ? (
+                  <StartRowButton isResume href={resume.href} className="ml-auto" />
+                ) : prescribed ? (
                   <form
                     action={startSession.bind(null, client.id, prescribed.routineId, assignmentId)}
                     className="ml-auto"

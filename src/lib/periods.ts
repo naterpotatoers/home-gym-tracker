@@ -2,11 +2,18 @@ import type { GymData } from "./gym-data";
 import type { ClientId } from "./types";
 
 /**
- * THE date module. Two blessed forms only: display/storage dates are LOCAL
- * ISO strings (yyyy-mm-dd via en-CA), regression math uses UTC day numbers
- * (utcDay) — never mix them, and never round-trip a yyyy-mm-dd string
- * through `new Date(...)` for display (it shifts a day west of UTC).
+ * THE date module. Two blessed forms only: display/storage dates are GYM-ZONE
+ * ISO strings (yyyy-mm-dd via en-CA in GYM_TZ), regression math uses UTC day
+ * numbers (utcDay) — never mix them. ISO-string helpers below anchor to UTC
+ * internally so they behave identically on any host; only the wall clock
+ * (`new Date()`) ever passes through GYM_TZ.
  */
+
+/** The gym's wall clock. Vercel runs the server in UTC; "today" and the
+ *  weekday must be computed in the gym's zone, never the process zone.
+ *  NEXT_PUBLIC_ so the value inlines identically into server and client
+ *  bundles (this module is imported by 'use client' components too). */
+const GYM_TZ = process.env.NEXT_PUBLIC_GYM_TZ ?? "America/Los_Angeles";
 
 export type PeriodKind = "day" | "week" | "program" | "custom";
 
@@ -21,40 +28,56 @@ export type ResolvedPeriod = {
 };
 
 export function addDaysIso(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  return date.toLocaleDateString("en-CA");
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  // Safe here (and only here): the Date is UTC-anchored, not a wall clock.
+  return date.toISOString().slice(0, 10);
+}
+
+/** Weekday of an ISO day in the schema's numbering: 1 = Monday .. 7 = Sunday. */
+export function isoDow(iso: string): number {
+  return ((new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7) + 1;
 }
 
 /** Monday of the week containing the date — the schema's week starts Monday. */
 export function mondayOf(iso: string): string {
-  const date = new Date(`${iso}T00:00:00`);
-  const offset = (date.getDay() + 6) % 7;
-  return addDaysIso(iso, -offset);
+  return addDaysIso(iso, -(isoDow(iso) - 1));
 }
 
-/** A Date as a LOCAL yyyy-mm-dd string — the blessed conversion; never use
- *  `toISOString().slice(0, 10)`, which is a day off west of UTC every evening. */
+/** A wall-clock instant as the gym's yyyy-mm-dd — the blessed conversion;
+ *  never use `toISOString().slice(0, 10)` on a wall clock (a day off every
+ *  evening) or bare `toLocaleDateString` (the process zone, UTC on Vercel). */
 export function localIso(date: Date): string {
-  return date.toLocaleDateString("en-CA");
+  return date.toLocaleDateString("en-CA", { timeZone: GYM_TZ });
 }
 
 export function localTodayIso(): string {
   return localIso(new Date());
 }
 
-/** Human label for a local ISO day — "Tuesday, August 5". Display only. */
+/** Human label for a gym-zone ISO day — "Tuesday, August 5". Display only. */
 export function localDayLabel(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
+    timeZone: "UTC",
   });
 }
 
-/** Today's weekday in the schema's numbering: 1 = Monday .. 7 = Sunday. */
+/** Today's weekday at the gym — derived from the same ISO string as
+ *  localTodayIso() so the two can never disagree across midnight. */
 export function todayDow(): number {
-  return ((new Date().getDay() + 6) % 7) + 1;
+  return isoDow(localTodayIso());
+}
+
+/** Whole years between two ISO days — pure string math, no Date. */
+export function ageOnIso(dobIso: string, asOfIso: string): number {
+  return (
+    Number(asOfIso.slice(0, 4)) -
+    Number(dobIso.slice(0, 4)) -
+    (asOfIso.slice(5) < dobIso.slice(5) ? 1 : 0)
+  );
 }
 
 /** Weekday labels in the schema's numbering — index with `dayOfWeek - 1`. */

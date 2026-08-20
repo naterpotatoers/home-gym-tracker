@@ -8,6 +8,7 @@ import {
   priorBestE1rm,
   recentVariantKeys,
   repRangeForWeight,
+  resumeTargetForClient,
   repsForWeight,
   routineForDay,
   sessionVolumeLbs,
@@ -241,6 +242,70 @@ describe("openBoardGroups", () => {
 
   it("is empty when no date has two planned sessions", () => {
     expect(openBoardGroups(data)).toEqual([]);
+  });
+});
+
+describe("resumeTargetForClient", () => {
+  const session = (
+    id: string,
+    clientId: string,
+    date: string,
+    status: "planned" | "completed" = "planned",
+  ) => ({
+    id,
+    clientId,
+    date,
+    assignmentId: null,
+    routineId: "full_body_a",
+    durationMinutes: null,
+    rpe: null,
+    condition: null,
+    status,
+    notes: "",
+  });
+
+  it("is null with nothing planned", () => {
+    const custom = buildGymData({
+      ...data,
+      sessions: [session("s1", "nate", "2026-08-01", "completed")],
+      setLogs: [],
+    });
+    expect(resumeTargetForClient(custom, "nate")).toBeNull();
+  });
+
+  it("routes a lone planned session to the solo runner", () => {
+    const custom = buildGymData({
+      ...data,
+      sessions: [session("s1", "nate", "2026-08-01")],
+      setLogs: [],
+    });
+    expect(resumeTargetForClient(custom, "nate")?.href).toBe("/workout/session/s1");
+  });
+
+  it("routes a board-group session to the shared board", () => {
+    const custom = buildGymData({
+      ...data,
+      sessions: [
+        session("s1", "nate", "2026-08-01"),
+        session("s2", "friend", "2026-08-01"),
+      ],
+      setLogs: [],
+    });
+    expect(resumeTargetForClient(custom, "nate")?.href).toBe(
+      "/workout/group/board?s=s1,s2",
+    );
+  });
+
+  it("picks the newest planned session", () => {
+    const custom = buildGymData({
+      ...data,
+      sessions: [
+        session("s_old", "nate", "2026-07-20"),
+        session("s_new", "nate", "2026-08-01"),
+      ],
+      setLogs: [],
+    });
+    expect(resumeTargetForClient(custom, "nate")?.sessionId).toBe("s_new");
   });
 });
 

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
-import { addDaysIso, currentProgramWeek, mondayOf, resolvePeriod } from "./periods";
+import {
+  addDaysIso,
+  ageOnIso,
+  currentProgramWeek,
+  isoDow,
+  localDayLabel,
+  localIso,
+  mondayOf,
+  resolvePeriod,
+} from "./periods";
 
 const data = seedSnapshot();
 
@@ -14,6 +23,34 @@ describe("date helpers", () => {
   it("mondayOf returns the Monday of the containing week", () => {
     expect(mondayOf("2026-08-02")).toBe("2026-07-27"); // a Sunday
     expect(mondayOf("2026-07-27")).toBe("2026-07-27"); // Monday is a fixed point
+  });
+
+  it("isoDow uses the schema's numbering", () => {
+    expect(isoDow("2026-08-17")).toBe(1); // Monday
+    expect(isoDow("2026-08-23")).toBe(7); // Sunday
+  });
+
+  it("localDayLabel is stable regardless of process zone", () => {
+    expect(localDayLabel("2026-08-19")).toBe("Wednesday, August 19");
+  });
+});
+
+describe("gym timezone (assertions hold under any process TZ)", () => {
+  it("localIso converts instants to the gym's day, not the process day", () => {
+    // PDT (UTC-7): a UTC evening is still the previous gym day until 7am UTC.
+    expect(localIso(new Date("2026-08-19T02:00:00Z"))).toBe("2026-08-18"); // 7pm PDT
+    expect(localIso(new Date("2026-08-19T06:59:00Z"))).toBe("2026-08-18"); // 11:59pm PDT
+    expect(localIso(new Date("2026-08-19T07:00:00Z"))).toBe("2026-08-19"); // midnight PDT
+    // PST (UTC-8) in winter.
+    expect(localIso(new Date("2026-01-15T07:59:00Z"))).toBe("2026-01-14");
+    expect(localIso(new Date("2026-01-15T08:00:00Z"))).toBe("2026-01-15");
+  });
+
+  it("ageOnIso handles birthday boundaries", () => {
+    expect(ageOnIso("1990-08-19", "2026-08-18")).toBe(35);
+    expect(ageOnIso("1990-08-19", "2026-08-19")).toBe(36);
+    expect(ageOnIso("1992-02-29", "2026-02-28")).toBe(33);
+    expect(ageOnIso("1992-02-29", "2026-03-01")).toBe(34);
   });
 });
 
