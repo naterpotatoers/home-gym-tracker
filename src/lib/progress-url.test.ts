@@ -11,11 +11,7 @@ const DEFAULTS: ProgressParams = {
   view: "metrics",
   exercise: "",
   modality: "",
-  repMin: 8,
-  repMax: 12,
-  weight: 100,
-  mod: "",
-  group: "",
+  span: "week",
 };
 
 describe("progressHref", () => {
@@ -36,17 +32,12 @@ describe("progressHref", () => {
       client: "nate",
       exercise: "bench_press",
       modality: "barbell",
-      repMin: 5,
-      group: "legs",
     });
     const qs = new URLSearchParams(href.split("?")[1]);
     expect(qs.get("client")).toBe("nate");
     expect(qs.get("exercise")).toBe("bench_press");
     expect(qs.get("modality")).toBe("barbell");
-    expect(qs.get("repMin")).toBe("5");
-    expect(qs.get("repMax")).toBeNull(); // default omitted
-    expect(qs.get("weight")).toBeNull();
-    expect(qs.get("group")).toBe("legs");
+    expect(qs.get("view")).toBeNull(); // default omitted
     expect(qs.get("defaultClient")).toBeNull(); // never serialized
   });
 });
@@ -57,7 +48,6 @@ describe("parseProgressParams", () => {
     expect(params.client).toBe(first);
     expect(params.defaultClient).toBe(first);
     expect(params.view).toBe("metrics");
-    expect(params.repMin).toBe(8);
   });
 
   it("unknown client falls back instead of crashing", () => {
@@ -71,25 +61,33 @@ describe("parseProgressParams", () => {
       view: "tracking",
       exercise: "squat",
       modality: "barbell",
-      repMin: 5,
-      weight: 135,
-      mod: "barbell",
-      group: "legs",
+      span: "all",
     };
     const qs = new URLSearchParams(progressHref(params).split("?")[1] ?? "");
     const raw = Object.fromEntries(qs.entries());
     expect(parseProgressParams(raw, data)).toEqual(params);
   });
 
-  it("rejects invalid exercise/modality pairs and bad numbers", () => {
-    const params = parseProgressParams(
-      { exercise: "not_a_lift", modality: "barbell", repMin: "-3", weight: "abc" },
-      data,
-    );
+  it("rejects invalid exercise/modality pairs", () => {
+    const params = parseProgressParams({ exercise: "not_a_lift", modality: "barbell" }, data);
     expect(params.exercise).toBe("");
     expect(params.modality).toBe("");
-    expect(params.repMin).toBe(8);
-    expect(params.weight).toBe(100);
+  });
+
+  it("ignores retired load-explorer and lift-filter params from old links", () => {
+    expect(
+      parseProgressParams({ repMin: "15", repMax: "10", weight: "135", mod: "band", group: "legs" }, data),
+    ).toEqual(
+      parseProgressParams({}, data),
+    );
+  });
+
+  it("span defaults to week, omits from the URL, and round-trips", () => {
+    expect(parseProgressParams({}, data).span).toBe("week");
+    expect(parseProgressParams({ span: "bogus" }, data).span).toBe("week");
+    expect(progressHref({ ...DEFAULTS, span: "week" })).toBe("/users");
+    expect(progressHref({ ...DEFAULTS, span: "all" })).toBe("/users?span=all");
+    expect(parseProgressParams({ span: "program" }, data).span).toBe("program");
   });
 
   it("unknown views (including retired 'settings') fall back to metrics", () => {

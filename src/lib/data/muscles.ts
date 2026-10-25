@@ -11,14 +11,15 @@ export const muscleGroups: readonly MuscleGroup[] = [
 
 /** Categorical identity hues for muscle groups — same palette family as
  *  CLIENT_COLORS, deliberately clear of the status green/yellow/red. Always
- *  paired with the group label; never the only encoding. */
+ *  paired with the group label; never the only encoding. Values are CSS
+ *  vars (the hexes live in globals.css), so use them as CSS, not in math. */
 export const MUSCLE_GROUP_COLORS: Record<import("../types").MuscleGroupId, string> = {
-  chest: "#ec4899",
-  back: "#3987e5",
-  shoulders: "#f97316",
-  arms: "#8b5cf6",
-  legs: "#14b8a6",
-  core: "#06b6d4",
+  chest: "var(--group-chest)",
+  back: "var(--group-back)",
+  shoulders: "var(--group-shoulders)",
+  arms: "var(--group-arms)",
+  legs: "var(--group-legs)",
+  core: "var(--group-core)",
 };
 
 export const muscles: readonly Muscle[] = [

@@ -7,8 +7,9 @@
  * on neutral elements. Numbers are mono.
  */
 
-/** Base classes for text controls. `size="sm"` (h-9) is an escape hatch for
- *  dense desktop-only table cells — never for primary touch flows. */
+/** Base classes for text controls. `size="sm"` is h-9 for dense desktop
+ *  cells; every `sm` control (here, Button, IconButton) grows back to 44px
+ *  under `pointer-coarse`, so touch screens always get full targets. */
 const inputClass =
   "rounded-md border border-border-strong bg-surface-input text-base " +
   "text-foreground placeholder:text-muted/70 focus-visible:outline-none " +
@@ -16,7 +17,7 @@ const inputClass =
 
 const inputSize = {
   md: "h-11 px-3",
-  sm: "h-9 px-2",
+  sm: "h-9 pointer-coarse:h-11 px-2",
 } as const;
 
 type ControlSize = keyof typeof inputSize;
@@ -74,9 +75,9 @@ export function NumberInput({
   );
 }
 
-/** NumberInput flanked by −/+ steppers — the iPad-friendly way to nudge small
- *  prescriptions (sets, reps, rest). Not for weights: they vary too much for
- *  ±step taps to help. Typing stays available; only the buttons clamp. */
+/** NumberInput flanked by −/+ steppers — the iPad-friendly way to nudge
+ *  prescriptions (sets, reps, rest) and the active set's load (step from
+ *  `weightStep`). Typing stays available; only the buttons clamp. */
 export function StepperInput({
   value,
   onChange,
@@ -85,6 +86,8 @@ export function StepperInput({
   step = 1,
   size = "md",
   className = "w-20",
+  wrapperClassName = "",
+  label,
 }: {
   value: number | null;
   onChange: (value: number | null) => void;
@@ -92,19 +95,26 @@ export function StepperInput({
   max?: number;
   step?: number;
   size?: ControlSize;
+  /** The input's classes (width). */
   className?: string;
+  /** The −/input/+ row's classes — e.g. `w-full` with an input of `flex-1`
+   *  to stretch the stepper across its cell. */
+  wrapperClassName?: string;
+  /** What's being stepped — "weight" gives "Decrease weight" etc. */
+  label?: string;
 }) {
   function nudge(direction: 1 | -1) {
     const next = value === null ? min : value + direction * step;
     onChange(Math.min(max ?? Infinity, Math.max(min, next)));
   }
   return (
-    <div className="flex items-center gap-1">
+    <div className={`flex items-center gap-1 ${wrapperClassName}`}>
       <IconButton
         size={size}
+        className="shrink-0"
         onClick={() => nudge(-1)}
         disabled={value !== null && value <= min}
-        aria-label="Decrease"
+        aria-label={label ? `Decrease ${label}` : "Decrease"}
       >
         −
       </IconButton>
@@ -118,9 +128,10 @@ export function StepperInput({
       />
       <IconButton
         size={size}
+        className="shrink-0"
         onClick={() => nudge(1)}
         disabled={max !== undefined && value !== null && value >= max}
-        aria-label="Increase"
+        aria-label={label ? `Increase ${label}` : "Increase"}
       >
         +
       </IconButton>
@@ -136,7 +147,7 @@ export function Select({
   return (
     <select
       {...props}
-      className={`${inputClass} ${size === "md" ? "h-11 pl-3 pr-8" : "h-9 pl-2 pr-6"} ${className}`}
+      className={`${inputClass} select-chevron ${size === "md" ? "h-11 pl-3 pr-9" : "h-9 pointer-coarse:h-11 pl-2 pr-8"} ${className}`}
     />
   );
 }
@@ -199,6 +210,13 @@ const buttonBase =
   "focus-visible:ring-offset-2 focus-visible:ring-offset-background " +
   "disabled:opacity-50 disabled:pointer-events-none";
 
+/** Button look for a Link that navigates — same classes as <Button>. */
+export function buttonClass(variant: ButtonVariant = "secondary", size: "md" | "sm" = "md"): string {
+  return `${buttonBase} ${buttonVariant[variant]} ${
+    size === "md" ? "min-h-11 px-4 text-sm" : "min-h-9 pointer-coarse:min-h-11 px-3 text-xs"
+  }`;
+}
+
 export function Button({
   variant = "secondary",
   size = "md",
@@ -210,18 +228,12 @@ export function Button({
   size?: "md" | "sm";
 }) {
   return (
-    <button
-      {...props}
-      type={type}
-      className={`${buttonBase} ${buttonVariant[variant]} ${
-        size === "md" ? "min-h-11 px-4 text-sm" : "min-h-9 px-3 text-xs"
-      } ${className}`}
-    />
+    <button {...props} type={type} className={`${buttonClass(variant, size)} ${className}`} />
   );
 }
 
 /** Square button for steppers, remove-✕, arrows. md = 44px touch target;
- *  sm is for dense contexts like the group-board set rows. */
+ *  sm is 36px with a mouse (dense rows), 44px on touch screens. */
 export function IconButton({
   variant = "secondary",
   size = "md",
@@ -234,7 +246,7 @@ export function IconButton({
       {...props}
       type={type}
       className={`${buttonBase} ${buttonVariant[variant]} ${
-        size === "md" ? "size-11 text-lg" : "size-9 text-base"
+        size === "md" ? "size-11 text-lg" : "size-9 pointer-coarse:size-11 text-base"
       } ${className}`}
     />
   );
@@ -314,7 +326,7 @@ export function Caret() {
 
 /** The app's selected/unselected chip-button vocabulary — tabs, filters,
  *  person switchers. */
-export function chipClass(selected: boolean, extra = "min-h-10 px-3 text-xs"): string {
+export function chipClass(selected: boolean, extra = "min-h-11 px-3 text-xs"): string {
   return `inline-flex cursor-pointer items-center gap-1.5 rounded-md ${extra} ${
     selected
       ? "bg-accent-soft font-semibold text-accent-text"

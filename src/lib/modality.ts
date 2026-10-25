@@ -62,12 +62,21 @@ export type SetLoad = {
 
 const MAX_DUMBBELL_LBS = Math.max(...dumbbells.map((d) => d.weightLbs));
 
-/** How many implements move in a single rep. */
-function implementsPerRep(set: SetLog): number {
+/** The variant row behind a set — its authored load shape. */
+function variantOf(data: GymData, set: SetLog) {
+  return data.modalitiesByExercise
+    .get(set.exerciseId)
+    ?.find((em) => em.modalityId === set.modalityId);
+}
+
+/** How many implements move in a single rep. The variant says so where it's
+ *  authored (goblet squat: one; split squat: one per hand); otherwise infer
+ *  from the unilateral mode. The inference overcounts an alternating curl
+ *  (one dumbbell per rep) — author `implements: 1` on such variants. */
+function implementsPerRep(data: GymData, set: SetLog): number {
   if (set.modalityId !== "dumbbell") return 1;
-  // Known simplification: an alternating curl moves one dumbbell per rep while
-  // an alternating lunge carries both. Treating alternating as two slightly
-  // overcounts the former. Splitting them would need a per-variant field.
+  const authored = variantOf(data, set)?.implements;
+  if (authored) return authored;
   return set.unilateralMode === "single_side" ? 1 : 2;
 }
 
@@ -90,9 +99,15 @@ export function setLoad(data: GymData, set: SetLog): SetLoad {
   }
 
   if (set.modalityId === "dumbbell") {
-    const lbs =
-      set.weightLbs === null ? null : set.weightLbs * implementsPerRep(set);
-    return { lbs, precision: "exact", totalReps };
+    if (set.weightLbs === null) return { lbs: null, precision: "exact", totalReps };
+    const dumbbellLbs = set.weightLbs * implementsPerRep(data, set);
+    // A dumbbell-weighted pull-up moves the lifter too — same scale as the
+    // bodyweight variant, or the two would chart as unrelated lifts.
+    if (variantOf(data, set)?.loadIncludesBodyweight) {
+      if (bodyweight === null) return { lbs: null, precision: "exact", totalReps };
+      return { lbs: bodyweight + dumbbellLbs, precision: "exact", totalReps };
+    }
+    return { lbs: dumbbellLbs, precision: "exact", totalReps };
   }
 
   if (set.modalityId === "bodyweight") {
@@ -179,7 +194,12 @@ export function bestE1rm(data: GymData, sets: readonly SetLog[]): number | null 
 // ---------------------------------------------------------------------------
 
 export type LoadFactor = {
-  factor: number;
+  /** Null when there is nothing honest to say: bodyweight and band loads are
+   *  "not comparable to a bar" (seedLoadFactor null) until the client's own
+   *  sets measure a ratio. Callers must skip cross-modality transfer then. */
+  factor: number | null;
+  /** The seeded factor — the variant's override, else the modality's. */
+  seed: number | null;
   source: "seed" | "measured";
   /** Working sets found for this modality. */
   sampleSize: number;
@@ -228,12 +248,13 @@ export function deriveLoadFactor(
   const override = data.modalitiesByExercise
     .get(exerciseId)
     ?.find((em) => em.modalityId === modalityId)?.loadFactorOverride;
-  const seed = override ?? modality?.seedLoadFactor ?? 1;
+  const seed = override ?? modality?.seedLoadFactor ?? null;
 
   const sets = workingSetsFor(data, clientId, exerciseId, modalityId);
   const sessionCount = new Set(sets.map((s) => s.sessionId)).size;
   const fallback: LoadFactor = {
     factor: seed,
+    seed,
     source: "seed",
     sampleSize: sets.length,
     sessionCount,
@@ -254,6 +275,7 @@ export function deriveLoadFactor(
 
   return {
     factor: mine / baseline,
+    seed,
     source: "measured",
     sampleSize: sets.length,
     sessionCount,
@@ -274,8 +296,7 @@ export function effectiveLoadFactor(
 ): LoadFactor {
   const derived = deriveLoadFactor(data, clientId, exerciseId, modalityId);
   if (derived.source === "measured" && derived.ceilingLimited) {
-    const modality = modalityById.get(modalityId);
-    return { ...derived, factor: modality?.seedLoadFactor ?? derived.factor };
+    return { ...derived, factor: derived.seed ?? derived.factor };
   }
   return derived;
 }
@@ -285,19 +306,28 @@ export function effectiveLoadFactor(
  * across every modality it has been trained with instead of fragmenting into
  * separate lines. Null where the load has no magnitude.
  */
-export function normalizedLoad(data: GymData, set: SetLog): number | null {
+export function normalizedLoad(
+  data: GymData,
+  set: SetLog,
+  /** Optional per-call memo of factors by client|exercise|modality — the
+   *  factor scans every set log, so whole-history callers (muscleVolume)
+   *  pass one to stay linear. */
+  factorCache?: Map<string, number | null>,
+): number | null {
   const load = setLoad(data, set);
   if (load.lbs === null || load.precision === "ordinal") return null;
   const session = data.sessionById.get(set.sessionId);
   if (!session) return null;
   if (!data.clientById.has(session.clientId)) return null;
 
-  const { factor } = effectiveLoadFactor(
-    data,
-    session.clientId,
-    set.exerciseId,
-    set.modalityId,
-  );
+  const cacheKey = `${session.clientId}|${set.exerciseId}|${set.modalityId}`;
+  let factor = factorCache?.get(cacheKey);
+  if (factor === undefined) {
+    factor = effectiveLoadFactor(data, session.clientId, set.exerciseId, set.modalityId).factor;
+    factorCache?.set(cacheKey, factor);
+  }
+  // No comparable factor (unmeasured bodyweight/band): the raw load is the
+  // most honest number there is.
   if (!factor) return load.lbs;
   return load.lbs / factor;
 }

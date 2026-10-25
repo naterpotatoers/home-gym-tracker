@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { supabase } from "../db/client";
-import { sessionToRow, setLogToRow } from "../db/mappers";
+import { setLogToRow } from "../db/mappers";
 import { loadGymData } from "../db/snapshot";
 import { localTodayIso } from "../periods";
 import { plannedSessionFromRoutine } from "../planning";
@@ -14,11 +14,16 @@ import type {
   SessionCondition,
   SetLog,
 } from "../types";
+
+/** Set ids are slugs (clientSetId / newId) — anything else could break out of
+ *  the quoted `not in` filter below. */
+const SET_ID = /^[a-z0-9_-]+$/i;
 import {
-  isModalityId,
   isSessionCondition,
+  normalizeSetLog,
+  setLogProblem,
 } from "../validate";
-import { revalidateAll, run } from "./_helpers";
+import { insertSessions, revalidateAll, run, runMatched } from "./_helpers";
 import { assertClientId } from "./clients";
 import { assertExerciseIds } from "./exercises";
 
@@ -51,18 +56,30 @@ export async function startSession(
     localTodayIso(),
   );
 
-  await run("starting session", supabase.from("sessions").insert(sessionToRow(session)));
-  await run("starting session", supabase.from("set_logs").insert(sets.map(setLogToRow)));
+  await insertSessions("starting session", [session], sets);
 
   revalidateAll();
   redirect(`/workout/session/${session.id}`);
 }
 
-/** Single-row upsert: the per-set edits (weight, reps, RIR, done, warmup). */
+function assertSetLog(set: SetLog): void {
+  const problem = setLogProblem(set);
+  if (problem) throw new Error(problem);
+}
+
+/** Single-row edit: the per-set edits (weight, reps, RIR, done, warmup).
+ *  An UPDATE, never an upsert — a request that lands after a structural sync
+ *  deleted the row must not resurrect it, and the row can't move sessions. */
 export async function updateSetLog(set: SetLog): Promise<void> {
   await assertExerciseIds([set.exerciseId]);
-  if (!isModalityId(set.modalityId)) throw new Error(`bad modality id ${set.modalityId}`);
-  await run("saving set", supabase.from("set_logs").upsert(setLogToRow(set)));
+  assertSetLog(set);
+  const { id, session_id, ...fields } = setLogToRow(normalizeSetLog(set));
+  const { error } = await supabase
+    .from("set_logs")
+    .update(fields)
+    .eq("id", id)
+    .eq("session_id", session_id);
+  if (error) throw new Error(`saving set: ${error.message}`);
   revalidateAll();
 }
 
@@ -78,15 +95,29 @@ export async function syncSetLogs(
   await assertExerciseIds(sets.map((set) => set.exerciseId));
   for (const set of sets) {
     if (set.sessionId !== sessionId) throw new Error("set belongs to another session");
-    if (!isModalityId(set.modalityId)) throw new Error(`bad modality id ${set.modalityId}`);
+    if (!SET_ID.test(set.id)) throw new Error(`bad set id ${set.id}`);
+    assertSetLog(set);
   }
 
-  await run("saving sets", supabase.from("set_logs").upsert(sets.map(setLogToRow)));
+  // The upsert matches on id alone, so an id owned by another session would
+  // be moved into this one. Refuse instead.
+  const ids = sets.map((s) => s.id);
+  if (ids.length > 0) {
+    const owned = await run(
+      "saving sets",
+      supabase.from("set_logs").select("id").in("id", ids).neq("session_id", sessionId),
+    );
+    if (owned && owned.length > 0) throw new Error("set belongs to another session");
+  }
 
-  const keep = sets.map((s) => s.id);
+  await run(
+    "saving sets",
+    supabase.from("set_logs").upsert(sets.map((set) => setLogToRow(normalizeSetLog(set)))),
+  );
+
   let deletion = supabase.from("set_logs").delete().eq("session_id", sessionId);
-  if (keep.length > 0) {
-    deletion = deletion.not("id", "in", `(${keep.map((id) => `"${id}"`).join(",")})`);
+  if (ids.length > 0) {
+    deletion = deletion.not("id", "in", `(${ids.map((id) => `"${id}"`).join(",")})`);
   }
   await run("saving sets", deletion);
 
@@ -118,13 +149,24 @@ export async function finishSession(
   payload: FinishPayload,
   redirectTo: string | null = `/workout/session/${sessionId}`,
 ): Promise<void> {
-  if (payload.rpe !== null && (payload.rpe < 1 || payload.rpe > 10)) {
+  if (
+    payload.rpe !== null &&
+    (!Number.isInteger(payload.rpe) || payload.rpe < 1 || payload.rpe > 10)
+  ) {
     throw new Error(`bad rpe ${payload.rpe}`);
   }
   if (payload.condition !== null && !isSessionCondition(payload.condition)) {
     throw new Error(`bad condition ${payload.condition}`);
   }
-  await run(
+  if (
+    payload.durationMinutes !== null &&
+    (!Number.isInteger(payload.durationMinutes) ||
+      payload.durationMinutes < 0 ||
+      payload.durationMinutes > 24 * 60)
+  ) {
+    throw new Error(`bad duration ${payload.durationMinutes}`);
+  }
+  await runMatched(
     "finishing session",
     supabase
       .from("sessions")
@@ -135,7 +177,8 @@ export async function finishSession(
         rpe: payload.rpe,
         condition: payload.condition,
       })
-      .eq("id", sessionId),
+      .eq("id", sessionId)
+      .select("id"),
   );
   revalidateAll();
   if (redirectTo !== null) redirect(redirectTo);
@@ -148,5 +191,5 @@ export async function discardSession(sessionId: string): Promise<void> {
     supabase.from("sessions").delete().eq("id", sessionId).eq("status", "planned"),
   );
   revalidateAll();
-  redirect("/workout");
+  redirect("/");
 }

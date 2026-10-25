@@ -282,6 +282,14 @@ export type ExerciseModality = {
   pinRisk: boolean;
   /** Set only where this pair deviates from the modality's seed factor. */
   loadFactorOverride: number | null;
+  /** Dumbbells moved per rep. Null infers it from the unilateral mode (two,
+   *  or one for single_side); set it where that guess is wrong — a goblet
+   *  squat holds one dumbbell, a split squat usually one in each hand. */
+  implements: 1 | 2 | null;
+  /** The lifter's bodyweight is part of the load (a dumbbell-weighted pull-up
+   *  moves bodyweight + the dumbbell), so it sits on the same scale as the
+   *  bodyweight variant. */
+  loadIncludesBodyweight: boolean;
   notes: string;
 };
 

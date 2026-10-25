@@ -7,7 +7,8 @@ import type { ClientRow } from "../db/mappers";
 import { slugId } from "../ids";
 import { localTodayIso } from "../periods";
 import { isExperienceLevel, isGoal, isIsoDate } from "../validate";
-import { assertNoRefs, revalidateAll, run } from "./_helpers";
+import type { FormResult } from "../form-result";
+import { assertNoRefs, revalidateAll, run, runMatched } from "./_helpers";
 
 const COLORS = new Set<string>(CLIENT_COLORS.map((c) => c.hex));
 
@@ -42,7 +43,9 @@ type ProfileRow = Pick<
   | "notes"
 >;
 
-function parseProfile(formData: FormData): ProfileRow {
+/** Validate the profile form. Returns a user-facing message instead of
+ *  throwing — the forms show it inline via useActionState. */
+function parseProfile(formData: FormData): ProfileRow | { error: string } {
   const firstName = String(formData.get("firstName") ?? "").trim();
   const dateOfBirth = String(formData.get("dateOfBirth") ?? "");
   const heightInches = Number(formData.get("heightInches") ?? 0);
@@ -51,14 +54,14 @@ function parseProfile(formData: FormData): ProfileRow {
   const color = String(formData.get("color") ?? "");
   const notes = String(formData.get("notes") ?? "").trim();
 
-  if (!firstName) throw new Error("A client needs a name.");
-  if (!isIsoDate(dateOfBirth)) throw new Error("Pick a date of birth.");
+  if (!firstName) return { error: "A client needs a name." };
+  if (!isIsoDate(dateOfBirth)) return { error: "Pick a date of birth." };
   if (!Number.isFinite(heightInches) || heightInches < 24 || heightInches > 96) {
-    throw new Error("Height must be between 24 and 96 inches.");
+    return { error: "Height must be between 24 and 96 inches." };
   }
-  if (!isExperienceLevel(experienceLevel)) throw new Error(`bad level ${experienceLevel}`);
-  if (!isGoal(goal)) throw new Error(`bad goal ${goal}`);
-  if (color !== "" && !COLORS.has(color)) throw new Error(`bad color ${color}`);
+  if (!isExperienceLevel(experienceLevel)) return { error: "Pick an experience level." };
+  if (!isGoal(goal)) return { error: "Pick a goal." };
+  if (color !== "" && !COLORS.has(color)) return { error: "Pick one of the preset colors." };
 
   return {
     first_name: firstName,
@@ -71,8 +74,10 @@ function parseProfile(formData: FormData): ProfileRow {
   };
 }
 
-export async function createClient(formData: FormData): Promise<void> {
+/** Add a person, then land on their Progress tab. */
+export async function createClient(formData: FormData): Promise<FormResult> {
   const profile = parseProfile(formData);
+  if ("error" in profile) return profile;
   const row: ClientRow = {
     id: slugId("c", profile.first_name),
     ...profile,
@@ -83,18 +88,21 @@ export async function createClient(formData: FormData): Promise<void> {
   };
   await run("adding client", supabase.from("clients").insert(row));
   revalidateAll();
+  redirect(`/users?client=${encodeURIComponent(row.id)}`);
 }
 
 export async function updateClient(
   clientId: string,
   formData: FormData,
-): Promise<void> {
+): Promise<FormResult> {
   const profile = parseProfile(formData);
-  await run(
+  if ("error" in profile) return profile;
+  await runMatched(
     "updating client",
-    supabase.from("clients").update(profile).eq("id", clientId),
+    supabase.from("clients").update(profile).eq("id", clientId).select("id"),
   );
   revalidateAll();
+  return null;
 }
 
 /** Remove a person with no history — the "throwaway test user" path. Anyone
@@ -118,6 +126,13 @@ export async function deleteClient(clientId: string): Promise<void> {
     "client_id",
     clientId,
     "This client has body weight entries — delete those first.",
+  );
+  await assertNoRefs(
+    "food_logs",
+    "client_id",
+    clientId,
+    "This client has food log entries — delete those first.",
+    { optionalTable: true },
   );
   await run("deleting client", supabase.from("clients").delete().eq("id", clientId));
   revalidateAll();

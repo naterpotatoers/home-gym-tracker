@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
-/** Progress merged into the People page (person hub); the heat map keeps
- *  living at /metrics/heatmap. Old links carry their full query state over. */
+/** Progress merged into the Clients hub (/users); so did the heat map (see
+ *  /metrics/heatmap). Old links carry their full query state over. */
 export default async function MetricsPage({
   searchParams,
 }: {

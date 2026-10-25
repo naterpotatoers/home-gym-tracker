@@ -1,12 +1,7 @@
-import { MUSCLE_GROUP_COLORS } from "./data/muscles";
 import type { GymData } from "./gym-data";
+import { isMuscleSpan, type MuscleSpan } from "./muscle-span";
 import { defaultClientId } from "./queries";
-import type { MuscleGroupId } from "./types";
 import { isModalityId } from "./validate";
-
-function isMuscleGroupId(value: string): value is MuscleGroupId {
-  return value in MUSCLE_GROUP_COLORS;
-}
 
 /** The Progress page's full URL state, already parsed/defaulted by the
  *  server page. Shared by the server page (building Links) and the client
@@ -17,33 +12,24 @@ export type ProgressParams = {
   /** The roster's default client — `client` serializes only when it differs.
    *  Never serialized itself. */
   defaultClient: string;
-  /** Which pane of the Clients hub: "metrics" (default), "tracking" (weigh-in
-   *  entry, future calories/macros), "profile" (slow-changing fields), or
-   *  "add" (new-person form, reached from the sidebar). */
+  /** Which pane of the Clients hub: "metrics" (default; labelled Progress),
+   *  "tracking" (labelled Log — body weight + food), "profile" (slow-changing
+   *  fields), or "add" (new-person form, reached from the sidebar). The URL
+   *  values predate the labels and stay so old links keep working. */
   view: string;
   exercise: string;
   modality: string;
-  repMin: number;
-  repMax: number;
-  weight: number;
-  /** Lift-list filters: modality + muscle group ("" = no filter). */
-  mod: string;
-  group: MuscleGroupId | "";
+  /** The Progress tab's body-map range: this week, the current program, or
+   *  all time. */
+  span: MuscleSpan;
 };
 
 export const PROGRESS_DEFAULTS = {
   view: "metrics",
-  repMin: 8,
-  repMax: 12,
-  weight: 100,
+  span: "week",
 } as const;
 
 const VIEWS = new Set(["tracking", "profile", "add"]);
-
-function clampInt(raw: string | undefined, fallback: number, min: number): number {
-  const n = Number.parseInt(raw ?? "", 10);
-  return Number.isFinite(n) && n >= min ? n : fallback;
-}
 
 /** Validate raw searchParams into ProgressParams. Unknown clients fall back
  *  to the roster's first client — never a hardcoded id, since clients are
@@ -64,11 +50,7 @@ export function parseProgressParams(
     defaultClient: fallback,
     view: raw.view && VIEWS.has(raw.view) ? raw.view : PROGRESS_DEFAULTS.view,
     ...selected,
-    repMin: clampInt(raw.repMin, PROGRESS_DEFAULTS.repMin, 1),
-    repMax: clampInt(raw.repMax, PROGRESS_DEFAULTS.repMax, 1),
-    weight: clampInt(raw.weight, PROGRESS_DEFAULTS.weight, 0),
-    mod: raw.mod && isModalityId(raw.mod) ? raw.mod : "",
-    group: raw.group && isMuscleGroupId(raw.group) ? raw.group : "",
+    span: raw.span && isMuscleSpan(raw.span) ? raw.span : PROGRESS_DEFAULTS.span,
   };
 }
 
@@ -78,11 +60,7 @@ export function progressHref(params: Partial<ProgressParams>): string {
   if (params.view && params.view !== PROGRESS_DEFAULTS.view) qs.set("view", params.view);
   if (params.exercise) qs.set("exercise", params.exercise);
   if (params.modality) qs.set("modality", params.modality);
-  if (params.repMin !== undefined && params.repMin !== PROGRESS_DEFAULTS.repMin) qs.set("repMin", String(params.repMin));
-  if (params.repMax !== undefined && params.repMax !== PROGRESS_DEFAULTS.repMax) qs.set("repMax", String(params.repMax));
-  if (params.weight !== undefined && params.weight !== PROGRESS_DEFAULTS.weight) qs.set("weight", String(params.weight));
-  if (params.mod) qs.set("mod", params.mod);
-  if (params.group) qs.set("group", params.group);
+  if (params.span && params.span !== PROGRESS_DEFAULTS.span) qs.set("span", params.span);
   const s = qs.toString();
   return `/users${s ? `?${s}` : ""}`;
 }

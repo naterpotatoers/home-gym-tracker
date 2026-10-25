@@ -133,3 +133,24 @@ export function performOrder(
   }
   return out;
 }
+
+/**
+ * Where the live block list folds into one "Later: …" row: everything up to
+ * and including the current block, plus the next one, stays a row; a
+ * superset run is never split; a manually opened block is never folded away.
+ * `labels[i]` is block i's superset label. Null = no fold (no current block,
+ * or fewer than two blocks would fold).
+ */
+export function upcomingFoldIndex(
+  labels: readonly (string | undefined)[],
+  currentIndex: number,
+  expandedIndex: number,
+): number | null {
+  if (currentIndex < 0) return null;
+  let cut = currentIndex + 2;
+  while (cut < labels.length && labels[cut] !== undefined && labels[cut] === labels[cut - 1]) {
+    cut++;
+  }
+  cut = Math.max(cut, expandedIndex + 1);
+  return labels.length - cut >= 2 ? cut : null;
+}

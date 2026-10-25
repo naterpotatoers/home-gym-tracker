@@ -9,7 +9,7 @@ import type { ClientSummary } from "@/lib/queries";
  * chip row on mobile. Pure links via progressHref, so switching people keeps
  * the current view/drill-in and the selection lives in the URL. The one
  * exception: the add-person pane is person-independent, so picking a person
- * while on it lands on their Overview instead of a stuck add form.
+ * while on it lands on their Progress tab instead of a stuck add form.
  */
 export function PersonList({
   summaries,
@@ -27,15 +27,15 @@ export function PersonList({
   return (
     <>
       {/* Desktop sidebar */}
-      <div className="hidden lg:block">
+      <div className="hidden xl:block">
         <ul className="space-y-1">
-        {summaries.map(({ client, sessionCount }) => {
+        {summaries.map(({ client }) => {
           const selected = client.id === params.client;
           return (
             <li key={client.id}>
               <Link
                 href={personHref(client.id)}
-                className={`flex min-h-11 flex-col justify-center rounded-md px-3 py-1.5 ${
+                className={`flex min-h-11 items-center rounded-md px-3 py-1.5 ${
                   selected
                     ? "bg-accent-soft"
                     : "hover:bg-current/5"
@@ -54,7 +54,6 @@ export function PersonList({
                     </span>
                   )}
                 </span>
-                <span className="text-xs text-muted">{sessionCount} sessions</span>
               </Link>
             </li>
           );
@@ -73,7 +72,7 @@ export function PersonList({
       </div>
 
       {/* Mobile chip row */}
-      <div className="-mx-4 overflow-x-auto px-4 lg:hidden">
+      <div className="-mx-4 overflow-x-auto px-4 xl:hidden">
         <div className="flex w-max gap-1 pb-1">
           {summaries.map(({ client }) => (
             <Link
@@ -97,13 +96,13 @@ export function PersonList({
   );
 }
 
-/** Overview / Tracking / Profile pane switcher — keeps the rest of the params
- *  so a drill-in survives tab flips. No tab lights for the add-person pane.
- *  (The URL value for Overview stays "metrics" so old links keep working.) */
+/** Progress / Log / Profile pane switcher — keeps the rest of the params so a
+ *  drill-in survives tab flips. Not rendered on the add-person pane. (The URL
+ *  values stay "metrics"/"tracking" so old links keep working.) */
 export function ViewTabs({ params }: { params: ProgressParams }) {
   const tabs = [
-    { view: "metrics", label: "Overview", icon: ChartIcon },
-    { view: "tracking", label: "Tracking", icon: ClipboardIcon },
+    { view: "metrics", label: "Progress", icon: ChartIcon },
+    { view: "tracking", label: "Log", icon: ClipboardIcon },
     { view: "profile", label: "Profile", icon: PersonIcon },
   ] as const;
   return (
@@ -114,6 +113,7 @@ export function ViewTabs({ params }: { params: ProgressParams }) {
           <Link
             key={tab.view}
             href={progressHref({ ...params, view: tab.view })}
+            aria-current={params.view === tab.view ? "page" : undefined}
             className={chipClass(params.view === tab.view, "min-h-11 px-4 text-sm")}
           >
             <Icon size={15} /> {tab.label}

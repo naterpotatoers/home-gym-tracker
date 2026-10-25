@@ -6,6 +6,7 @@ import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { PlusIcon, SaveIcon, TrashIcon } from "@/components/icons";
 import {
   Button,
+  Caret,
   Card,
   Checkbox,
   ErrorText,
@@ -15,6 +16,7 @@ import {
   Note,
   NumberInput,
   Select,
+  summaryClass,
 } from "@/components/ui";
 import {
   deleteExercise,
@@ -51,6 +53,7 @@ import type {
   MuscleId,
   UnilateralMode,
 } from "@/lib/types";
+import { useUnsavedGuard } from "./unsaved-guard";
 
 type ScoreRow = { muscleId: MuscleId; role: ScoreRole };
 type VariantRow = Omit<ExerciseModality, "exerciseId">;
@@ -68,6 +71,8 @@ function toVariantRows(rows: readonly ExerciseModality[]): VariantRow[] {
     requiredEquipment: row.requiredEquipment,
     pinRisk: row.pinRisk,
     loadFactorOverride: row.loadFactorOverride,
+    implements: row.implements,
+    loadIncludesBodyweight: row.loadIncludesBodyweight,
     notes: row.notes,
   }));
 }
@@ -118,6 +123,29 @@ export function ExerciseEditor({
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
 
+  // Dirty = the form differs from what was last loaded or saved. Derived from
+  // a snapshot (not an "edited" flag) so undoing an edit counts as clean.
+  const snapshot = JSON.stringify({
+    name,
+    aliasText,
+    pattern,
+    metricType,
+    isCompound,
+    scores,
+    variants,
+  });
+  const [savedSnapshot, setSavedSnapshot] = useState(snapshot);
+  const dirty = !readOnly && snapshot !== savedSnapshot;
+  useUnsavedGuard(dirty);
+  const status =
+    saveState === "saving"
+      ? "Saving…"
+      : dirty
+        ? "Unsaved changes"
+        : saveState === "saved"
+          ? "Saved"
+          : "";
+
   const { scoresByExercise } = exerciseLookup(catalog);
   const sortedExercises = useMemo(
     () => [...catalog.exercises].sort((a, b) => a.name.localeCompare(b.name)),
@@ -127,6 +155,8 @@ export function ExerciseEditor({
   const primaryCount = scores.filter((s) => s.role === "primary").length;
   const usedMuscles = new Set(scores.map((s) => s.muscleId));
   const usedModalities = new Set(variants.map((v) => v.modalityId));
+  const referenceName =
+    catalog.exercises.find((e) => e.id === referenceId)?.name ?? referenceId;
 
   const previewValues = useMemo(
     () =>
@@ -140,15 +170,34 @@ export function ExerciseEditor({
     [scoresByExercise, referenceId],
   );
 
-  /** Copy another exercise's profile as the starting state — optional; a
-   *  blank slate stays fully supported. */
-  function startFrom(sourceId: string) {
-    if (!sourceId) return;
-    setScores(toScoreRows(scoresByExercise.get(sourceId) ?? []));
+  /** Copy the compared exercise's profile as a starting state — optional; a
+   *  blank slate stays fully supported. Confirms before overwriting work. */
+  function copyFromReference() {
+    if (!referenceId) return;
+    if (
+      (scores.length > 0 || variants.length > 0) &&
+      !window.confirm(
+        `Replace this exercise's muscles and variants with ${referenceName}'s?`,
+      )
+    ) {
+      return;
+    }
+    setScores(toScoreRows(scoresByExercise.get(referenceId) ?? []));
     setVariants(
-      toVariantRows(exerciseLookup(catalog).modalitiesByExercise.get(sourceId) ?? []),
+      toVariantRows(exerciseLookup(catalog).modalitiesByExercise.get(referenceId) ?? []),
     );
-    setReferenceId(sourceId);
+  }
+
+  /** Removing the default hands the role to the first remaining row — the
+   *  save requires exactly one default. */
+  function removeVariant(index: number) {
+    setVariants((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length > 0 && !next.some((v) => v.isDefault)) {
+        next[0] = { ...next[0], isDefault: true };
+      }
+      return next;
+    });
   }
 
   function patchScore(index: number, changes: Partial<ScoreRow>) {
@@ -185,6 +234,8 @@ export function ExerciseEditor({
         requiredEquipment: [],
         pinRisk: false,
         loadFactorOverride: null,
+        implements: null,
+        loadIncludesBodyweight: false,
         notes: "",
       },
     ]);
@@ -216,6 +267,7 @@ export function ExerciseEditor({
         modalities: variants,
       };
       await saveExercise(exercise.id, payload);
+      setSavedSnapshot(snapshot);
       setSaveState("saved");
     } catch (e) {
       setSaveState("idle");
@@ -227,10 +279,6 @@ export function ExerciseEditor({
     <Card className="mt-4">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">{exercise.name}</h2>
-        <span className="font-mono text-xs text-muted">{exercise.id}</span>
-        <span className="ml-auto text-xs text-muted">
-          {saveState === "saving" ? "saving…" : saveState === "saved" ? "saved" : ""}
-        </span>
       </div>
 
       {/* Basics */}
@@ -294,24 +342,6 @@ export function ExerciseEditor({
         </label>
       </div>
 
-      {/* Start from template */}
-      {!readOnly && (
-        <div className="mt-5 flex flex-wrap items-end gap-3 border-t border-border pt-4">
-          <Field label="Start from… (copies muscles & variants)">
-            <Select value="" onChange={(e) => startFrom(e.target.value)}>
-              <option value="">— from scratch —</option>
-              {sortedExercises
-                .filter((e) => e.id !== exercise.id)
-                .map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-            </Select>
-          </Field>
-        </div>
-      )}
-
       {/* Muscle roles */}
       <div className="mt-5 border-t border-border pt-4">
         <h3 className="text-sm font-semibold">Muscles worked</h3>
@@ -327,14 +357,16 @@ export function ExerciseEditor({
             excluded from volume math entirely.
           </Note>
         )}
-        <ul className="mt-2 space-y-2">
+        {/* Two columns of muscle rows on iPad landscape and up. */}
+        <ul className="mt-2 grid gap-2 lg:grid-cols-2 lg:gap-x-6">
           {scores.map((row, index) => (
-            <li key={row.muscleId} className="flex flex-wrap items-center gap-2">
+            <li key={row.muscleId} className="flex items-center gap-2">
               <Select
                 size="sm"
                 value={row.muscleId}
                 onChange={(e) => patchScore(index, { muscleId: e.target.value as MuscleId })}
                 disabled={readOnly}
+                className="min-w-0 flex-1"
               >
                 {muscles
                   .filter((m) => m.id === row.muscleId || !usedMuscles.has(m.id))
@@ -390,22 +422,25 @@ export function ExerciseEditor({
         )}
 
         {/* Live preview vs a reference — skew is visible before saving. */}
-        {scores.length > 0 && (
-          <div className="mt-4 grid gap-6 sm:grid-cols-2">
+        <div className="mt-4 grid gap-6 sm:grid-cols-2">
+          {scores.length > 0 ? (
             <BodyHeatmap
-              values={previewValues}
+              values={[...previewValues]}
               catalog={catalog}
               title={`${name || "This exercise"} (preview)`}
               maxLabel="score 10"
             />
-            <div>
-              <Field label="Compare against">
+          ) : (
+            <Note>Add a muscle to preview this exercise on the body map.</Note>
+          )}
+          <div>
+            <div className="flex flex-wrap items-end gap-2">
+              <Field label="Compare with">
                 <Select
-                  size="sm"
                   value={referenceId}
                   onChange={(e) => setReferenceId(e.target.value)}
                 >
-                  <option value="">— pick a reference —</option>
+                  <option value="">— pick an exercise —</option>
                   {sortedExercises
                     .filter((e) => e.id !== exercise.id)
                     .map((e) => (
@@ -415,22 +450,24 @@ export function ExerciseEditor({
                     ))}
                 </Select>
               </Field>
-              {referenceId && (
-                <div className="mt-2">
-                  <BodyHeatmap
-                    values={referenceValues}
-                    catalog={catalog}
-                    title={
-                      catalog.exercises.find((e) => e.id === referenceId)?.name ??
-                      referenceId
-                    }
-                    maxLabel="score 10"
-                  />
-                </div>
+              {!readOnly && (
+                <Button onClick={copyFromReference} disabled={!referenceId}>
+                  Copy its muscles &amp; variants
+                </Button>
               )}
             </div>
+            {referenceId && (
+              <div className="mt-2">
+                <BodyHeatmap
+                  values={[...referenceValues]}
+                  catalog={catalog}
+                  title={referenceName}
+                  maxLabel="score 10"
+                />
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Modality variants */}
@@ -454,6 +491,10 @@ export function ExerciseEditor({
                     patchVariant(index, {
                       modalityId: e.target.value as VariantRow["modalityId"],
                       bandRoles: e.target.value === "band" ? variant.bandRoles : [],
+                      ...(e.target.value !== "dumbbell" && {
+                        implements: null,
+                        loadIncludesBodyweight: false,
+                      }),
                     })
                   }
                   disabled={readOnly}
@@ -468,7 +509,7 @@ export function ExerciseEditor({
                       </option>
                     ))}
                 </Select>
-                <label className="flex items-center gap-1.5 text-sm">
+                <label className="flex min-h-11 items-center gap-1.5 text-sm">
                   <input
                     type="radio"
                     name={`default-variant-${exercise.id}`}
@@ -481,41 +522,18 @@ export function ExerciseEditor({
                     disabled={readOnly}
                     className="size-4 accent-(--color-accent)"
                   />
-                  default
+                  Default
                 </label>
-                <label className="flex items-center gap-1.5 text-sm">
-                  <Checkbox
-                    checked={variant.pinRisk}
-                    onChange={(e) => patchVariant(index, { pinRisk: e.target.checked })}
-                    disabled={readOnly}
-                  />
-                  pin risk
-                </label>
-                <Select
-                  size="sm"
-                  value={variant.defaultUnilateralMode}
-                  onChange={(e) =>
-                    patchVariant(index, {
-                      defaultUnilateralMode: e.target.value as UnilateralMode,
-                    })
-                  }
-                  disabled={readOnly}
-                >
-                  {UNILATERAL_MODES.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {mode.replace("_", " ")}
-                    </option>
-                  ))}
-                </Select>
                 {!readOnly && (
                   <IconButton
                     variant="ghost"
                     size="sm"
                     className="ml-auto"
-                    onClick={() =>
-                      setVariants((prev) => prev.filter((_, i) => i !== index))
-                    }
-                    aria-label="Remove variant"
+                    onClick={() => removeVariant(index)}
+                    aria-label={`Remove ${
+                      modalities.find((m) => m.id === variant.modalityId)?.name ??
+                      variant.modalityId
+                    } variant`}
                   >
                     <TrashIcon size={16} />
                   </IconButton>
@@ -542,14 +560,13 @@ export function ExerciseEditor({
                           })
                         }
                         aria-pressed={on}
-                        title={item.name}
-                        className={`min-h-9 cursor-pointer rounded-full border px-2.5 text-xs ${
+                        className={`min-h-9 pointer-coarse:min-h-11 cursor-pointer rounded-full border px-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-default ${
                           on
                             ? "border-accent bg-accent-soft font-semibold text-accent-text"
                             : "border-border text-muted hover:bg-current/5"
                         }`}
                       >
-                        {item.id.replace(/_/g, " ")}
+                        {item.name}
                       </button>
                     );
                   })}
@@ -557,12 +574,12 @@ export function ExerciseEditor({
               </div>
 
               {variant.modalityId === "band" && (
-                <div className="mt-2 flex flex-wrap items-center gap-3">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3">
                   <span className="text-[11px] uppercase tracking-wide text-muted">
                     Band roles
                   </span>
                   {BAND_ROLES.map((role) => (
-                    <label key={role} className="flex items-center gap-1.5 text-sm">
+                    <label key={role} className="flex min-h-11 items-center gap-1.5 text-sm">
                       <Checkbox
                         checked={variant.bandRoles.includes(role)}
                         onChange={(e) =>
@@ -580,31 +597,101 @@ export function ExerciseEditor({
                 </div>
               )}
 
-              <div className="mt-2 flex flex-wrap items-end gap-3">
-                <Field label="Load factor override">
-                  <NumberInput
-                    size="sm"
-                    value={variant.loadFactorOverride}
-                    step={0.05}
-                    min={0.05}
-                    placeholder="—"
-                    onChange={(v) => patchVariant(index, { loadFactorOverride: v })}
-                  />
-                </Field>
-                <div className="min-w-48 flex-1">
-                  <Field label="Notes">
-                    <Input
-                      type="text"
-                      size="sm"
-                      value={variant.notes}
-                      onChange={(e) => patchVariant(index, { notes: e.target.value })}
-                      disabled={readOnly}
-                      placeholder="—"
-                      className="w-full"
-                    />
-                  </Field>
-                </div>
-              </div>
+              {/* Rarely-touched knobs stay folded so the card reads at a glance. */}
+              <details className="group mt-2 rounded-md border border-border">
+                <summary className={summaryClass("rounded-md px-2 text-sm")}>
+                  <Caret /> Advanced
+                </summary>
+                {/* A disabled fieldset covers controls without their own
+                    disabled prop (NumberInput) when the catalog is read-only. */}
+                <fieldset
+                  disabled={readOnly}
+                  className="m-0 min-w-0 space-y-2 border-0 border-t border-border p-2"
+                >
+                  <div className="flex flex-wrap items-end gap-3">
+                    <Field label="Unilateral mode">
+                      <Select
+                        size="sm"
+                        value={variant.defaultUnilateralMode}
+                        onChange={(e) =>
+                          patchVariant(index, {
+                            defaultUnilateralMode: e.target.value as UnilateralMode,
+                          })
+                        }
+                      >
+                        {UNILATERAL_MODES.map((mode) => (
+                          <option key={mode} value={mode}>
+                            {mode.replace("_", " ")}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <label className="flex min-h-11 items-center gap-1.5 text-sm">
+                      <Checkbox
+                        checked={variant.pinRisk}
+                        onChange={(e) => patchVariant(index, { pinRisk: e.target.checked })}
+                      />
+                      Pin risk
+                    </label>
+                  </div>
+
+                  {variant.modalityId === "dumbbell" && (
+                    <div className="flex flex-wrap items-end gap-3">
+                      <Field label="Dumbbells per rep">
+                        <Select
+                          value={variant.implements === null ? "" : String(variant.implements)}
+                          onChange={(e) =>
+                            patchVariant(index, {
+                              implements:
+                                e.target.value === ""
+                                  ? null
+                                  : (Number(e.target.value) as 1 | 2),
+                            })
+                          }
+                        >
+                          <option value="">Auto (from unilateral mode)</option>
+                          <option value="1">One</option>
+                          <option value="2">Two</option>
+                        </Select>
+                      </Field>
+                      <label className="flex min-h-11 items-center gap-1.5 text-sm">
+                        <Checkbox
+                          checked={variant.loadIncludesBodyweight}
+                          onChange={(e) =>
+                            patchVariant(index, { loadIncludesBodyweight: e.target.checked })
+                          }
+                        />
+                        Load includes bodyweight
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-end gap-3">
+                    <Field label="Load factor override">
+                      <NumberInput
+                        size="sm"
+                        value={variant.loadFactorOverride}
+                        step={0.05}
+                        min={0.05}
+                        placeholder="—"
+                        onChange={(v) => patchVariant(index, { loadFactorOverride: v })}
+                      />
+                    </Field>
+                    <div className="min-w-48 flex-1">
+                      <Field label="Notes">
+                        <Input
+                          type="text"
+                          size="sm"
+                          value={variant.notes}
+                          onChange={(e) => patchVariant(index, { notes: e.target.value })}
+                          placeholder="—"
+                          className="w-full"
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                </fieldset>
+              </details>
             </div>
           ))}
         </div>
@@ -620,9 +707,10 @@ export function ExerciseEditor({
         )}
       </div>
 
-      {/* Save / delete */}
+      {/* Save / delete — sticky so Save is always reachable on a long form;
+          below md it rides above the fixed bottom tab bar. */}
       {!readOnly && (
-        <div className="mt-5 flex items-center gap-2 border-t border-border pt-4">
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 -mb-4 mt-5 flex flex-wrap items-center gap-2 rounded-b-xl border-t border-border bg-surface px-4 py-3 md:bottom-0">
           <Button
             variant="primary"
             onClick={handleSave}
@@ -630,6 +718,9 @@ export function ExerciseEditor({
           >
             <SaveIcon size={16} /> Save exercise
           </Button>
+          <span role="status" className="text-sm text-muted">
+            {status}
+          </span>
           {error && <ErrorText>{error}</ErrorText>}
           <ConfirmDeleteButton
             action={deleteExercise.bind(null, exercise.id)}

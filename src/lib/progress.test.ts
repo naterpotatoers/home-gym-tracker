@@ -5,6 +5,8 @@ import {
   exerciseHistory,
   liftFrequency,
   liftOverview,
+  primaryMuscle,
+  recentVariantHistory,
   trendSegment,
   type ExerciseHistoryPoint,
 } from "./progress";
@@ -18,6 +20,7 @@ function point(date: string, e1rm: number | null): ExerciseHistoryPoint {
     bestE1rmLbs: e1rm,
     topSet: e1rm === null ? null : { weightLbs: e1rm, reps: 1 },
     setCount: 3,
+    sets: [],
     volumeLbs: 1000,
   };
 }
@@ -88,6 +91,17 @@ describe("seed-data integration", () => {
     const dates = history.map((p) => p.date);
     expect([...dates].sort()).toEqual(dates);
     expect(new Set(history.map((p) => p.sessionId)).size).toBe(history.length);
+    for (const p of history) {
+      expect(p.sets).toHaveLength(p.setCount);
+      expect(p.sets.every((s) => s.sessionId === p.sessionId && !s.isWarmup)).toBe(true);
+      const positions = p.sets.map((s) => s.position);
+      expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    }
+  });
+
+  it("liftOverview lists the most recently trained lift first", () => {
+    const dates = liftOverview(data, "nate").map((r) => r.lastDate);
+    expect([...dates].sort().reverse()).toEqual(dates);
   });
 
   it("liftFrequency counts distinct completed sessions", () => {
@@ -107,5 +121,42 @@ describe("seed-data integration", () => {
     const overview = liftOverview(data, "lidia");
     expect(overview.some((r) => r.exerciseId === "stretch")).toBe(false);
     expect(overview.some((r) => r.exerciseId === "squat")).toBe(true);
+  });
+
+  it("primaryMuscle is the top-scored muscle, null without scores", () => {
+    const scores = data.scoresByExercise.get("squat")!;
+    const top = scores.reduce((a, b) => (b.score > a.score ? b : a));
+    expect(primaryMuscle(data, "squat")?.id).toBe(top.muscleId);
+    expect(primaryMuscle(data, "not_an_exercise")).toBeNull();
+  });
+
+  it("liftOverview's lastTopSet is the latest session's top set", () => {
+    for (const row of liftOverview(data, "nate")) {
+      const history = exerciseHistory(data, "nate", row.exerciseId, row.modalityId);
+      expect(row.lastTopSet).toEqual(history.at(-1)?.topSet ?? null);
+    }
+  });
+});
+
+describe("recentVariantHistory", () => {
+  it("is newest first, capped, and matches exerciseHistory's sets", () => {
+    const history = exerciseHistory(data, "nate", "bench_press", "barbell");
+    const recent = recentVariantHistory(data, "nate", "none")["bench_press|barbell"];
+    expect(recent).toHaveLength(Math.min(3, history.length));
+    const latest = history.at(-1)!;
+    expect(recent[0].date).toBe(latest.date);
+    expect(recent[0].sets).toHaveLength(latest.setCount);
+    const dates = recent.map((r) => r.date);
+    expect([...dates].sort().reverse()).toEqual(dates);
+  });
+
+  it("excludes the live session", () => {
+    const latest = exerciseHistory(data, "nate", "bench_press", "barbell").at(-1)!;
+    const recent = recentVariantHistory(data, "nate", latest.sessionId)["bench_press|barbell"];
+    expect(recent.every((r) => r.date <= latest.date)).toBe(true);
+    const withLive = recentVariantHistory(data, "nate", "none", 99)["bench_press|barbell"];
+    expect(recentVariantHistory(data, "nate", latest.sessionId, 99)["bench_press|barbell"]).toHaveLength(
+      withLive.length - 1,
+    );
   });
 });

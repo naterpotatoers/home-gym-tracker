@@ -1,19 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PlayIcon } from "@/components/icons";
-import { RecentWorkouts } from "@/components/recent-workouts";
-import { Button, Note, PageShell, Section, TableScroll, Td, Th } from "@/components/ui";
-import { startSession } from "@/lib/actions/workout";
+import { Note, PageShell, Section, TableScroll, Td, Th } from "@/components/ui";
 import { loadGymData } from "@/lib/db/snapshot";
-import { StartRowButton } from "@/components/start-row-button";
-import { addDaysIso, currentProgramWeek, DAY_LABELS, localTodayIso } from "@/lib/periods";
-import { resumeTargetForClient } from "@/lib/queries";
+import { DAY_LABELS, localTodayIso } from "@/lib/periods";
+import { programWeekStatus } from "@/lib/planning";
 
+const linkClass = "text-accent-text underline underline-offset-2";
 
 /**
- * One person's program page: their assigned program's current week front and
- * center, unfinished sessions to resume, and their workout history. Ad-hoc
- * routine starts live on the /workout screen, not here.
+ * One person's program week, read-only: what's scheduled, what's done, and
+ * today highlighted. Starting anything happens on the Workout tab — this page
+ * deliberately has no Start buttons so there's one way in.
  */
 export default async function ClientWorkoutPage({
   params,
@@ -24,47 +21,47 @@ export default async function ClientWorkoutPage({
   const data = await loadGymData();
   const client = data.clientById.get(clientId);
   if (!client) notFound();
-  const planned = data.sessions.filter(
-    (s) => s.clientId === clientId && s.status === "planned",
-  );
-  const assignment = data.assignments.find(
-    (a) => a.clientId === clientId && a.status === "active",
-  );
-  const resume = resumeTargetForClient(data, clientId);
-  const program = assignment ? data.programById.get(assignment.programId) : undefined;
-
-  // Which program week is this calendar week?
-  let currentWeek = 1;
-  let weekDays: { dayOfWeek: number; routineId: string; done: boolean }[] = [];
-  if (assignment && program) {
-    currentWeek = currentProgramWeek(assignment, program, localTodayIso());
-    const weekStart = addDaysIso(assignment.startDate, (currentWeek - 1) * 7);
-    const weekEnd = addDaysIso(assignment.startDate, currentWeek * 7);
-    weekDays = data.programDays
-      .filter((d) => d.programId === program.id && d.week === currentWeek)
-      .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
-      .map((day) => ({
-        dayOfWeek: day.dayOfWeek,
-        routineId: day.routineId,
-        done: data.sessions.some(
-          (s) =>
-            s.clientId === clientId &&
-            s.status === "completed" &&
-            s.routineId === day.routineId &&
-            s.date >= weekStart &&
-            s.date < weekEnd,
-        ),
-      }));
-  }
+  const today = localTodayIso();
+  const status = programWeekStatus(data, clientId, today);
 
   return (
     <PageShell>
       <h1 className="text-3xl font-bold tracking-tight">{client.firstName}</h1>
+      <p className="mt-1 text-sm">
+        <Link href="/" className={linkClass}>
+          Start today from the Workout tab →
+        </Link>
+      </p>
 
-      {/* The program is the headline of this page. */}
-      {assignment && program ? (
-        <Section title={`${program.name} — week ${currentWeek} of ${program.weeks}`}>
-          {weekDays.length === 0 ? (
+      {!status ? (
+        <Section title="Program">
+          <p className="text-sm text-muted">
+            No program assigned. Assign one on the{" "}
+            <Link href="/programs" className={linkClass}>
+              Plan
+            </Link>{" "}
+            tab — or start any routine from the{" "}
+            <Link href="/" className={linkClass}>
+              Workout
+            </Link>{" "}
+            tab.
+          </p>
+        </Section>
+      ) : status.finished ? (
+        <Section title={`${status.program.name} — finished`}>
+          <p className="text-sm text-muted">
+            All {status.program.weeks} weeks are behind {client.firstName}.{" "}
+            <Link href={`/programs/${status.program.id}`} className={linkClass}>
+              Mark it completed or assign the next program
+            </Link>
+            .
+          </p>
+        </Section>
+      ) : (
+        <Section
+          title={`${status.program.name} — week ${status.week} of ${status.program.weeks}`}
+        >
+          {status.days.length === 0 ? (
             <p className="text-sm text-muted">Nothing scheduled this week.</p>
           ) : (
             <TableScroll>
@@ -77,12 +74,20 @@ export default async function ClientWorkoutPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {weekDays.map((day) => (
-                    <tr key={day.dayOfWeek} className="border-b border-border">
+                  {status.days.map((day) => (
+                    <tr
+                      key={day.date}
+                      className={`border-b border-border ${day.isToday ? "bg-accent-soft" : ""}`}
+                    >
                       <Td>
                         <span className="font-mono text-xs text-muted">
                           {DAY_LABELS[day.dayOfWeek - 1]}
                         </span>
+                        {day.isToday && (
+                          <span className="ml-2 text-xs font-semibold text-accent-text">
+                            today
+                          </span>
+                        )}
                       </Td>
                       <Td>
                         <span
@@ -94,18 +99,10 @@ export default async function ClientWorkoutPage({
                       <Td>
                         {day.done ? (
                           <span className="text-xs text-success-text">✓ done</span>
-                        ) : resume && resume.routineId === day.routineId ? (
-                          // An unfinished session of this routine exists —
-                          // Start here would silently duplicate it.
-                          <StartRowButton isResume href={resume.href} />
                         ) : (
-                          <form
-                            action={startSession.bind(null, clientId, day.routineId, assignment.id)}
-                          >
-                            <Button type="submit" variant="primary" size="sm">
-                              <PlayIcon size={14} /> Start
-                            </Button>
-                          </form>
+                          <span className="text-xs text-muted">
+                            {day.date < today ? "missed" : "to do"}
+                          </span>
                         )}
                       </Td>
                     </tr>
@@ -115,52 +112,14 @@ export default async function ClientWorkoutPage({
             </TableScroll>
           )}
           <Note>
-            {client.firstName} is on {program.name}. Change or reassign programs
-            on the{" "}
-            <Link href="/programs" className="text-accent-text underline underline-offset-2">
-              Plan
-            </Link>{" "}
-            page.
+            Change or reassign {client.firstName}&apos;s program on{" "}
+            <Link href={`/programs/${status.program.id}`} className={linkClass}>
+              {status.program.name}
+            </Link>
+            .
           </Note>
         </Section>
-      ) : (
-        <Section title="Program">
-          <p className="text-sm text-muted">
-            No program assigned. Assign one on the{" "}
-            <Link href="/programs" className="text-accent-text underline underline-offset-2">
-              Plan
-            </Link>{" "}
-            page — or start any routine from the{" "}
-            <Link href="/workout" className="text-accent-text underline underline-offset-2">
-              Workout
-            </Link>{" "}
-            screen.
-          </p>
-        </Section>
       )}
-
-      {planned.length > 0 && (
-        <Section title="Resume">
-          <ul className="divide-y divide-border text-sm">
-            {planned.map((session) => (
-              <li key={session.id} className="flex min-h-11 items-center gap-3">
-                <span className="font-mono text-xs text-muted">{session.date}</span>
-                <span className="font-semibold">
-                  {data.routineById.get(session.routineId ?? "")?.name ?? "Session"}
-                </span>
-                <Link
-                  href={`/workout/session/${session.id}`}
-                  className="ml-auto text-accent-text underline underline-offset-2"
-                >
-                  Resume →
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      <RecentWorkouts data={data} client={clientId} />
     </PageShell>
   );
 }

@@ -10,6 +10,7 @@ const vol = (
   muscleId,
   weightedVolumeLbs,
   ordinalReps,
+  unloadedReps: 0,
   sets: weightedVolumeLbs > 0 || ordinalReps > 0 ? 1 : 0,
   peakScore: 10,
 });

@@ -1,5 +1,5 @@
 import { barById, plates } from "./data/equipment";
-import type { Bar,} from "./types";
+import type { Bar, ModalityId } from "./types";
 
 /**
  * Plate math. Everything here is pure and derived from `plates` in
@@ -134,3 +134,19 @@ export function smallestIncrement(barId: BarId = "ohio_bar"): number | null {
   return min;
 }
 
+
+/** The ± stepper increment for a set's weight field (per implement for
+ *  dumbbells, added load for bodyweight). Null where weight isn't a number
+ *  the lifter nudges — bands pick a band instead. */
+export function weightStep(modalityId: ModalityId): number | null {
+  switch (modalityId) {
+    case "barbell":
+    case "machine":
+      return 5;
+    case "dumbbell":
+    case "bodyweight":
+      return 2.5;
+    default:
+      return null;
+  }
+}

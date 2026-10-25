@@ -14,6 +14,7 @@ import {
 import { ModalityChip } from "@/components/modality-chip";
 import { catalogSlice } from "@/lib/exercise-catalog";
 import { localDayLabel } from "@/lib/periods";
+import { recentVariantHistory } from "@/lib/progress";
 import { loadGymData } from "@/lib/db/snapshot";
 import { bestE1rm } from "@/lib/modality";
 import {
@@ -29,10 +30,14 @@ import { completedCount } from "@/lib/session-labels";
 
 export default async function SessionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ sessionId: string }>;
+  /** `board`: the group board's session ids, when opened from a board card's
+   *  recap link — the back link then returns to that board. */
+  searchParams: Promise<{ board?: string }>;
 }) {
-  const { sessionId } = await params;
+  const [{ sessionId }, { board }] = await Promise.all([params, searchParams]);
   const data = await loadGymData();
   const session = data.sessionById.get(sessionId);
   if (!session) notFound();
@@ -50,10 +55,10 @@ export default async function SessionPage({
     return (
       <PageShell className="max-w-3xl">
         <Link
-          href="/workout"
-          className={chipClass(false, "min-h-9 px-2.5 text-xs")}
+          href={board ? `/workout/group/board?s=${encodeURIComponent(board)}` : "/"}
+          className={chipClass(false, "min-h-9 pointer-coarse:min-h-11 px-2.5 text-xs")}
         >
-          <ArrowLeftIcon size={14} /> Back to workout
+          <ArrowLeftIcon size={14} /> {board ? "Back to the board" : "Back to workout"}
         </Link>
 
         {/* Who / when / how it went */}
@@ -62,7 +67,7 @@ export default async function SessionPage({
           <h1 className="text-2xl font-bold tracking-tight">
             {client?.firstName ?? session.clientId}
           </h1>
-          <Chip>{session.status}</Chip>
+          {session.status === "skipped" && <Chip>skipped</Chip>}
           {session.rpe !== null && <Chip>RPE {session.rpe}</Chip>}
           {session.condition && <Chip>felt {session.condition}</Chip>}
         </div>
@@ -94,7 +99,7 @@ export default async function SessionPage({
         </dl>
 
         <div className="mt-6 space-y-3">
-          {blocks.map((block, i) => {
+          {blocks.map((block) => {
             const sessionBest = bestE1rm(
               data,
               block.sets.filter((s) => s.completed && !s.isWarmup),
@@ -115,7 +120,7 @@ export default async function SessionPage({
             const done = completedCount(block.sets);
             return (
               <div
-                key={i}
+                key={block.key}
                 className="rounded-xl border border-border bg-surface p-3"
                 style={clientBorderStyle(client?.color ?? null)}
               >
@@ -129,7 +134,7 @@ export default async function SessionPage({
                   )}
                   {isPr && (
                     <span className="rounded bg-success/15 px-1.5 py-0.5 text-xs font-semibold text-success-text">
-                      PR · e1RM {lbs(sessionBest)} (prev {Math.round(prior)})
+                      PR · e1RM {lbs(sessionBest)} (prev {lbs(prior)})
                     </span>
                   )}
                   <span className="ml-auto font-mono text-xs text-muted">
@@ -151,12 +156,6 @@ export default async function SessionPage({
             );
           })}
         </div>
-
-        <p className="mt-8">
-          <Link href="/workout" className={chipClass(false, "min-h-9 px-2.5 text-xs")}>
-            <ArrowLeftIcon size={14} /> Back to workout
-          </Link>
-        </p>
       </PageShell>
     );
   }
@@ -175,7 +174,9 @@ export default async function SessionPage({
         variants={availableVariants(data)}
         catalog={catalogSlice(data)}
         clientName={client?.firstName ?? session.clientId}
+        routineName={data.routineById.get(session.routineId ?? "")?.name ?? "Session"}
         recentKeys={recentVariantKeys(data, session.clientId)}
+        history={recentVariantHistory(data, session.clientId, session.id)}
       />
     </PageShell>
   );

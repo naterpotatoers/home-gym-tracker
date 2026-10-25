@@ -6,6 +6,7 @@ import {
   resolveCursor,
   rxLabel,
   supersetGroups,
+  upcomingFoldIndex,
 } from "./session-labels";
 import type { RoutineExercise, SetLog } from "./types";
 
@@ -169,5 +170,28 @@ describe("rxLabel", () => {
   it("keeps genuine ranges and timed schemes", () => {
     expect(rxLabel(rx({ repMin: 8, repMax: 12 }))).toBe("3×8–12 @ RIR 2 · rest 90s");
     expect(rxLabel(rx({ durationSeconds: 30, targetRir: null }))).toBe("3×30s · rest 90s");
+  });
+});
+
+describe("upcomingFoldIndex", () => {
+  const plain = Array<string | undefined>(8).fill(undefined);
+
+  it("keeps the current block and the next one, folds the rest", () => {
+    expect(upcomingFoldIndex(plain, 2, -1)).toBe(4);
+  });
+
+  it("no current block or too little left means no fold", () => {
+    expect(upcomingFoldIndex(plain, -1, -1)).toBeNull();
+    expect(upcomingFoldIndex(plain, 5, -1)).toBeNull(); // only block 7 would fold
+  });
+
+  it("never splits a superset run", () => {
+    const labels = [undefined, "A", "A", "A", undefined, undefined, undefined];
+    expect(upcomingFoldIndex(labels, 0, -1)).toBe(4);
+  });
+
+  it("never folds away a manually opened block", () => {
+    expect(upcomingFoldIndex(plain, 0, 4)).toBe(5);
+    expect(upcomingFoldIndex(plain, 0, 6)).toBeNull();
   });
 });

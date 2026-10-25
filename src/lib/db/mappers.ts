@@ -177,6 +177,11 @@ export type ExerciseModalityRow = {
   required_equipment: ExerciseModality["requiredEquipment"];
   pin_risk: boolean;
   load_factor_override: number | null;
+  // Optional: absent until supabase/migrations/2026-10-24-audit-fixes.sql
+  // runs. Writes omit them at their column defaults so inserts keep working
+  // against an un-migrated table.
+  implements?: 1 | 2 | null;
+  load_includes_bodyweight?: boolean;
   notes: string;
 };
 
@@ -472,6 +477,8 @@ export function rowToExerciseModality(r: ExerciseModalityRow): ExerciseModality 
     requiredEquipment: r.required_equipment,
     pinRisk: r.pin_risk,
     loadFactorOverride: r.load_factor_override,
+    implements: r.implements ?? null,
+    loadIncludesBodyweight: r.load_includes_bodyweight ?? false,
     notes: r.notes,
   };
 }
@@ -486,6 +493,8 @@ export function exerciseModalityToRow(m: ExerciseModality): ExerciseModalityRow 
     required_equipment: m.requiredEquipment,
     pin_risk: m.pinRisk,
     load_factor_override: m.loadFactorOverride,
+    ...(m.implements !== null && { implements: m.implements }),
+    ...(m.loadIncludesBodyweight && { load_includes_bodyweight: true }),
     notes: m.notes,
   };
 }

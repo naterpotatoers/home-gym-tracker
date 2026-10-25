@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
 import { buildGymData } from "./gym-data";
+import type { SetLog } from "./types";
 import {
+  compactSet,
   muscleVolume,
   openBoardGroups,
   prComparison,
@@ -366,5 +368,66 @@ describe("sessionVolumeLbs", () => {
       ],
     });
     expect(sessionVolumeLbs(custom, "s_vol")).toBe(500);
+  });
+});
+
+describe("compactSet", () => {
+  const base: SetLog = {
+    id: "x",
+    sessionId: data.sessions[0].id,
+    exerciseId: "squat",
+    modalityId: "barbell",
+    position: 1,
+    setNumber: 1,
+    unilateralMode: "bilateral",
+    side: null,
+    reps: 10,
+    weightLbs: 135,
+    addedWeightLbs: null,
+    bandId: null,
+    bandRole: null,
+    durationSeconds: null,
+    distanceFeet: null,
+    rir: 2,
+    isWarmup: false,
+    completed: true,
+    notes: "",
+  };
+  const label = (patch: Partial<SetLog>) => compactSet(data, { ...base, ...patch });
+
+  it("plates and dumbbells read weight as entered × reps", () => {
+    expect(label({})).toBe("135×10");
+    expect(label({ modalityId: "dumbbell", weightLbs: 50 })).toBe("50×10");
+    expect(label({ rir: 0 })).toBe("135×10 F");
+    expect(label({ unilateralMode: "single_side", weightLbs: 40 })).toBe("40×10/side");
+  });
+
+  it("bodyweight shows BW and any added load", () => {
+    expect(label({ modalityId: "bodyweight", weightLbs: null })).toBe("BW×10");
+    expect(label({ modalityId: "bodyweight", weightLbs: null, addedWeightLbs: 25, reps: 8 })).toBe(
+      "BW+25×8",
+    );
+    expect(
+      label({ modalityId: "bodyweight", weightLbs: null, reps: null, durationSeconds: 30 }),
+    ).toBe("BW×30s");
+  });
+
+  it("bands read by color; hip bands never get pounds", () => {
+    expect(
+      label({ modalityId: "band", weightLbs: null, bandId: "band_blue", bandRole: "resistance", reps: 12 }),
+    ).toBe("blue×12");
+    expect(
+      label({ modalityId: "band", weightLbs: null, bandId: "band_blue", bandRole: "assistance", reps: 6 }),
+    ).toBe("−blue×6");
+    const hip = label({
+      modalityId: "band",
+      exerciseId: "lateral_walk",
+      weightLbs: null,
+      bandId: "hip_band_medium",
+      bandRole: "resistance",
+      reps: 15,
+    });
+    expect(hip).toBe("medium band×15");
+    expect(hip).not.toMatch(/lb|\d+×/);
   });
 });

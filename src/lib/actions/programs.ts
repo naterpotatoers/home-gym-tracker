@@ -8,8 +8,9 @@ import {
   programToRow,
 } from "../db/mappers";
 import { newId, slugId } from "../ids";
+import type { Assignment } from "../types";
 import { isIsoDate, MAX_PROGRAM_WEEKS } from "../validate";
-import { assertNoRefs, revalidateAll, run } from "./_helpers";
+import { assertNoRefs, revalidateAll, run, runMatched } from "./_helpers";
 import { assertClientId } from "./clients";
 
 export async function createProgram(formData: FormData): Promise<void> {
@@ -79,12 +80,13 @@ export async function updateProgramInfo(
   patch: { name: string; notes: string },
 ): Promise<void> {
   if (!patch.name.trim()) throw new Error("Program needs a name.");
-  await run(
+  await runMatched(
     "updating program",
     supabase
       .from("programs")
       .update({ name: patch.name.trim(), notes: patch.notes })
-      .eq("id", programId),
+      .eq("id", programId)
+      .select("id"),
   );
   revalidateAll();
 }
@@ -118,6 +120,7 @@ export async function addWeek(
 ): Promise<void> {
   const state = await weekState(programId, copyFromWeek);
   if (state.weeks >= MAX_PROGRAM_WEEKS) throw new Error(`Programs cap at ${MAX_PROGRAM_WEEKS} weeks.`);
+  if (copyFromWeek !== undefined) assertWeek(copyFromWeek, state.weeks);
   const newWeek = state.weeks + 1;
 
   await run(
@@ -135,32 +138,50 @@ export async function addWeek(
   revalidateAll();
 }
 
+/** Weeks and days arrive from the client; refuse anything outside the
+ *  program before it reaches a write. */
+function assertWeek(week: number, weeks: number): void {
+  if (!Number.isInteger(week) || week < 1 || week > weeks) {
+    throw new Error(`Week ${week} is outside this program (1–${weeks}).`);
+  }
+}
+
+function assertDayOfWeek(dayOfWeek: number): void {
+  if (!Number.isInteger(dayOfWeek) || dayOfWeek < 1 || dayOfWeek > 7) {
+    throw new Error(`bad day of week ${dayOfWeek}`);
+  }
+}
+
+/** PostgREST's code for "function not found" — the migration hasn't run. */
+const MISSING_FUNCTION = "PGRST202";
+
+/** Week shifts run as one Postgres function (supabase/schema.sql) so a failure
+ *  can't leave the schedule half-deleted — the composite PK forbids in-place
+ *  shifts, and two client-side statements would not be atomic. */
+async function rpcWeekShift(
+  label: string,
+  fn: "remove_program_week" | "duplicate_program_week",
+  args: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await supabase.rpc(fn, args);
+  if (error?.code === MISSING_FUNCTION) {
+    throw new Error(
+      `${label}: database function ${fn} is missing — run supabase/migrations/2026-10-24-audit-fixes.sql in the Supabase SQL editor.`,
+    );
+  }
+  if (error) throw new Error(`${label}: ${error.message}`);
+}
+
 /** Insert a copy of `week` directly after it, shifting later weeks down. */
 export async function duplicateWeek(programId: string, week: number): Promise<void> {
-  const state = await weekState(programId, week);
+  const state = await weekState(programId);
   if (state.weeks >= MAX_PROGRAM_WEEKS) throw new Error(`Programs cap at ${MAX_PROGRAM_WEEKS} weeks.`);
-  const later = state.all.filter((d) => d.week > week);
-
-  // Rewrite: delete everything after the source week, then reinsert shifted
-  // +1 with the duplicate in between. Two steps because the composite PK
-  // (program_id, week, day_of_week) forbids in-place shifts.
-  await run(
-    "duplicating week",
-    supabase.from("program_days").delete().eq("program_id", programId).gt("week", week),
-  );
-
-  const rows = [
-    ...state.ofWeek.map((d) => programDayRow(programId, week + 1, d)),
-    ...later.map((d) => programDayRow(programId, d.week + 1, d)),
-  ];
-  if (rows.length > 0) {
-    await run("duplicating week", supabase.from("program_days").insert(rows));
-  }
-
-  await run(
-    "duplicating week",
-    supabase.from("programs").update({ weeks: state.weeks + 1 }).eq("id", programId),
-  );
+  assertWeek(week, state.weeks);
+  await rpcWeekShift("duplicating week", "duplicate_program_week", {
+    p_program: programId,
+    p_week: week,
+    p_max: MAX_PROGRAM_WEEKS,
+  });
   revalidateAll();
 }
 
@@ -168,25 +189,11 @@ export async function duplicateWeek(programId: string, week: number): Promise<vo
 export async function removeWeek(programId: string, week: number): Promise<void> {
   const state = await weekState(programId);
   if (state.weeks <= 1) throw new Error("A program keeps at least one week.");
-  const later = state.all.filter((d) => d.week > week);
-
-  await run(
-    "removing week",
-    supabase.from("program_days").delete().eq("program_id", programId).gte("week", week),
-  );
-  if (later.length > 0) {
-    await run(
-      "removing week",
-      supabase
-        .from("program_days")
-        .insert(later.map((d) => programDayRow(programId, d.week - 1, d))),
-    );
-  }
-
-  await run(
-    "removing week",
-    supabase.from("programs").update({ weeks: state.weeks - 1 }).eq("id", programId),
-  );
+  assertWeek(week, state.weeks);
+  await rpcWeekShift("removing week", "remove_program_week", {
+    p_program: programId,
+    p_week: week,
+  });
   revalidateAll();
 }
 
@@ -196,6 +203,9 @@ export async function setProgramDay(
   dayOfWeek: number,
   routineId: string,
 ): Promise<void> {
+  const { weeks } = await weekState(programId);
+  assertWeek(week, weeks);
+  assertDayOfWeek(dayOfWeek);
   await run(
     "scheduling day",
     supabase
@@ -210,6 +220,9 @@ export async function clearProgramDay(
   week: number,
   dayOfWeek: number,
 ): Promise<void> {
+  const { weeks } = await weekState(programId);
+  assertWeek(week, weeks);
+  assertDayOfWeek(dayOfWeek);
   await run(
     "clearing day",
     supabase
@@ -234,38 +247,81 @@ export async function deleteProgram(programId: string): Promise<void> {
   redirect("/programs");
 }
 
+/** Assign a program. One active program per person: their other active
+ *  assignments are marked completed once the new one exists (insert first,
+ *  so a failed insert never strands them with none). */
 export async function createAssignment(formData: FormData): Promise<void> {
   const programId = String(formData.get("programId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
   const startDate = String(formData.get("startDate") ?? "");
   await assertClientId(clientId);
   if (!isIsoDate(startDate)) throw new Error("Pick a start date.");
+  await weekState(programId); // throws when the program doesn't exist
+  const id = newId("a");
   await run(
     "assigning program",
     supabase.from("assignments").insert(
-      assignmentToRow({
-        id: newId("a"),
-        programId,
-        clientId,
-        startDate,
-        status: "active",
-      }),
+      assignmentToRow({ id, programId, clientId, startDate, status: "active" }),
     ),
+  );
+  await run(
+    "assigning program",
+    supabase
+      .from("assignments")
+      .update({ status: "completed" })
+      .eq("client_id", clientId)
+      .eq("status", "active")
+      .neq("id", id),
   );
   revalidateAll();
 }
 
+const ASSIGNMENT_STATUSES: readonly Assignment["status"][] = ["active", "completed", "paused"];
+
+/** Reactivating one assignment completes the person's other active ones —
+ *  the same one-active-program rule createAssignment keeps. */
 export async function updateAssignmentStatus(
   assignmentId: string,
-  formData: FormData,
+  status: string,
 ): Promise<void> {
-  const status = String(formData.get("status") ?? "");
-  if (!["active", "completed", "paused"].includes(status)) {
+  if (!ASSIGNMENT_STATUSES.includes(status as Assignment["status"])) {
     throw new Error(`bad status ${status}`);
   }
-  await run(
+  const row = await run(
     "updating assignment",
-    supabase.from("assignments").update({ status }).eq("id", assignmentId),
+    supabase.from("assignments").select("client_id").eq("id", assignmentId).single(),
+  );
+  await runMatched(
+    "updating assignment",
+    supabase.from("assignments").update({ status }).eq("id", assignmentId).select("id"),
+  );
+  if (status === "active") {
+    await run(
+      "updating assignment",
+      supabase
+        .from("assignments")
+        .update({ status: "completed" })
+        // .single() threw above if the assignment is missing.
+        .eq("client_id", row!.client_id)
+        .eq("status", "active")
+        .neq("id", assignmentId),
+    );
+  }
+  revalidateAll();
+}
+
+/** Remove an assignment made by mistake. Logged workouts keep pointing at
+ *  it, so one with history can only be marked completed. */
+export async function deleteAssignment(assignmentId: string): Promise<void> {
+  await assertNoRefs(
+    "sessions",
+    "assignment_id",
+    assignmentId,
+    "This assignment has logged workouts — mark it completed instead.",
+  );
+  await run(
+    "removing assignment",
+    supabase.from("assignments").delete().eq("id", assignmentId),
   );
   revalidateAll();
 }

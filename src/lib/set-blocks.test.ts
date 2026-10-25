@@ -86,3 +86,16 @@ describe("toBlocks", () => {
     }
   });
 });
+
+describe("toBlocks keys", () => {
+  it("survive removing an earlier block", () => {
+    const sets = [
+      stub({ id: "a", exerciseId: "squat" }),
+      stub({ id: "b", exerciseId: "bench_press" }),
+      stub({ id: "c", exerciseId: "deadlift" }),
+    ];
+    const before = toBlocks(sets).map((b) => b.key);
+    const after = toBlocks(sets.slice(1)).map((b) => b.key);
+    expect(after).toEqual(before.slice(1));
+  });
+});

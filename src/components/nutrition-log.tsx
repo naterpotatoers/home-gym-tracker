@@ -8,7 +8,6 @@ import {
   chipClass,
   ErrorText,
   Field,
-  IconButton,
   Input,
   NumberInput,
   Select,
@@ -23,11 +22,11 @@ import {
   searchFoods,
   type RecentFood,
 } from "@/lib/nutrition";
-import { addDaysIso } from "@/lib/periods";
 import type { ClientId, Food, FoodCategoryId, FoodLog } from "@/lib/types";
 
 /**
- * The Tracking tab's nutrition section. Fast paths first: one tap on a
+ * The Log tab's nutrition section (its day comes from the tab's shared
+ * picker; key it by client so a half-built plate can't follow a switch). Fast paths first: one tap on a
  * Recent chip relogs a food at its last plate fraction; the search box finds
  * catalog foods for the plate slider; creating a NEW food only appears
  * behind a search with no exact match, with similar names listed right there
@@ -35,19 +34,21 @@ import type { ClientId, Food, FoodCategoryId, FoodLog } from "@/lib/types";
  */
 export function NutritionLog({
   clientId,
+  date,
   today,
   foods,
   recents,
   logs,
 }: {
   clientId: ClientId;
+  /** The selected day — owned by the Log tab's shared day picker. */
+  date: string;
   today: string;
   foods: readonly Food[];
   recents: RecentFood[];
   /** All of this client's food logs; filtered by the selected day here. */
   logs: readonly FoodLog[];
 }) {
-  const [date, setDate] = useState(today);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<{ food: Food; fraction: number } | null>(null);
   const [creating, setCreating] = useState(false);
@@ -107,37 +108,6 @@ export function NutritionLog({
 
   return (
     <div className="space-y-4">
-      {/* Day picker */}
-      <div className="flex items-center gap-2">
-        <IconButton
-          size="sm"
-          aria-label="Previous day"
-          onClick={() => setDate(addDaysIso(date, -1))}
-        >
-          ‹
-        </IconButton>
-        <Input
-          type="date"
-          value={date}
-          onChange={(e) => e.target.value && setDate(e.target.value)}
-          size="sm"
-          className="w-40"
-        />
-        <IconButton
-          size="sm"
-          aria-label="Next day"
-          onClick={() => setDate(addDaysIso(date, 1))}
-          disabled={date >= today}
-        >
-          ›
-        </IconButton>
-        {date !== today && (
-          <Button size="sm" variant="ghost" onClick={() => setDate(today)}>
-            Today
-          </Button>
-        )}
-      </div>
-
       {/* One-tap relog */}
       {recents.length > 0 && (
         <div>

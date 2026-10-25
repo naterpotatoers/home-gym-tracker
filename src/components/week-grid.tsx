@@ -1,12 +1,17 @@
 "use client";
 
+import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import { useState, useTransition } from "react";
-import { CopyIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { ArrowLeftIcon, CopyIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { OverflowMenu } from "@/components/overflow-menu";
 import { useDebouncedSave } from "@/components/use-debounced-save";
-import { Button, Card, ErrorText, IconButton, Input, Select } from "@/components/ui";
+import { Button, Card, chipClass, ErrorText, Input, Select } from "@/components/ui";
 import {
   addWeek,
   clearProgramDay,
+  deleteProgram,
+  duplicateProgram,
   duplicateWeek,
   removeWeek,
   setProgramDay,
@@ -20,10 +25,10 @@ import { MAX_PROGRAM_WEEKS } from "@/lib/validate";
 
 /**
  * Editable program header + week rows. Weeks are managed structurally —
- * duplicate/remove per row, add at the bottom — and the header autosaves,
+ * duplicate/remove per row, add an empty one at the bottom — and the header autosaves,
  * so there is no weeks-number-plus-Save dance. md+ renders the classic grid
  * table; below md each week is a card of stacked day rows. Both share
- * DayCell so the handlers can't fork.
+ * dayCell so the handlers can't fork.
  */
 export function ProgramEditor({
   program,
@@ -44,7 +49,19 @@ export function ProgramEditor({
     () => updateProgramInfo(program.id, { name, notes }),
   );
 
+  // Day cells save one at a time without locking the grid: each change shows
+  // immediately (optimistic) and only that cell disables while it saves.
+  const [optimistic, setOptimistic] = useState<ReadonlyMap<string, string>>(new Map());
+  const [savingCells, setSavingCells] = useState<ReadonlySet<string>>(new Set());
+  // Fresh server days supersede the overrides of cells no longer saving.
+  const [seenDays, setSeenDays] = useState(days);
+  if (seenDays !== days) {
+    setSeenDays(days);
+    setOptimistic((prev) => new Map([...prev].filter(([key]) => savingCells.has(key))));
+  }
+
   const byCell = new Map(days.map((d) => [`${d.week}|${d.dayOfWeek}`, d.routineId]));
+  for (const [key, routineId] of optimistic) byCell.set(key, routineId);
   const sorted = [...routines].sort((a, b) => a.name.localeCompare(b.name));
   const weekNumbers = Array.from({ length: program.weeks }, (_, i) => i + 1);
 
@@ -59,12 +76,62 @@ export function ProgramEditor({
     });
   }
 
+  async function saveCell(week: number, dayOfWeek: number, routineId: string) {
+    const key = `${week}|${dayOfWeek}`;
+    setError(null);
+    setOptimistic((prev) => new Map(prev).set(key, routineId));
+    setSavingCells((prev) => new Set(prev).add(key));
+    try {
+      await (routineId
+        ? setProgramDay(program.id, week, dayOfWeek, routineId)
+        : clearProgramDay(program.id, week, dayOfWeek));
+    } catch (e) {
+      setError(errorMessage(e, "Update failed."));
+      setOptimistic((prev) => {
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
+    } finally {
+      setSavingCells((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  }
+
+  // Both redirect on success — let that signal through, report anything else.
+  async function handleDuplicateProgram() {
+    setError(null);
+    try {
+      await duplicateProgram(program.id);
+    } catch (e) {
+      unstable_rethrow(e);
+      setError(errorMessage(e, "Duplicate failed."));
+    }
+  }
+
+  async function handleDeleteProgram() {
+    if (!confirm(`Delete ${program.name}? This can't be undone.`)) return;
+    setError(null);
+    try {
+      await deleteProgram(program.id);
+    } catch (e) {
+      unstable_rethrow(e);
+      setError(errorMessage(e, "Delete failed."));
+    }
+  }
+
   function confirmRemove(week: number) {
     if (!confirm(`Remove week ${week}? Later weeks shift up.`)) return;
     run(() => removeWeek(program.id, week));
   }
 
-  function DayCell({
+  // Render helpers, called as functions — NOT components. A component defined
+  // inside this render is a new type every render, so React would remount
+  // every select (dropping focus/open dropdowns) on each keystroke.
+  function dayCell({
     week,
     dayOfWeek,
     size,
@@ -75,20 +142,16 @@ export function ProgramEditor({
     size: "sm" | "md";
     className?: string;
   }) {
-    const value = byCell.get(`${week}|${dayOfWeek}`) ?? "";
+    const key = `${week}|${dayOfWeek}`;
+    const value = byCell.get(key) ?? "";
     return (
       <Select
         size={size}
         value={value}
-        disabled={pending}
-        onChange={(e) => {
-          const routineId = e.target.value;
-          run(() =>
-            routineId
-              ? setProgramDay(program.id, week, dayOfWeek, routineId)
-              : clearProgramDay(program.id, week, dayOfWeek),
-          );
-        }}
+        // Structural edits renumber weeks, so cells wait those out.
+        disabled={pending || savingCells.has(key)}
+        onChange={(e) => void saveCell(week, dayOfWeek, e.target.value)}
+        aria-label={`Week ${week} ${DAY_LABELS[dayOfWeek - 1]}`}
         className={`${value ? "" : "text-muted"} ${className}`}
       >
         <option value="">—</option>
@@ -101,52 +164,67 @@ export function ProgramEditor({
     );
   }
 
-  function WeekActions({ week }: { week: number }) {
+  function weekActions(week: number) {
     return (
-      <span className="flex gap-1">
-        <IconButton
-          variant="ghost"
-          disabled={pending || program.weeks >= MAX_PROGRAM_WEEKS}
-          onClick={() => run(() => duplicateWeek(program.id, week))}
-          title={`Duplicate week ${week}`}
-          aria-label={`Duplicate week ${week}`}
-        >
-          <CopyIcon />
-        </IconButton>
-        <IconButton
-          variant="ghost"
-          disabled={pending || program.weeks <= 1}
-          onClick={() => confirmRemove(week)}
-          title={`Remove week ${week}`}
-          aria-label={`Remove week ${week}`}
-        >
-          <TrashIcon />
-        </IconButton>
-      </span>
+      <OverflowMenu
+        label={`Week ${week} actions`}
+        size="md"
+        items={[
+          {
+            label: "Duplicate week",
+            icon: <CopyIcon size={16} />,
+            onSelect: () => run(() => duplicateWeek(program.id, week)),
+            disabled: pending || program.weeks >= MAX_PROGRAM_WEEKS,
+          },
+          {
+            label: "Remove week",
+            icon: <TrashIcon size={16} />,
+            onSelect: () => confirmRemove(week),
+            disabled: pending || program.weeks <= 1,
+            danger: true,
+          },
+        ]}
+      />
     );
   }
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3">
+      <Link
+        href="/programs"
+        className={chipClass(false, "min-h-9 pointer-coarse:min-h-11 px-2.5 text-xs")}
+      >
+        <ArrowLeftIcon size={14} /> Plan
+      </Link>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <Input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="min-w-64 text-xl font-bold tracking-tight"
+          aria-label="Program name"
+          className="min-w-0 flex-[3] basis-72 font-semibold"
         />
         <Input
           type="text"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Notes"
-          className="min-w-64 flex-1"
+          aria-label="Program notes"
+          className="min-w-0 flex-[2] basis-56"
         />
         <span className="text-xs text-muted">
           {program.weeks} {program.weeks === 1 ? "week" : "weeks"}
           {saveState === "saving" && " · saving…"}
           {saveState === "saved" && " · saved"}
         </span>
+        <OverflowMenu
+          label="Program actions"
+          size="md"
+          items={[
+            { label: "Duplicate program", icon: <CopyIcon size={16} />, onSelect: handleDuplicateProgram },
+            { label: "Delete program", icon: <TrashIcon size={16} />, onSelect: handleDeleteProgram, danger: true },
+          ]}
+        />
         {error && <ErrorText>{error}</ErrorText>}
       </div>
 
@@ -175,16 +253,16 @@ export function ProgramEditor({
                 <td className="py-1.5 pr-3 font-mono text-xs text-muted">{week}</td>
                 {DAY_LABELS.map((_, dayIndex) => (
                   <td key={dayIndex + 1} className="py-1 pr-2">
-                    <DayCell
-                      week={week}
-                      dayOfWeek={dayIndex + 1}
-                      size="sm"
-                      className="w-full max-w-32"
-                    />
+                    {dayCell({
+                      week,
+                      dayOfWeek: dayIndex + 1,
+                      size: "sm",
+                      className: "w-full max-w-32",
+                    })}
                   </td>
                 ))}
                 <td className="py-1 text-right">
-                  <WeekActions week={week} />
+                  {weekActions(week)}
                 </td>
               </tr>
             ))}
@@ -198,13 +276,13 @@ export function ProgramEditor({
           <Card key={week}>
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm font-semibold">Week {week}</span>
-              <WeekActions week={week} />
+              {weekActions(week)}
             </div>
             <div className="space-y-2">
               {DAY_LABELS.map((label, dayIndex) => (
                 <div key={label} className="grid grid-cols-[3rem_1fr] items-center gap-2">
                   <span className="text-xs text-muted">{label}</span>
-                  <DayCell week={week} dayOfWeek={dayIndex + 1} size="md" className="w-full" />
+                  {dayCell({ week, dayOfWeek: dayIndex + 1, size: "md", className: "w-full" })}
                 </div>
               ))}
             </div>
@@ -217,14 +295,7 @@ export function ProgramEditor({
           disabled={pending || program.weeks >= MAX_PROGRAM_WEEKS}
           onClick={() => run(() => addWeek(program.id))}
         >
-          <PlusIcon size={16} /> Add week
-        </Button>
-        <Button
-          variant="ghost"
-          disabled={pending || program.weeks >= MAX_PROGRAM_WEEKS}
-          onClick={() => run(() => addWeek(program.id, program.weeks))}
-        >
-          <CopyIcon size={16} /> Add week (copy last)
+          <PlusIcon size={16} /> Add empty week
         </Button>
       </div>
     </div>

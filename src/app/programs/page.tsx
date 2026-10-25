@@ -1,31 +1,23 @@
 import Link from "next/link";
-import { CopyIcon, PencilIcon, PlusIcon } from "@/components/icons";
-import { ModalityChip } from "@/components/modality-chip";
-import {
-  Button,
-  Caret,
-  Chip,
-  IconButton,
-  Input,
-  PageShell,
-  Section,
-  summaryClass,
-} from "@/components/ui";
-import { createProgram, duplicateProgram } from "@/lib/actions/programs";
-import {
-  createRoutine,
-  duplicateRoutine,
-  importCareRoutines,
-} from "@/lib/actions/routines";
+import { PlusIcon } from "@/components/icons";
+import { Button, Chip, Input, PageShell, Section } from "@/components/ui";
+import { createProgram } from "@/lib/actions/programs";
+import { createRoutine, importCareRoutines } from "@/lib/actions/routines";
 import { careRoutines } from "@/lib/data/care-routines";
 import { loadGymData } from "@/lib/db/snapshot";
 import { DAY_LABELS } from "@/lib/periods";
-import { schemeLabel } from "@/lib/session-labels";
+
+/** One list per section: a single bordered card, one link row per item —
+ *  everything on one line at md+, the summary drops below on phones. */
+const listClass = "divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface";
+const rowClass =
+  "flex min-h-11 flex-wrap items-center gap-x-2 gap-y-0.5 px-4 py-2 hover:bg-current/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/60 md:flex-nowrap";
+const summaryClass = "w-full truncate text-xs text-muted md:w-auto md:min-w-0 md:flex-1";
 
 /**
  * Planning hub: programs (weekly schedules) and the routines they're built
- * from, one page. Rows expand in place to a high-level overview; the pencil
- * opens the full editor. Create controls live in each section header.
+ * from. Each row is one link to its editor with a one-line summary; create
+ * controls live in each section header, duplicate/delete in the editors.
  */
 export default async function PlanPage() {
   const data = await loadGymData();
@@ -38,93 +30,46 @@ export default async function PlanPage() {
   return (
     <PageShell>
       <h1 className="text-3xl font-bold tracking-tight">Plan</h1>
-      <p className="mt-2 text-sm text-muted">
-        A routine is one day of training; a program schedules routines across
-        the days of each week. Tap a row for a quick look inside; the pencil
-        opens the editor.
-      </p>
 
       <Section
         title="Programs"
         action={
           <form action={createProgram} className="flex flex-wrap items-center gap-2 pb-1">
-            <Input type="text" name="name" required placeholder="New program" size="sm" className="w-44" />
+            <Input type="text" name="name" required placeholder="Name" aria-label="New program name" size="sm" className="w-40" />
             <Button type="submit" variant="primary" size="sm">
-              <PlusIcon size={16} /> Create
+              <PlusIcon size={16} /> New program
             </Button>
           </form>
         }
       >
-        <ul className="space-y-2">
+        <ul className={listClass}>
           {programs.map((program) => {
             const assigned = data.assignments.filter(
               (a) => a.programId === program.id && a.status === "active",
             );
-            const weeks = Array.from({ length: program.weeks }, (_, i) => i + 1);
+            // Week 1 stands in for the shape of the whole program.
+            const schedule = data.programDays
+              .filter((d) => d.programId === program.id && d.week === 1)
+              .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+              .map(
+                (d) =>
+                  `${DAY_LABELS[d.dayOfWeek - 1]} ${data.routineById.get(d.routineId)?.name ?? d.routineId}`,
+              )
+              .join(" · ");
             return (
               <li key={program.id}>
-                <details className="group rounded-xl border border-border bg-surface">
-                  <summary className={summaryClass()}>
-                    <Caret />
-                    <span className="font-semibold">{program.name}</span>
-                    <span className="text-xs text-muted">
-                      {program.weeks} {program.weeks === 1 ? "week" : "weeks"}
-                    </span>
-                    {assigned.map((a) => (
-                      <Chip key={a.id}>
-                        {data.clientById.get(a.clientId)?.firstName ?? a.clientId}
-                      </Chip>
-                    ))}
-                    {program.notes && (
-                      <span className="truncate text-xs text-muted">{program.notes}</span>
-                    )}
-                    <span className="ml-auto flex items-center gap-1">
-                      <Link
-                        href={`/programs/${program.id}`}
-                        title="Edit program"
-                        aria-label={`Edit ${program.name}`}
-                        className="inline-flex size-9 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-current/5 hover:text-foreground"
-                      >
-                        <PencilIcon />
-                      </Link>
-                      <form action={duplicateProgram.bind(null, program.id)}>
-                        <IconButton
-                          type="submit"
-                          size="sm"
-                          variant="ghost"
-                          title="Duplicate program"
-                          aria-label={`Duplicate ${program.name}`}
-                        >
-                          <CopyIcon />
-                        </IconButton>
-                      </form>
-                    </span>
-                  </summary>
-                  <div className="space-y-1 px-4 pb-3 pl-8 text-sm">
-                    {weeks.map((week) => {
-                      const days = data.programDays
-                        .filter((d) => d.programId === program.id && d.week === week)
-                        .sort((a, b) => a.dayOfWeek - b.dayOfWeek);
-                      return (
-                        <div key={week} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                          <span className="w-8 font-mono text-xs text-muted">W{week}</span>
-                          {days.length === 0 ? (
-                            <span className="text-xs text-muted">rest</span>
-                          ) : (
-                            days.map((day) => (
-                              <span key={day.dayOfWeek} className="whitespace-nowrap">
-                                <span className="font-mono text-xs text-muted">
-                                  {DAY_LABELS[day.dayOfWeek - 1]}{" "}
-                                </span>
-                                {data.routineById.get(day.routineId)?.name ?? day.routineId}
-                              </span>
-                            ))
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </details>
+                <Link href={`/programs/${program.id}`} className={rowClass}>
+                  <span className="shrink-0 font-semibold">{program.name}</span>
+                  <span className="shrink-0 text-xs text-muted">
+                    {program.weeks} {program.weeks === 1 ? "week" : "weeks"}
+                  </span>
+                  {assigned.map((a) => (
+                    <Chip key={a.id}>
+                      {data.clientById.get(a.clientId)?.firstName ?? a.clientId}
+                    </Chip>
+                  ))}
+                  <span className={summaryClass}>{schedule || "Nothing scheduled yet"}</span>
+                </Link>
               </li>
             );
           })}
@@ -135,9 +80,9 @@ export default async function PlanPage() {
         title="Routines"
         action={
           <form action={createRoutine} className="flex flex-wrap items-center gap-2 pb-1">
-            <Input type="text" name="name" required placeholder="New routine" size="sm" className="w-44" />
+            <Input type="text" name="name" required placeholder="Name" aria-label="New routine name" size="sm" className="w-40" />
             <Button type="submit" variant="primary" size="sm">
-              <PlusIcon size={16} /> Create
+              <PlusIcon size={16} /> New routine
             </Button>
           </form>
         }
@@ -155,67 +100,22 @@ export default async function PlanPage() {
             </form>
           </div>
         )}
-        <ul className="space-y-2">
+        <ul className={listClass}>
           {routines.map((routine) => {
             const prescriptions = data.exercisesByRoutine.get(routine.id) ?? [];
+            const names = prescriptions
+              .map((rx) => data.exerciseById.get(rx.exerciseId)?.name ?? rx.exerciseId)
+              .join(", ");
             return (
               <li key={routine.id}>
-                <details className="group rounded-xl border border-border bg-surface">
-                  <summary className={summaryClass()}>
-                    <Caret />
-                    <span className="font-semibold">{routine.name}</span>
-                    <span className="text-xs text-muted">
-                      {prescriptions.length} exercises
-                    </span>
-                    {routine.notes && (
-                      <span className="truncate text-xs text-muted">{routine.notes}</span>
-                    )}
-                    <span className="ml-auto flex items-center gap-1">
-                      <Link
-                        href={`/routines/${routine.id}`}
-                        title="Edit routine"
-                        aria-label={`Edit ${routine.name}`}
-                        className="inline-flex size-9 cursor-pointer items-center justify-center rounded-md text-muted hover:bg-current/5 hover:text-foreground"
-                      >
-                        <PencilIcon />
-                      </Link>
-                      <form action={duplicateRoutine.bind(null, routine.id)}>
-                        <IconButton
-                          type="submit"
-                          size="sm"
-                          variant="ghost"
-                          title="Duplicate routine"
-                          aria-label={`Duplicate ${routine.name}`}
-                        >
-                          <CopyIcon />
-                        </IconButton>
-                      </form>
-                    </span>
-                  </summary>
-                  <div className="space-y-1 px-4 pb-3 pl-8 text-sm">
-                    {prescriptions.length === 0 ? (
-                      <span className="text-xs text-muted">No exercises yet.</span>
-                    ) : (
-                      prescriptions.map((rx) => (
-                        <div
-                          key={`${rx.exerciseId}-${rx.modalityId}-${rx.order}`}
-                          className="flex flex-wrap items-center gap-2"
-                        >
-                          <span className="font-mono text-xs text-muted">
-                            {schemeLabel(rx)}
-                          </span>
-                          <span>{data.exerciseById.get(rx.exerciseId)?.name ?? rx.exerciseId}</span>
-                          <ModalityChip modalityId={rx.modalityId} />
-                          {rx.supersetGroup && (
-                            <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent-text">
-                              superset {rx.supersetGroup}
-                            </span>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </details>
+                <Link href={`/routines/${routine.id}`} className={rowClass}>
+                  <span className="shrink-0 font-semibold">{routine.name}</span>
+                  <span className="shrink-0 text-xs text-muted">
+                    {prescriptions.length}{" "}
+                    {prescriptions.length === 1 ? "exercise" : "exercises"}
+                  </span>
+                  <span className={summaryClass}>{names || "No exercises yet"}</span>
+                </Link>
               </li>
             );
           })}

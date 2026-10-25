@@ -10,6 +10,7 @@ import {
 import { seedSnapshot } from "../data/seed-snapshot";
 import { buildGymData, type GymData } from "../gym-data";
 import { supabase } from "./client";
+import { fetchAllPages } from "./paging";
 import {
   rowToAssignment,
   rowToClient,
@@ -37,23 +38,27 @@ function nullIfMissing(e: unknown): null {
   throw e;
 }
 
+/** `orderBy` must end on a unique key (the id or the full composite PK) so
+ *  pages are stable — see fetchAllPages. */
 async function fetchAll(table: string, orderBy: readonly string[]) {
-  let query = supabase.from(table).select("*");
-  for (const column of orderBy) query = query.order(column);
-  const { data, error } = await query;
-  if (error?.code === "PGRST205") {
-    throw new TablesMissingError(`table ${table} missing`);
-  }
-  if (error) throw new Error(`loading ${table}: ${error.message}`);
-  return data;
+  return fetchAllPages(async (from, to) => {
+    let query = supabase.from(table).select("*");
+    for (const column of orderBy) query = query.order(column);
+    const { data, error } = await query.range(from, to);
+    if (error?.code === "PGRST205") {
+      throw new TablesMissingError(`table ${table} missing`);
+    }
+    if (error) throw new Error(`loading ${table}: ${error.message}`);
+    return data;
+  });
 }
 
 /**
  * One round of parallel fetches per request. `cache()` memoizes within a
  * request only, so a page and every nested server component share a single
  * consistent snapshot and nothing survives across requests. The dataset is
- * hundreds of rows; fetching it whole is what keeps the entire query layer
- * synchronous.
+ * small enough to fetch whole (paged past PostgREST's row cap); that is what
+ * keeps the entire query layer synchronous.
  */
 export const loadGymData = cache(async (): Promise<GymData> => {
   // Request-time only: the data mutates, so no page reading it may prerender.
@@ -79,23 +84,23 @@ export const loadGymData = cache(async (): Promise<GymData> => {
     ] = await Promise.all([
       // Clients get their own fallback: null means migration 002 hasn't run
       // yet, and the TS seed roster serves read-only.
-      fetchAll("clients", ["first_name"]).catch(nullIfMissing),
+      fetchAll("clients", ["first_name", "id"]).catch(nullIfMissing),
       fetchAll("routines", ["id"]),
       fetchAll("routine_exercises", ["routine_id", "sort_order"]),
       fetchAll("programs", ["id"]),
       fetchAll("program_days", ["program_id", "week", "day_of_week"]),
       fetchAll("assignments", ["id"]),
-      fetchAll("sessions", ["date"]),
-      fetchAll("set_logs", ["session_id", "position"]),
-      fetchAll("weigh_ins", ["client_id", "date"]),
+      fetchAll("sessions", ["date", "id"]),
+      fetchAll("set_logs", ["session_id", "position", "id"]),
+      fetchAll("weigh_ins", ["client_id", "date", "id"]),
       // Nutrition tables get their own fallback too: null means they don't
       // exist yet — the rest of the app keeps working and the Tracking tab
       // shows a setup note.
-      fetchAll("foods", ["name"]).catch(nullIfMissing),
-      fetchAll("food_logs", ["client_id", "date"]).catch(nullIfMissing),
+      fetchAll("foods", ["name", "id"]).catch(nullIfMissing),
+      fetchAll("food_logs", ["client_id", "date", "id"]).catch(nullIfMissing),
       // Exercise catalog: null means those tables don't exist yet — the
       // catalog serves read-only from the TS seed and /exercises shows a note.
-      fetchAll("exercises", ["name"]).catch(nullIfMissing),
+      fetchAll("exercises", ["name", "id"]).catch(nullIfMissing),
       fetchAll("exercise_muscle_scores", ["exercise_id", "muscle_id"]).catch(nullIfMissing),
       fetchAll("exercise_modalities", ["exercise_id", "modality_id"]).catch(nullIfMissing),
     ]);

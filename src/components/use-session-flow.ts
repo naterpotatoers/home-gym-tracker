@@ -13,6 +13,9 @@ import type { RoutineExercise, SetLog } from "@/lib/types";
 
 export type SetEditor = ReturnType<typeof useSetEditor>;
 
+/** Rest after a set with no prescription (an exercise added mid-session). */
+const DEFAULT_REST_SECONDS = 90;
+
 /**
  * The live-session flow state shared by the solo runner and each group-board
  * card: the id-based forward-only cursor, which block is expanded, and the
@@ -77,9 +80,26 @@ export function useSessionFlow(
       `${next.exerciseId}|${next.modalityId}` !== currentKey &&
       supersets.get(`${next.exerciseId}|${next.modalityId}`) === label;
     editor.patchSet(current.id, { completed: true });
-    setRestUntil(rx && !pairedNext ? now + rx.restSeconds * 1000 : null);
+    setRestUntil(pairedNext ? null : now + (rx?.restSeconds ?? DEFAULT_REST_SECONDS) * 1000);
     setCursorId(nextId ?? current.id);
     setExpandedKey(null); // follow the flow to the next block
+  }
+
+  /** Complete any set — LOG on whichever row is active. The current set goes
+   *  through logCurrent (rest timer, cursor);
+   *  any other set is marked done and still starts its rest. */
+  function logSet(setId: string) {
+    if (current && setId === current.id) {
+      logCurrent();
+      return;
+    }
+    const set = editor.sets.find((s) => s.id === setId);
+    if (!set) return;
+    const rx = prescriptions.find(
+      (p) => p.exerciseId === set.exerciseId && p.modalityId === set.modalityId,
+    );
+    editor.patchSet(setId, { completed: true });
+    setRestUntil(now + (rx?.restSeconds ?? DEFAULT_REST_SECONDS) * 1000);
   }
 
   function tapBlock(block: Block) {
@@ -137,6 +157,7 @@ export function useSessionFlow(
     resting,
     ready,
     logCurrent,
+    logSet,
     tapBlock,
     collapseExpanded,
     removeSetKeepingCursor,

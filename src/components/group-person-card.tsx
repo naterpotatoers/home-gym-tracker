@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExercisePicker } from "@/components/exercise-picker";
 import { FinishPanel, type FinishPayload } from "@/components/finish-panel";
 import { CheckIcon } from "@/components/icons";
 import { RestReadyChips, SessionBlockList } from "@/components/session-block-list";
 import { Button, clientBorderStyle, ColorDot, ErrorText } from "@/components/ui";
-import type { BoardPerson } from "@/components/group-board";
+import type { BoardPerson, CardStatus } from "@/components/group-board";
 import { useSessionFlow } from "@/components/use-session-flow";
 import { useSetEditor } from "@/components/use-set-editor";
 import { finishSession } from "@/lib/actions/workout";
@@ -30,15 +30,26 @@ export function GroupPersonCard({
   catalog,
   now,
   boardElapsedMinutes,
+  boardSessionIds,
   onFinished,
+  onStatus,
+  tight = false,
 }: {
   person: BoardPerson;
   variants: Variant[];
   catalog: ExerciseCatalog;
   now: number;
   boardElapsedMinutes: number;
+  /** Every session on this board — the recap link carries them back. */
+  boardSessionIds: string;
   onFinished: () => void;
+  /** Progress + rest state, for the board's portrait person tabs. */
+  onStatus: (sessionId: string, status: CardStatus) => void;
+  /** Three-plus across the board: trim the card padding at every width. */
+  tight?: boolean;
 }) {
+  const pad = tight ? "p-2" : "p-2 sm:p-3";
+  const bleed = tight ? "-mx-2 px-2" : "-mx-2 px-2 sm:-mx-3 sm:px-3";
   const { session, initialSets, prescriptions, clientName, routineName, color } = person;
   const editor = useSetEditor(session, initialSets);
   const flow = useSessionFlow(editor, prescriptions, now);
@@ -46,12 +57,24 @@ export function GroupPersonCard({
   const [finishing, setFinishing] = useState(false);
   const [finishBusy, setFinishBusy] = useState(false);
   /** Set once the session is saved as completed — holds the recap payload. */
-  const [finishedAs, setFinishedAs] = useState<FinishPayload | null>(null);
+  const [finishedHere, setFinishedHere] = useState<FinishPayload | null>(null);
+  // A session finished before this page rendered (reload, revisit) recaps
+  // from the stored check-in.
+  const finishedAs: Pick<FinishPayload, "rpe" | "condition"> | null =
+    finishedHere ??
+    (person.finished ? { rpe: session.rpe, condition: session.condition } : null);
 
   const doneCount = completedCount(editor.sets);
+  // Finish is the loud button only once there's nothing left to log.
+  const allDone = !flow.current;
   const finished = finishedAs !== null;
   const resting = flow.resting && !finished;
   const ready = flow.ready && !finished;
+
+  const total = editor.sets.length;
+  useEffect(() => {
+    onStatus(session.id, { done: doneCount, total, resting, ready, finished });
+  }, [onStatus, session.id, doneCount, total, resting, ready, finished]);
 
   async function handleFinish(payload: FinishPayload) {
     setFinishBusy(true);
@@ -63,7 +86,7 @@ export function GroupPersonCard({
         { durationMinutes: boardElapsedMinutes || null, ...payload },
         null,
       );
-      setFinishedAs(payload);
+      setFinishedHere(payload);
       onFinished();
     } catch (e) {
       editor.setError(errorMessage(e, "Save failed."));
@@ -89,8 +112,8 @@ export function GroupPersonCard({
           </span>
         )}
         <Link
-          href={`/workout/session/${session.id}`}
-          className="ml-auto text-xs text-accent-text underline underline-offset-2"
+          href={`/workout/session/${session.id}?board=${encodeURIComponent(boardSessionIds)}`}
+          className="ml-auto inline-flex min-h-11 items-center px-2 text-xs text-accent-text underline underline-offset-2"
         >
           recap
         </Link>
@@ -100,17 +123,22 @@ export function GroupPersonCard({
 
   return (
     <div
-      className={`flex h-full flex-col rounded-xl border bg-surface p-2 transition-opacity sm:p-3 ${
+      className={`flex h-full flex-col rounded-xl border bg-surface ${pad} ${
         ready ? "border-accent ring-1 ring-accent" : "border-border"
-      } ${resting ? "opacity-70" : ""}`}
+      }`}
       style={ready ? undefined : clientBorderStyle(color)}
     >
-      {/* Who + progress */}
-      <div className="flex flex-wrap items-center gap-2 pb-2">
+      {/* Who + progress — only this dims while resting, so the sets stay
+          readable (and editable) between sets. */}
+      <div
+        className={`flex items-center gap-2 pb-2 transition-opacity ${
+          resting ? "opacity-70" : ""
+        }`}
+      >
         <ColorDot color={color} size="md" />
         <span className="font-semibold">{clientName}</span>
-        <span className="text-xs text-muted">{routineName}</span>
-        <span className="ml-auto font-mono text-xs text-muted">
+        <span className="min-w-0 flex-1 truncate text-xs text-muted">{routineName}</span>
+        <span className="shrink-0 font-mono text-xs text-muted">
           {doneCount}/{editor.sets.length}
         </span>
         <RestReadyChips flow={flow} />
@@ -121,22 +149,27 @@ export function GroupPersonCard({
         flow={flow}
         prescriptions={prescriptions}
         catalog={catalog}
+        history={person.history}
         dense
         onReplace={(block) => setPicker({ mode: "replace", block })}
         onAdd={() => setPicker({ mode: "add" })}
       />
 
-      {/* Footer — pinned to the card bottom so cards in a row line up */}
-      <div className="mt-auto flex items-center gap-2 border-t border-border pt-2">
+      {/* Footer — at the card bottom so cards in a row line up, and sticky to
+          the viewport bottom so Finish is reachable from anywhere in a long
+          card. Negative margins let its background cover the card padding. */}
+      <div
+        className={`sticky bottom-0 z-10 mt-auto flex items-center gap-2 border-t border-border bg-surface pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] ${bleed}`}
+      >
         {editor.error && !finishing && (
           <ErrorText>{editor.error}</ErrorText>
         )}
         <Button
           size="sm"
-          variant="primary"
+          variant={allDone ? "primary" : "ghost"}
           onClick={() => setFinishing((v) => !v)}
           aria-expanded={finishing}
-          className="ml-auto mt-2"
+          className="ml-auto"
         >
           <CheckIcon size={14} /> Finish {finishing ? "▴" : "…"}
         </Button>
@@ -156,6 +189,7 @@ export function GroupPersonCard({
 
       {picker && (
         <ExercisePicker
+          inSession
           variants={variants}
           recentKeys={person.recentKeys}
           onSelect={async (variant) => {

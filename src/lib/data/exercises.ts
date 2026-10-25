@@ -536,10 +536,10 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("squat", "barbell", { isDefault: true, requiredEquipment: ["ohio_bar", "plates", "rack"], pinRisk: true }),
   em("squat", "bodyweight", { requiredEquipment: ["floor"] }),
   em("front_squat", "barbell", { isDefault: true, requiredEquipment: ["ohio_bar", "plates", "rack"], pinRisk: true }),
-  em("goblet_squat", "dumbbell", { isDefault: true, requiredEquipment: ["dumbbells"] }),
+  em("goblet_squat", "dumbbell", { isDefault: true, implements: 1, requiredEquipment: ["dumbbells"] }),
   em("wide_stance_squat", "barbell", { isDefault: true, requiredEquipment: ["ohio_bar", "plates", "rack"], pinRisk: true }),
   em("wide_stance_squat", "bodyweight", { requiredEquipment: ["floor"] }),
-  em("bulgarian_split_squat", "dumbbell", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["dumbbells", "bench"] }),
+  em("bulgarian_split_squat", "dumbbell", { isDefault: true, defaultUnilateralMode: "single_side", implements: 2, requiredEquipment: ["dumbbells", "bench"] }),
   em("bulgarian_split_squat", "bodyweight", { defaultUnilateralMode: "single_side", requiredEquipment: ["bench"] }),
   em("bulgarian_split_squat", "barbell", { defaultUnilateralMode: "single_side", requiredEquipment: ["ohio_bar", "plates", "rack", "bench"] }),
   em("wall_sit", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
@@ -570,7 +570,7 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("lunge", "barbell", { defaultUnilateralMode: "alternating", requiredEquipment: ["ohio_bar", "plates", "rack"] }),
   em("side_lunge", "bodyweight", { isDefault: true, defaultUnilateralMode: "alternating", requiredEquipment: ["floor"] }),
   em("side_lunge", "dumbbell", { defaultUnilateralMode: "alternating", requiredEquipment: ["dumbbells"] }),
-  em("step_up", "dumbbell", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["dumbbells", "bench"] }),
+  em("step_up", "dumbbell", { isDefault: true, defaultUnilateralMode: "single_side", implements: 2, requiredEquipment: ["dumbbells", "bench"] }),
   em("step_up", "bodyweight", { defaultUnilateralMode: "single_side", requiredEquipment: ["bench"] }),
 
   // ---- horizontal push ----
@@ -612,7 +612,7 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   // no pulldown machine, the four loop bands are a de facto assistance stack
   // from "can't do one" to unassisted.
   em("pull_up", "band", { bandRoles: ["assistance"], requiredEquipment: ["pull_up_bar", "monster_bands"], notes: "Band over the bar, foot or knee in the loop. Ascending tension helps most at the bottom, where you are weakest." }),
-  em("pull_up", "dumbbell", { requiredEquipment: ["pull_up_bar", "dumbbells"], notes: "Weighted: dumbbell held between the feet." }),
+  em("pull_up", "dumbbell", { implements: 1, loadIncludesBodyweight: true, loadFactorOverride: 1, requiredEquipment: ["pull_up_bar", "dumbbells"], notes: "Weighted: dumbbell held between the feet." }),
   em("chin_up", "bodyweight", { isDefault: true, requiredEquipment: ["pull_up_bar"] }),
   em("chin_up", "band", { bandRoles: ["assistance"], requiredEquipment: ["pull_up_bar", "monster_bands"] }),
 
@@ -664,10 +664,10 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("bird_dog", "bodyweight", { isDefault: true, defaultUnilateralMode: "alternating", requiredEquipment: ["floor"] }),
   em("sit_up", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
   em("mcgill_curl_up", "bodyweight", { isDefault: true, requiredEquipment: ["floor"], notes: "Hands under the low back, one knee bent; lift head+shoulders a few inches, ~10s braced hold." }),
-  em("sit_up", "dumbbell", { requiredEquipment: ["dumbbells", "floor"], notes: "Weighted: dumbbell hugged to the chest." }),
+  em("sit_up", "dumbbell", { implements: 1, loadIncludesBodyweight: true, loadFactorOverride: 1, requiredEquipment: ["dumbbells", "floor"], notes: "Weighted: dumbbell hugged to the chest." }),
   em("hollow_hold", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
   em("russian_twist", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
-  em("russian_twist", "dumbbell", { requiredEquipment: ["dumbbells", "floor"] }),
+  em("russian_twist", "dumbbell", { implements: 1, requiredEquipment: ["dumbbells", "floor"] }),
   em("bicycle_crunch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
   em("mountain_climber", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
   em("woodchopper", "band", { isDefault: true, bandRoles: ["resistance"], defaultUnilateralMode: "single_side", requiredEquipment: ["monster_bands", "rack"] }),
@@ -734,6 +734,8 @@ function em(
     requiredEquipment: [],
     pinRisk: false,
     loadFactorOverride: null,
+    implements: null,
+    loadIncludesBodyweight: false,
     notes: "",
     ...overrides,
   };

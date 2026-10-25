@@ -13,9 +13,20 @@ import { completedCount } from "@/lib/session-labels";
  * the Users Metrics view and the per-person workout page. Native <details>:
  * every body is server-rendered (just the set lines), so opening is instant.
  */
-export function RecentWorkouts({ data, client }: { data: GymData; client: ClientId }) {
+export function RecentWorkouts({
+  data,
+  client,
+  limit = 10,
+  showTotal = true,
+}: {
+  data: GymData;
+  client: ClientId;
+  limit?: number;
+  /** The "N completed total" footer — off where a header already counts. */
+  showTotal?: boolean;
+}) {
   const completed = sessionsFor(data, client).filter((s) => s.status === "completed");
-  const recent = completed.slice(0, 10);
+  const recent = completed.slice(0, limit);
 
   return (
     <Section title="Recent workouts">
@@ -85,7 +96,7 @@ export function RecentWorkouts({ data, client }: { data: GymData; client: Client
                     <div className="mt-3 border-t border-border pt-2">
                       <Link
                         href={`/workout/session/${session.id}`}
-                        className="inline-flex items-center gap-1 text-xs text-accent-text underline underline-offset-2"
+                        className="inline-flex min-h-9 items-center gap-1 text-xs text-accent-text underline underline-offset-2 pointer-coarse:min-h-11"
                       >
                         <EyeIcon size={14} /> View session
                       </Link>
@@ -97,10 +108,14 @@ export function RecentWorkouts({ data, client }: { data: GymData; client: Client
           })}
         </ul>
       )}
-      <Note>
-        {completed.length} completed session{completed.length === 1 ? "" : "s"} total —
-        tap a row for its sets.
-      </Note>
+      {showTotal ? (
+        <Note>
+          {completed.length} completed session{completed.length === 1 ? "" : "s"} total —
+          tap a row for its sets.
+        </Note>
+      ) : (
+        recent.length > 0 && <Note>Tap a row for its sets.</Note>
+      )}
     </Section>
   );
 }

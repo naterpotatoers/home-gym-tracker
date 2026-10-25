@@ -29,7 +29,8 @@ export function EffortPicker({
             key={value}
             type="button"
             onClick={() => onChange({ rpe: rpe === value ? null : value })}
-            className={`size-11 rounded-md border font-mono text-sm ${
+            aria-pressed={rpe === value}
+            className={`size-11 cursor-pointer rounded-md border font-mono text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
               rpe === value
                 ? "border-accent bg-accent-soft font-semibold text-accent-text"
                 : "border-border-strong bg-surface text-muted hover:text-foreground"
@@ -48,7 +49,8 @@ export function EffortPicker({
             key={value}
             type="button"
             onClick={() => onChange({ condition: condition === value ? null : value })}
-            className={`min-h-11 rounded-md border px-3 text-xs ${
+            aria-pressed={condition === value}
+            className={`min-h-11 cursor-pointer rounded-md border px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
               condition === value
                 ? "border-accent bg-accent-soft font-semibold text-accent-text"
                 : "border-border-strong bg-surface text-muted hover:text-foreground"

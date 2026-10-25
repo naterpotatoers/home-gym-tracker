@@ -169,6 +169,10 @@ create table exercise_modalities (
   required_equipment text[] not null default '{}',
   pin_risk boolean not null default false,
   load_factor_override double precision,
+  -- Dumbbells moved per rep (goblet squat = 1); null = infer from unilateral mode.
+  implements smallint check (implements in (1, 2)),
+  -- The lifter's bodyweight is part of the load (dumbbell-weighted pull-up).
+  load_includes_bodyweight boolean not null default false,
   notes text not null default '',
   primary key (exercise_id, modality_id)
 );
@@ -213,6 +217,43 @@ create unique index exercises_name_idx on exercises (lower(name));
 -- At most one default variant per exercise.
 create unique index exercise_modalities_default_idx
   on exercise_modalities (exercise_id) where is_default;
+
+-- Week-structure rewrites as single transactions, so a failure mid-shift can
+-- never lose a program's schedule. The composite PK forbids in-place shifts,
+-- so rows hop through a +1000 offset (still satisfies check week >= 1).
+create or replace function remove_program_week(p_program text, p_week int)
+returns void language plpgsql as $$
+declare
+  n int;
+begin
+  select weeks into n from programs where id = p_program for update;
+  if n is null then raise exception 'program % not found', p_program; end if;
+  if n <= 1 then raise exception 'A program keeps at least one week.'; end if;
+  if p_week < 1 or p_week > n then raise exception 'week % out of range', p_week; end if;
+
+  delete from program_days where program_id = p_program and week = p_week;
+  update program_days set week = week + 1000 where program_id = p_program and week > p_week;
+  update program_days set week = week - 1001 where program_id = p_program and week > 1000;
+  update programs set weeks = n - 1 where id = p_program;
+end $$;
+
+create or replace function duplicate_program_week(p_program text, p_week int, p_max int)
+returns void language plpgsql as $$
+declare
+  n int;
+begin
+  select weeks into n from programs where id = p_program for update;
+  if n is null then raise exception 'program % not found', p_program; end if;
+  if n >= p_max then raise exception 'Programs cap at % weeks.', p_max; end if;
+  if p_week < 1 or p_week > n then raise exception 'week % out of range', p_week; end if;
+
+  update program_days set week = week + 1000 where program_id = p_program and week > p_week;
+  update program_days set week = week - 999 where program_id = p_program and week > 1000;
+  insert into program_days (program_id, week, day_of_week, routine_id)
+    select program_id, p_week + 1, day_of_week, routine_id
+    from program_days where program_id = p_program and week = p_week;
+  update programs set weeks = n + 1 where id = p_program;
+end $$;
 
 -- RLS: enabled with a permissive anon policy on every table. This is a
 -- single-household personal app behind a publishable key; there is no

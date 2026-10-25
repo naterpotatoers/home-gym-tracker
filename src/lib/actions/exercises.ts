@@ -214,6 +214,15 @@ function validatePayload(payload: ExercisePayload): void {
     ) {
       throw new Error("Load factor override must be between 0 and 3.");
     }
+    if (variant.implements !== null && variant.implements !== 1 && variant.implements !== 2) {
+      throw new Error(`bad dumbbell count ${variant.implements}`);
+    }
+    if (
+      (variant.implements !== null || variant.loadIncludesBodyweight) &&
+      variant.modalityId !== "dumbbell"
+    ) {
+      throw new Error("Dumbbell count and +bodyweight only apply to the dumbbell modality.");
+    }
     if (variant.isDefault) defaults += 1;
   }
   if (payload.modalities.length > 0 && defaults !== 1) {
@@ -312,70 +321,113 @@ export async function deleteExercise(exerciseId: string): Promise<void> {
 
 /**
  * One-time (but idempotent and re-runnable) import of the TypeScript seed
- * catalog into the database — ON CONFLICT DO NOTHING, so rows you've edited
- * are never overwritten and re-running after new seed exercises land in
- * src/lib/data/exercises.ts adds just the new ones.
+ * catalog into the database. Add-only, per EXERCISE: a seed exercise whose id
+ * already exists is skipped entirely — its scores and variants included — so
+ * rows you've edited (a removed variant, a different default) are never
+ * reverted, and re-running after new seed exercises land in
+ * src/lib/data/exercises.ts adds just the new ones. A seed exercise whose name
+ * a custom exercise already uses is skipped too (the lower(name) index would
+ * reject it; the custom one stands in for it).
  */
 export async function importSeedExercises(): Promise<void> {
-  await run(
-    "importing exercises",
-    supabase
-      .from("exercises")
-      .upsert(seedExercises.map(exerciseToRow), { ignoreDuplicates: true }),
-  );
-  await run(
-    "importing muscle scores",
-    supabase
-      .from("exercise_muscle_scores")
-      .upsert(seedExerciseMuscleScores.map(exerciseMuscleScoreToRow), {
-        ignoreDuplicates: true,
-      }),
-  );
-  await run(
-    "importing variants",
-    supabase
-      .from("exercise_modalities")
-      .upsert(seedExerciseModalities.map(exerciseModalityToRow), {
-        ignoreDuplicates: true,
-      }),
-  );
+  await importMissingSeedExercises();
   revalidateAll();
+}
+
+/** The import itself; returns the seed ids that exist after it ran. */
+async function importMissingSeedExercises(): Promise<Set<string>> {
+  const existing = await run(
+    "importing exercises",
+    supabase.from("exercises").select("id, name"),
+  );
+  const presentIds = new Set((existing ?? []).map((row) => row.id as string));
+  const takenNames = new Set(
+    (existing ?? []).map((row) => (row.name as string).toLowerCase()),
+  );
+  const missing = seedExercises.filter(
+    (e) => !presentIds.has(e.id) && !takenNames.has(e.name.toLowerCase()),
+  );
+  const missingIds = new Set(missing.map((e) => e.id));
+
+  if (missing.length > 0) {
+    await run(
+      "importing exercises",
+      supabase.from("exercises").insert(missing.map(exerciseToRow)),
+    );
+    const scores = seedExerciseMuscleScores.filter((s) => missingIds.has(s.exerciseId));
+    if (scores.length > 0) {
+      await run(
+        "importing muscle scores",
+        supabase.from("exercise_muscle_scores").insert(scores.map(exerciseMuscleScoreToRow)),
+      );
+    }
+    const variants = seedExerciseModalities.filter((em) => missingIds.has(em.exerciseId));
+    if (variants.length > 0) {
+      await run(
+        "importing variants",
+        supabase.from("exercise_modalities").insert(variants.map(exerciseModalityToRow)),
+      );
+    }
+  }
+
+  return new Set(
+    seedExercises.filter((e) => presentIds.has(e.id) || missingIds.has(e.id)).map((e) => e.id),
+  );
 }
 
 /**
  * Make the DB's built-in exercises match the CURRENT seed: first the same
- * add-only upserts as importSeedExercises (so built-ins added to the seed
+ * add-only import as importSeedExercises (so built-ins added to the seed
  * after the first import — or ones you deleted — come back with their scores
  * and variants), then an overwrite of muscle scores and aliases for every
  * built-in. The explicit opt-in counterpart to importSeedExercises'
  * never-overwrite contract, for when the seed data itself gets corrected
  * (e.g. after a literature review). Deliberately narrow: names, patterns,
- * variants, and custom (non-seed-id) exercises are untouched. Not
- * transactional under PostgREST — same caveat as saveExercise.
+ * variants, and custom (non-seed-id) exercises are untouched.
  */
 export async function resyncSeedCatalogScores(): Promise<void> {
   // Restore/add any missing built-ins first. This is what makes the button
   // sufficient on its own — the "Import seed catalog" card is only rendered
   // while the exercises table is EMPTY, so an already-imported DB has no
   // other way to receive newly added seed exercises.
-  await importSeedExercises();
+  const seedIds = await importMissingSeedExercises();
 
-  // Every seed id exists now, so the score overwrite is FK-safe.
-  const seedIds = seedExercises.map((e) => e.id);
-  await run(
-    "re-syncing seed scores",
-    supabase.from("exercise_muscle_scores").delete().in("exercise_id", seedIds),
-  );
+  // Upsert the seed scores, then drop muscles the seed no longer lists —
+  // never delete-all-then-insert, which would leave every built-in with no
+  // scores (a blank heat map) if the insert failed.
+  const seedScores = seedExerciseMuscleScores.filter((s) => seedIds.has(s.exerciseId));
   await run(
     "re-syncing seed scores",
     supabase
       .from("exercise_muscle_scores")
-      .insert(seedExerciseMuscleScores.map(exerciseMuscleScoreToRow)),
+      .upsert(seedScores.map(exerciseMuscleScoreToRow), {
+        onConflict: "exercise_id,muscle_id",
+      }),
   );
+  const keep = new Set(seedScores.map((s) => `${s.exerciseId}|${s.muscleId}`));
+  const current = await run(
+    "re-syncing seed scores",
+    supabase
+      .from("exercise_muscle_scores")
+      .select("exercise_id, muscle_id")
+      .in("exercise_id", [...seedIds]),
+  );
+  for (const row of current ?? []) {
+    if (keep.has(`${row.exercise_id}|${row.muscle_id}`)) continue;
+    await run(
+      "re-syncing seed scores",
+      supabase
+        .from("exercise_muscle_scores")
+        .delete()
+        .eq("exercise_id", row.exercise_id)
+        .eq("muscle_id", row.muscle_id),
+    );
+  }
 
   // Targeted alias update per exercise — an upsert of the whole row would
   // also revert name/pattern edits, which stay the user's.
   for (const exercise of seedExercises) {
+    if (!seedIds.has(exercise.id)) continue;
     await run(
       "re-syncing seed aliases",
       supabase

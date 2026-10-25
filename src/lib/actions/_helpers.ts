@@ -1,5 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { supabase } from "../db/client";
+import { sessionToRow, setLogToRow } from "../db/mappers";
+import type { Session, SetLog } from "../types";
 
 /**
  * Shared plumbing for the server-action files. Deliberately NOT a
@@ -43,18 +45,55 @@ export async function runOrDuplicate<T>(
 }
 
 /** Referential-integrity guard for deletes: refuse while any row in `table`
- *  still references `value` in `column`. */
+ *  still references `value` in `column`. `optionalTable` treats a missing
+ *  table (migration not run) as "no references". */
 export async function assertNoRefs(
   table: string,
   column: string,
   value: string,
   message: string,
+  { optionalTable = false }: { optionalTable?: boolean } = {},
 ): Promise<void> {
   const { count, error } = await supabase
     .from(table)
     .select(column, { count: "exact" })
     .eq(column, value)
     .limit(1);
+  // A table with its own snapshot fallback (nutrition) may not exist yet —
+  // then nothing can reference the value.
+  if (optionalTable && error?.code === "PGRST205") return;
   if (error) throw new Error(`checking ${table}: ${error.message}`);
   if ((count ?? 0) > 0) throw new Error(message);
+}
+
+/** run() for an update/upsert-by-id that must hit a row: pass the builder
+ *  with `.select("id")` so the matched rows come back, and a stale or forged
+ *  id throws instead of silently changing nothing. */
+export async function runMatched(
+  label: string,
+  query: PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+): Promise<void> {
+  const rows = await run(label, query);
+  if (!rows || rows.length === 0) throw new Error(`${label}: not found`);
+}
+
+/** Sessions plus their sets, all or nothing: Supabase has no client-side
+ *  transactions, so a failed set insert removes the session rows it would
+ *  have orphaned (an empty planned session would otherwise capture every
+ *  later Play tap via the resume check in startSession). Shared by the solo and group starts. */
+export async function insertSessions(
+  label: string,
+  sessions: readonly Session[],
+  sets: readonly SetLog[],
+): Promise<void> {
+  await run(label, supabase.from("sessions").insert(sessions.map(sessionToRow)));
+  try {
+    await run(label, supabase.from("set_logs").insert(sets.map(setLogToRow)));
+  } catch (error) {
+    await supabase
+      .from("sessions")
+      .delete()
+      .in("id", sessions.map((s) => s.id));
+    throw error;
+  }
 }

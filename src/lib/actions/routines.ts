@@ -6,8 +6,8 @@ import { supabase } from "../db/client";
 import { routineExerciseToRow, routineToRow } from "../db/mappers";
 import { slugId } from "../ids";
 import type { RoutineExercise } from "../types";
-import { isModalityId } from "../validate";
-import { assertNoRefs, revalidateAll, run } from "./_helpers";
+import { isBandRole, isModalityId, isUnilateralMode } from "../validate";
+import { assertNoRefs, revalidateAll, run, runMatched } from "./_helpers";
 import { assertExerciseIds } from "./exercises";
 
 export async function createRoutine(formData: FormData): Promise<void> {
@@ -37,13 +37,29 @@ export async function saveRoutine(
   await assertExerciseIds(rows.map((row) => row.exerciseId));
   for (const row of rows) {
     if (!isModalityId(row.modalityId)) throw new Error(`bad modality id ${row.modalityId}`);
+    if (row.bandRole !== null && !isBandRole(row.bandRole)) {
+      throw new Error(`bad band role ${row.bandRole}`);
+    }
+    if (!isUnilateralMode(row.unilateralMode)) {
+      throw new Error(`bad unilateral mode ${row.unilateralMode}`);
+    }
+    if (!Number.isInteger(row.sets) || row.sets < 1 || row.sets > 20) {
+      throw new Error(`bad set count ${row.sets}`);
+    }
+    if (row.repMin !== null && row.repMax !== null && row.repMin > row.repMax) {
+      throw new Error("Rep range minimum is above the maximum.");
+    }
   }
 
-  await run(
+  // An UPDATE, never an upsert: a debounced save that lands after the
+  // routine was deleted must fail, not resurrect it.
+  await runMatched(
     "saving routine",
     supabase
       .from("routines")
-      .upsert({ id: routineId, name: meta.name.trim(), notes: meta.notes }),
+      .update({ name: meta.name.trim(), notes: meta.notes })
+      .eq("id", routineId)
+      .select("id"),
   );
   await run(
     "saving routine",
@@ -146,7 +162,13 @@ export async function deleteRoutine(routineId: string): Promise<void> {
     routineId,
     "Routine is scheduled in a program — remove it there first.",
   );
+  await assertNoRefs(
+    "sessions",
+    "routine_id",
+    routineId,
+    "Routine has logged workouts — those keep pointing at it, so it can't be deleted.",
+  );
   await run("deleting routine", supabase.from("routines").delete().eq("id", routineId));
   revalidateAll();
-  redirect("/routines");
+  redirect("/programs");
 }

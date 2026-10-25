@@ -5,6 +5,7 @@ import {
   loadableWeights,
   nearestLoadableWeight,
   smallestIncrement,
+  weightStep,
 } from "./loading";
 
 describe("loadableWeights", () => {
@@ -46,5 +47,18 @@ describe("formatPlates", () => {
   it("rejects unbuildable odd remainders", () => {
     expect(formatPlates(46)).toBeNull(); // 0.5 lb per side — impossible
     expect(formatPlates(40)).toBeNull(); // below the bar
+  });
+});
+
+describe("weightStep", () => {
+  it("plates and machines move by 5, dumbbells and added load by 2.5", () => {
+    expect(weightStep("barbell")).toBe(5);
+    expect(weightStep("machine")).toBe(5);
+    expect(weightStep("dumbbell")).toBe(2.5);
+    expect(weightStep("bodyweight")).toBe(2.5);
+  });
+
+  it("bands have no pound stepper", () => {
+    expect(weightStep("band")).toBeNull();
   });
 });

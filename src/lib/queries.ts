@@ -10,6 +10,7 @@ import type { GymData } from "./gym-data";
 import { nearestLoadableWeight } from "./loading";
 import { ageOnIso, currentProgramWeek, localIso, localTodayIso } from "./periods";
 import { toBlocks, type Block } from "./set-blocks";
+import { weighInHistory } from "./weigh-ins";
 import {
   bestE1rm,
   e1rm,
@@ -61,7 +62,12 @@ export function clientSummaries(data: GymData, asOf: Date = new Date()): ClientS
       .filter((s) => s.clientId === client.id && s.status === "completed")
       .sort((a, b) => a.date.localeCompare(b.date));
     const current = latestBodyweight(data, client.id, isoToday);
-    const atJoin = latestBodyweight(data, client.id, client.joinDate);
+    // Starting weight: the last weigh-in on/before joining, else the first
+    // one after (people usually step on the scale after signing up).
+    const atJoin =
+      latestBodyweight(data, client.id, client.joinDate) ??
+      weighInHistory(data, client.id)[0]?.bodyweightLbs ??
+      null;
     return {
       client,
       age: ageOnIso(client.dateOfBirth, isoToday),
@@ -172,12 +178,39 @@ export function describeSet(data: GymData, set: SetLog): string {
     parts.push(`−${bandLabel(set)} band assist`);
   } else if (set.bandId) {
     parts.push(`${bandLabel(set)} band`);
+  } else if (set.modalityId === "bodyweight") {
+    if (set.addedWeightLbs) parts.push(`BW+${set.addedWeightLbs} lb`);
   } else if (set.weightLbs !== null) {
     parts.push(`${set.weightLbs} lb`);
   }
 
   if (set.rir !== null) parts.push(set.rir === 0 ? "to failure" : `RIR ${set.rir}`);
   return parts.join(" · ");
+}
+
+/** Terse one-set label for history chips — "135×10", "50×10" (per
+ *  dumbbell, as entered), "BW+25×8", "blue×12", "−green×6" (assist),
+ *  "medium band×15" (hip band: ordinal, never pounds), "30s", "×10/side".
+ *  "F" marks a set taken to failure. */
+export function compactSet(data: GymData, set: SetLog): string {
+  const load = setLoad(data, set);
+  let what = "";
+  if (load.precision === "ordinal") what = `${bandLabel(set)} band`;
+  else if (set.bandRole === "assistance") what = `−${bandLabel(set)}`;
+  else if (set.bandId) what = bandLabel(set);
+  else if (set.modalityId === "bodyweight") {
+    what = set.addedWeightLbs ? `BW+${set.addedWeightLbs}` : "BW";
+  } else if (set.weightLbs !== null) what = String(set.weightLbs);
+
+  let amount = "";
+  if (set.durationSeconds !== null) amount = `${set.durationSeconds}s`;
+  else if (set.distanceFeet !== null) amount = `${set.distanceFeet}ft`;
+  else if (set.reps !== null) {
+    amount = `${set.reps}${sidesWorked(set) > 1 ? "/side" : ""}`;
+  }
+
+  const label = what && amount ? `${what}×${amount}` : what || amount || "—";
+  return set.rir === 0 ? `${label} F` : label;
 }
 
 /** Short band name for labels — "blue", "small". Exported so cards and
@@ -480,6 +513,10 @@ export type MuscleVolume = {
   /** Score-weighted reps from sets whose load has no magnitude (hip bands).
    *  Kept separate so ordinal work is visible without being faked as a number. */
   ordinalReps: number;
+  /** Score-weighted reps from sets whose load is merely MISSING (a bodyweight
+   *  set before the first weigh-in, a dumbbell set with no weight entered).
+   *  Not ordinal — that track means band rank — and not pounds either. */
+  unloadedReps: number;
   sets: number;
   /** Highest effective score seen, i.e. how directly this muscle was trained. */
   peakScore: number;
@@ -506,11 +543,13 @@ export function muscleVolume(
       muscleId: muscle.id,
       weightedVolumeLbs: 0,
       ordinalReps: 0,
+      unloadedReps: 0,
       sets: 0,
       peakScore: 0,
     });
   }
 
+  const factorCache = new Map<string, number | null>();
   for (const set of data.setLogs) {
     const session = data.sessionById.get(set.sessionId);
     if (!session || session.clientId !== clientId) continue;
@@ -522,7 +561,7 @@ export function muscleVolume(
     if (scores.size === 0) continue;
 
     const load = setLoad(data, set);
-    const normalized = normalizedLoad(data, set);
+    const normalized = normalizedLoad(data, set, factorCache);
     const reps = load.totalReps;
 
     for (const [muscleId, score] of scores) {
@@ -531,8 +570,10 @@ export function muscleVolume(
       const weight = score / 10;
       row.sets += 1;
       row.peakScore = Math.max(row.peakScore, score);
-      if (load.precision === "ordinal" || normalized === null) {
+      if (load.precision === "ordinal") {
         row.ordinalReps += weight * reps;
+      } else if (normalized === null) {
+        row.unloadedReps += weight * reps;
       } else {
         row.weightedVolumeLbs += weight * reps * normalized;
       }

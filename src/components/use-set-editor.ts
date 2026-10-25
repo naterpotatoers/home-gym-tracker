@@ -149,11 +149,19 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
   function restructure(next: SetLog[]) {
     clearTimers();
     pendingSaves.current.clear();
+    const previous = setsRef.current;
     const renumbered = renumber(next);
     commit(renumbered);
     setBusy(true);
     syncSetLogs(session.id, renumbered)
-      .catch(report)
+      .catch((e) => {
+        // Roll back so the screen matches the database — unless the list
+        // already moved on, in which case the newer change's own sync (or
+        // Finish's full flush) carries it. A failed field save needs no
+        // rollback: Finish re-syncs the whole list either way.
+        if (setsRef.current === renumbered) commit(previous);
+        report(e);
+      })
       .finally(() => setBusy(false));
   }
 

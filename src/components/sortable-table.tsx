@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import React, { useMemo, useState } from "react";
 import { TableScroll } from "@/components/ui";
 
@@ -7,6 +8,8 @@ export type SortableColumn = {
   key: string;
   label: string;
   numeric?: boolean;
+  /** Extra classes on the column's th + td — e.g. "hidden sm:table-cell". */
+  className?: string;
 };
 
 export type SortableRow = {
@@ -15,6 +18,9 @@ export type SortableRow = {
   sort: Record<string, string | number | null>;
   /** Server-rendered cells, same column keys. */
   cells: Record<string, React.ReactNode>;
+  /** Clicking anywhere on the row navigates here (scroll kept). A cell must
+   *  still carry a real Link to it — that's the keyboard/AT target. */
+  href?: string;
 };
 
 type SortState = { key: string; dir: "asc" | "desc" } | null;
@@ -31,6 +37,7 @@ export function SortableTable({
   initialSort = null,
   expandedKey,
   expansion,
+  dense = false,
 }: {
   columns: SortableColumn[];
   rows: SortableRow[];
@@ -39,7 +46,10 @@ export function SortableTable({
    *  renders in a full-width row right below it, following it through sorts. */
   expandedKey?: string;
   expansion?: React.ReactNode;
+  /** Tighter rows for scan-heavy lists; touch keeps 44px via pointer-coarse. */
+  dense?: boolean;
 }) {
+  const router = useRouter();
   const [sort, setSort] = useState<SortState>(initialSort);
 
   const sorted = useMemo(() => {
@@ -79,12 +89,12 @@ export function SortableTable({
                   aria-sort={
                     active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"
                   }
-                  className="p-0"
+                  className={`p-0 ${col.className ?? ""}`}
                 >
                   <button
                     type="button"
                     onClick={() => cycle(col.key)}
-                    className={`flex min-h-10 w-full cursor-pointer items-center gap-1 py-1 pr-3 text-xs font-semibold uppercase tracking-wide hover:text-foreground ${
+                    className={`flex ${dense ? "min-h-9 pointer-coarse:min-h-11" : "min-h-11"} w-full cursor-pointer items-center gap-1 py-1 pr-3 text-xs font-semibold uppercase tracking-wide hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
                       col.numeric ? "justify-end text-right" : ""
                     } ${active ? "text-accent-text" : "text-muted"}`}
                   >
@@ -101,11 +111,24 @@ export function SortableTable({
         <tbody>
           {sorted.map((row) => (
             <React.Fragment key={row.key}>
-              <tr className="border-b border-border">
+              <tr
+                className={`border-b border-border ${
+                  row.href ? "cursor-pointer hover:bg-current/5" : ""
+                }`}
+                onClick={
+                  row.href
+                    ? (e) => {
+                        // The row's own Link already navigates.
+                        if ((e.target as Element).closest("a, button")) return;
+                        router.push(row.href!, { scroll: false });
+                      }
+                    : undefined
+                }
+              >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`py-2 pr-3 ${col.numeric ? "text-right font-mono text-xs" : ""}`}
+                    className={`${dense ? "py-0.5" : "py-2"} pr-3 ${col.numeric ? "text-right font-mono text-xs" : ""} ${col.className ?? ""}`}
                   >
                     {row.cells[col.key]}
                   </td>

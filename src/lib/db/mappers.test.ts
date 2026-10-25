@@ -106,9 +106,25 @@ describe("mapper round-trips (row ↔ type symmetry)", () => {
     for (const s of exerciseMuscleScores.slice(0, 40)) {
       expect(rowToExerciseMuscleScore(exerciseMuscleScoreToRow(s))).toEqual(s);
     }
-    for (const m of exerciseModalities.slice(0, 40)) {
+    // All of them: the per-variant load-shape fields are set on only a few.
+    for (const m of exerciseModalities) {
       expect(rowToExerciseModality(exerciseModalityToRow(m))).toEqual(m);
     }
+  });
+
+  it("variant load-shape columns are omitted at their defaults", () => {
+    // Inserts must keep working against a table without the 2026-10-24
+    // columns, and rows read from it must default them.
+    const plain = exerciseModalities.find((m) => m.implements === null && !m.loadIncludesBodyweight)!;
+    const row = exerciseModalityToRow(plain);
+    expect("implements" in row).toBe(false);
+    expect("load_includes_bodyweight" in row).toBe(false);
+    expect(rowToExerciseModality(row)).toEqual(plain);
+
+    const weighted = exerciseModalities.find((m) => m.loadIncludesBodyweight)!;
+    const weightedRow = exerciseModalityToRow(weighted);
+    expect(weightedRow.implements).toBe(weighted.implements);
+    expect(weightedRow.load_includes_bodyweight).toBe(true);
   });
 
   it("nutrition", () => {

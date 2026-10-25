@@ -65,6 +65,26 @@ export function localDayLabel(iso: string): string {
   });
 }
 
+/** "Oct 23" — compact gym-zone day for dense lists. Display only. */
+export function shortDayLabel(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** "today" / "3d ago" / "2 wk ago" / "4 mo ago" — coarse recency for list
+ *  rows. Future dates read as "today"; pure UTC-day math. */
+export function relativeDayLabel(iso: string, todayIso: string): string {
+  const days = utcDay(todayIso) - utcDay(iso);
+  if (days <= 0) return "today";
+  if (days < 14) return `${days}d ago`;
+  if (days < 60) return `${Math.floor(days / 7)} wk ago`;
+  if (days < 730) return `${Math.floor(days / 30)} mo ago`;
+  return `${Math.floor(days / 365)} yr ago`;
+}
+
 /** Today's weekday at the gym — derived from the same ISO string as
  *  localTodayIso() so the two can never disagree across midnight. */
 export function todayDow(): number {

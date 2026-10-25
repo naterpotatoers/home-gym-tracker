@@ -17,7 +17,10 @@ export function toBlocks(sets: readonly SetLog[]): Block[] {
       last.sets.push(set);
     } else {
       out.push({
-        key: `${set.exerciseId}-${set.modalityId}-${out.length}`,
+        // The first set's id: stable across inserts/removals elsewhere in
+        // the session (an index-based key would remount lower blocks and
+        // collapse a block the user opened).
+        key: set.id,
         exerciseId: set.exerciseId,
         modalityId: set.modalityId,
         sets: [set],

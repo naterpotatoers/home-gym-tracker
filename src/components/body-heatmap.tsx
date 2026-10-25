@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { bodyMap, silhouettes, type BodyView } from "@/lib/body-map";
 import { muscleById } from "@/lib/data/muscles";
 import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
@@ -33,13 +33,15 @@ function exercisesFor(
  * pounds. Zero intensity renders as outline only, receding into the figure.
  */
 export function BodyHeatmap({
-  values,
+  values: entries,
   catalog,
   title,
   maxLabel,
   ordinalMaxLabel,
 }: {
-  values: ReadonlyMap<MuscleId, HeatValue>;
+  /** Entries, not a Map — props crossing the server→client boundary stay
+   *  plain arrays (see AGENTS.md). Pass `[...map]`. */
+  values: readonly (readonly [MuscleId, HeatValue])[];
   catalog: ExerciseCatalog;
   title: string;
   /** Legend label for the top of the shared scale, e.g. "12,400 lb·reps". */
@@ -48,6 +50,7 @@ export function BodyHeatmap({
   ordinalMaxLabel?: string;
 }) {
   const uid = useId();
+  const values = useMemo(() => new Map(entries), [entries]);
   const [active, setActive] = useState<MuscleId | null>(null);
   const hasOrdinal = [...values.values()].some((v) => v.ordinalOnly);
   const activeValue = active ? values.get(active) : undefined;

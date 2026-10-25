@@ -1,31 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BodyHeatmap } from "@/components/body-heatmap";
-import { PlusIcon, SaveIcon, TrashIcon } from "@/components/icons";
+import { AssignmentChips } from "@/components/assignment-chips";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
-import {
-  Button,
-  chipClass,
-  ColorDot,
-  Input,
-  Note,
-  PageShell,
-  Section,
-  Select,
-  TableScroll,
-  Td,
-  Th,
-} from "@/components/ui";
+import { chipClass, PageShell, Section } from "@/components/ui";
 import { ProgramEditor } from "@/components/week-grid";
-import {
-  createAssignment,
-  deleteProgram,
-  updateAssignmentStatus,
-} from "@/lib/actions/programs";
 import { coverageByGroup, neglectedMuscles, weekCoverage } from "@/lib/coverage";
 import { loadGymData } from "@/lib/db/snapshot";
 import { catalogSlice } from "@/lib/exercise-catalog";
 import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
+import { localTodayIso, mondayOf } from "@/lib/periods";
 
 export default async function ProgramPage({
   params,
@@ -61,6 +45,16 @@ export default async function ProgramPage({
         routines={[...data.routines]}
       />
 
+      <AssignmentChips
+        programId={programId}
+        assignments={assignments.map((a) => {
+          const client = data.clientById.get(a.clientId);
+          return { ...a, firstName: client?.firstName ?? a.clientId, color: client?.color ?? null };
+        })}
+        clients={data.clients.map((c) => ({ id: c.id, firstName: c.firstName }))}
+        defaultStartDate={mondayOf(localTodayIso())}
+      />
+
       <Section title="Weekly muscle coverage">
         <div className="mb-3 flex flex-wrap items-baseline gap-1 text-sm">
           <span className="mr-2 text-xs uppercase tracking-wide text-muted">Week</span>
@@ -68,16 +62,21 @@ export default async function ProgramPage({
             <Link
               key={w}
               href={`/programs/${programId}?week=${w}`}
-              className={chipClass(w === week, "min-h-10 min-w-10 justify-center px-2 font-mono text-xs")}
+              scroll={false}
+              className={chipClass(w === week, "min-h-11 min-w-11 justify-center px-2 font-mono text-xs")}
             >
               {w}
             </Link>
           ))}
         </div>
         {neglected.length > 0 && (
+          // The bars below name each one (with a status label) — this is
+          // just the count, not a wall of names.
           <p className="mb-3 text-xs text-danger-text">
-            Possibly neglected in week {week}:{" "}
-            <strong>{neglected.join(", ")}</strong>
+            <strong>
+              {neglected.length} of {coverage.size} muscles
+            </strong>{" "}
+            possibly neglected in week {week}
           </p>
         )}
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
@@ -86,7 +85,7 @@ export default async function ProgramPage({
           </div>
           <div className="shrink-0">
             <BodyHeatmap
-              values={heat}
+              values={[...heat]}
               catalog={catalogSlice(data)}
               title={`Week ${week} body map`}
               maxLabel={`${coverageMax.toFixed(1)} sets/wk`}
@@ -95,83 +94,6 @@ export default async function ProgramPage({
         </div>
       </Section>
 
-      <Section
-        title="Assignments"
-        action={
-          <form action={createAssignment} className="flex flex-wrap items-center gap-2 pb-1">
-            <input type="hidden" name="programId" value={programId} />
-            <Select name="clientId" size="sm">
-              {data.clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.firstName}
-                </option>
-              ))}
-            </Select>
-            <Input type="date" name="startDate" required size="sm" />
-            <Button type="submit" variant="primary" size="sm">
-              <PlusIcon size={16} /> Assign
-            </Button>
-          </form>
-        }
-      >
-        {assignments.length === 0 ? (
-          <Note>
-            Nobody is on this program yet — assign someone above and their
-            workouts will follow its weekly schedule.
-          </Note>
-        ) : (
-          <TableScroll>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border-strong text-left">
-                  <Th>Client</Th>
-                  <Th>Since</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {assignments.map((assignment) => {
-                  const client = data.clientById.get(assignment.clientId);
-                  return (
-                    <tr key={assignment.id} className="border-b border-border">
-                      <Td>
-                        <span className="inline-flex items-center gap-1.5 font-semibold">
-                          <ColorDot color={client?.color} />
-                          {client?.firstName ?? assignment.clientId}
-                        </span>
-                      </Td>
-                      <Td>
-                        <span className="font-mono text-xs">{assignment.startDate}</span>
-                      </Td>
-                      <Td>
-                        <form
-                          action={updateAssignmentStatus.bind(null, assignment.id)}
-                          className="flex items-center gap-1.5"
-                        >
-                          <Select name="status" size="sm" defaultValue={assignment.status}>
-                            <option value="active">active</option>
-                            <option value="paused">paused</option>
-                            <option value="completed">completed</option>
-                          </Select>
-                          <Button type="submit" size="sm" title="Apply status change">
-                            <SaveIcon size={14} /> Apply
-                          </Button>
-                        </form>
-                      </Td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </TableScroll>
-        )}
-      </Section>
-
-      <form action={deleteProgram.bind(null, programId)} className="mt-10">
-        <Button type="submit" variant="danger" size="sm">
-          <TrashIcon size={16} /> Delete program
-        </Button>
-      </form>
     </PageShell>
   );
 }

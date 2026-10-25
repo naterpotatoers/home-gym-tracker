@@ -11,6 +11,7 @@
  * - EyeIcon   = view / open a detail page
  * - ArrowLeftIcon = go back
  * - SwapIcon  = swap / replace an exercise
+ * - MoreIcon  = overflow menu of secondary actions (OverflowMenu)
  */
 
 function iconProps(size = 18) {
@@ -149,6 +150,16 @@ export function DumbbellIcon({ size = 18 }: { size?: number }) {
   return (
     <svg {...iconProps(size)} aria-hidden>
       <path d="M7 6.5v11M3.5 9.5v5M17 6.5v11M20.5 9.5v5M7 12h10" />
+    </svg>
+  );
+}
+
+export function MoreIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg {...iconProps(size)} aria-hidden>
+      <circle cx="5" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="19" cy="12" r="1.2" fill="currentColor" />
     </svg>
   );
 }

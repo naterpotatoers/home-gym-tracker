@@ -3,14 +3,11 @@
 import { Field, Input, Select } from "@/components/ui";
 import { CLIENT_COLORS } from "@/lib/data/clients";
 import type { Client } from "@/lib/types";
-import { useState } from "react";
 
-/** CSS-only swatch picker with optional custom hex entry. */
+/** CSS-only swatch picker — presets only (CLIENT_COLORS); saveClient rejects
+ *  anything else. A legacy off-preset color shows as "No color". */
 function ColorPicker({ name, selected }: { name: string; selected: string | null }) {
-  const isCustom = selected !== null && !CLIENT_COLORS.some((c) => c.hex === selected);
-  const [custom, setCustom] = useState(isCustom ? selected : "#ffffff");
-  const [useCustom, setUseCustom] = useState(isCustom);
-
+  const preset = CLIENT_COLORS.some((c) => c.hex === selected) ? selected : null;
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[11px] uppercase tracking-wide text-muted">Card color</span>
@@ -20,11 +17,10 @@ function ColorPicker({ name, selected }: { name: string; selected: string | null
             type="radio"
             name={name}
             value=""
-            defaultChecked={selected === null}
-            onChange={() => setUseCustom(false)}
+            defaultChecked={preset === null}
             className="peer sr-only"
           />
-          <span className="flex size-9 items-center justify-center rounded-full border-2 border-border-strong text-xs text-muted peer-checked:border-foreground peer-checked:ring-2 peer-checked:ring-accent/60">
+          <span className="flex size-11 items-center justify-center rounded-full border-2 border-border-strong text-xs text-muted peer-checked:border-foreground peer-checked:ring-2 peer-checked:ring-accent/60 peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60">
             ✕
           </span>
         </label>
@@ -34,57 +30,15 @@ function ColorPicker({ name, selected }: { name: string; selected: string | null
               type="radio"
               name={name}
               value={color.hex}
-              defaultChecked={!isCustom && selected === color.hex}
-              onChange={() => setUseCustom(false)}
+              defaultChecked={preset === color.hex}
               className="peer sr-only"
             />
             <span
-              className="block size-9 rounded-full border-2 border-transparent peer-checked:border-foreground peer-checked:ring-2 peer-checked:ring-accent/60"
+              className="block size-11 rounded-full border-2 border-transparent peer-checked:border-foreground peer-checked:ring-2 peer-checked:ring-accent/60 peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60"
               style={{ backgroundColor: color.hex }}
             />
           </label>
         ))}
-        {/* Custom color entry */}
-        <label className="cursor-pointer" title="Custom color">
-          <input
-            type="radio"
-            name={name}
-            value={useCustom ? custom : ""}
-            checked={useCustom}
-            onChange={() => setUseCustom(true)}
-            className="peer sr-only"
-          />
-          <span
-            className="flex size-9 items-center justify-center rounded-full border-2 border-dashed border-border-strong text-xs text-muted peer-checked:border-foreground peer-checked:ring-2 peer-checked:ring-accent/60"
-            style={useCustom ? { backgroundColor: custom } : undefined}
-          >
-            {!useCustom && "+"}
-          </span>
-        </label>
-        {useCustom && (
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={custom}
-              onChange={(e) => {
-                setCustom(e.target.value);
-              }}
-              className="size-9 cursor-pointer rounded border border-border bg-transparent p-0.5"
-            />
-            <input
-              type="text"
-              value={custom}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setCustom(v);
-              }}
-              maxLength={7}
-              className="w-24 rounded border border-border bg-surface-input px-2 py-1 font-mono text-sm"
-            />
-            {/* Hidden radio carries the custom value for form submission */}
-            <input type="radio" name={name} value={custom} checked readOnly className="sr-only" />
-          </div>
-        )}
       </div>
     </div>
   );

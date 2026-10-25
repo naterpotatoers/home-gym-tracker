@@ -3,8 +3,8 @@ import { exerciseLookup } from "./exercise-catalog";
 import type { GymData } from "./gym-data";
 import { bestE1rm, e1rm, setLoad } from "./modality";
 import { addDaysIso, utcDay } from "./periods";
-import { blocksFor, workingSets } from "./queries";
-import type { ClientId, ExerciseId, ModalityId, MuscleGroupId } from "./types";
+import { blocksFor, compactSet, workingSets } from "./queries";
+import type { ClientId, ExerciseId, ModalityId, Muscle, MuscleGroupId, SetLog } from "./types";
 
 /**
  * Time-series and frequency stats for the Progress page. Pure and synchronous
@@ -22,6 +22,9 @@ export type ExerciseHistoryPoint = {
   /** Heaviest loaded working set — TOTAL lbs moved per rep, and its reps. */
   topSet: { weightLbs: number; reps: number } | null;
   setCount: number;
+  /** The session's completed working sets for this variant, in performed
+   *  (position) order — the history list's chips. */
+  sets: SetLog[];
   /** Σ load × total reps over loaded sets. */
   volumeLbs: number;
 };
@@ -63,6 +66,7 @@ export function exerciseHistory(
       bestE1rmLbs: bestE1rm(data, sessionSets),
       topSet: top,
       setCount: sessionSets.length,
+      sets: [...sessionSets].sort((a, b) => a.position - b.position),
       volumeLbs,
     });
   }
@@ -209,21 +213,21 @@ export function trendSegment(
   };
 }
 
-/** The muscle group an exercise most directly trains — its highest-scored
- *  muscle's group. Null for mobility work (no scores on purpose). */
-function primaryMuscleGroup(
-  data: GymData,
-  exerciseId: ExerciseId,
-): MuscleGroupId | null {
+/** The muscle an exercise most directly trains — its highest-scored muscle
+ *  (its groupId is the lift's color). Null for mobility work (no scores on
+ *  purpose). */
+export function primaryMuscle(data: GymData, exerciseId: ExerciseId): Muscle | null {
   const scores = data.scoresByExercise.get(exerciseId);
   if (!scores || scores.length === 0) return null;
   const top = scores.reduce((a, b) => (b.score > a.score ? b : a));
-  return muscleById.get(top.muscleId)?.groupId ?? null;
+  return muscleById.get(top.muscleId) ?? null;
 }
 
 export type LiftOverviewRow = LiftFrequency & {
   trendPerWeek: number | null;
   groupId: MuscleGroupId | null;
+  /** The most recent session's top set — the "Last" column. */
+  lastTopSet: ExerciseHistoryPoint["topSet"];
 };
 
 /** The unified lift list: frequency + best + 90-day trend + primary muscle
@@ -236,16 +240,23 @@ export function liftOverview(data: GymData, clientId: ClientId): LiftOverviewRow
   return liftFrequency(data, clientId)
     .filter((row) => exerciseById.get(row.exerciseId)?.pattern !== "mobility")
     .map((row) => {
-    const trend =
-      row.bestE1rmLbs === null
-        ? null
-        : e1rmTrend(exerciseHistory(data, clientId, row.exerciseId, row.modalityId));
+    const history = exerciseHistory(data, clientId, row.exerciseId, row.modalityId);
+    const trend = row.bestE1rmLbs === null ? null : e1rmTrend(history);
     return {
       ...row,
       trendPerWeek: trend === null ? null : trend.slopePerWeek,
-      groupId: primaryMuscleGroup(data, row.exerciseId),
+      groupId: primaryMuscle(data, row.exerciseId)?.groupId ?? null,
+      lastTopSet: history.at(-1)?.topSet ?? null,
     };
-  });
+  })
+    // Most recently trained first — the default selection is what they just did.
+    .sort(
+      (a, b) =>
+        b.lastDate.localeCompare(a.lastDate) ||
+        (exerciseById.get(a.exerciseId)?.name ?? "").localeCompare(
+          exerciseById.get(b.exerciseId)?.name ?? "",
+        ),
+    );
 }
 
 /** Best lifts inside one session, for the recent-workouts one-liners. */
@@ -263,4 +274,46 @@ export function sessionTopLifts(
     .filter((b): b is typeof b & { bestE1rmLbs: number } => b.bestE1rmLbs !== null)
     .sort((a, b) => b.bestE1rmLbs - a.bestE1rmLbs)
     .slice(0, limit);
+}
+
+/** One past session of a variant, as the live session's "Last time" line. */
+export type VariantSessionSummary = { date: string; sets: string[] };
+
+/**
+ * Every variant the client has completed, mapped ("exerciseId|modalityId") to
+ * its most recent sessions, newest first, each with every working set as a
+ * compactSet label. Plain data, so it can cross into the live session's
+ * client components; covers all variants so a mid-session swap has history.
+ * `excludeSessionId` keeps the live session out of its own "last time".
+ */
+export function recentVariantHistory(
+  data: GymData,
+  clientId: ClientId,
+  excludeSessionId: string,
+  perVariant = 3,
+): Record<string, VariantSessionSummary[]> {
+  const byVariant = new Map<string, Map<string, SetLog[]>>();
+  for (const set of workingSets(data, clientId)) {
+    if (set.sessionId === excludeSessionId) continue;
+    if (data.sessionById.get(set.sessionId)?.status !== "completed") continue;
+    const key = `${set.exerciseId}|${set.modalityId}`;
+    let sessions = byVariant.get(key);
+    if (!sessions) byVariant.set(key, (sessions = new Map()));
+    const sets = sessions.get(set.sessionId);
+    if (sets) sets.push(set);
+    else sessions.set(set.sessionId, [set]);
+  }
+
+  const out: Record<string, VariantSessionSummary[]> = {};
+  for (const [key, sessions] of byVariant) {
+    out[key] = [...sessions]
+      .map(([sessionId, sets]) => ({ sessionId, date: data.sessionById.get(sessionId)!.date, sets }))
+      .sort((a, b) => b.date.localeCompare(a.date) || b.sessionId.localeCompare(a.sessionId))
+      .slice(0, perVariant)
+      .map(({ date, sets }) => ({
+        date,
+        sets: [...sets].sort((a, b) => a.position - b.position).map((set) => compactSet(data, set)),
+      }));
+  }
+  return out;
 }

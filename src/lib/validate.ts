@@ -1,8 +1,9 @@
-import { equipment } from "./data/equipment";
+import { bandById, equipment } from "./data/equipment";
 import { foodCategories } from "./data/food-categories";
 import { modalities } from "./data/modalities";
 import { muscles } from "./data/muscles";
 import type {
+  BandId,
   BandRole,
   EquipmentId,
   ExperienceLevel,
@@ -13,6 +14,7 @@ import type {
   MovementPattern,
   MuscleId,
   SessionCondition,
+  SetLog,
   UnilateralMode,
 } from "./types";
 
@@ -108,4 +110,50 @@ export function isExperienceLevel(value: string): value is ExperienceLevel {
 
 export function isGoal(value: string): value is Goal {
   return goalSet.has(value);
+}
+
+export function isBandId(id: string): id is BandId {
+  return bandById.has(id as BandId);
+}
+
+function isCount(value: number | null, max: number): boolean {
+  return value === null || (Number.isInteger(value) && value >= 0 && value <= max);
+}
+
+function isAmount(value: number | null, max: number): boolean {
+  return value === null || (Number.isFinite(value) && value >= 0 && value <= max);
+}
+
+/**
+ * Everything a SetLog write can get wrong that the database won't catch
+ * (band_id is plain text; the numeric columns are unconstrained). Returns the
+ * first problem, or null. Exercise ids are checked separately against the
+ * live table.
+ */
+export function setLogProblem(set: SetLog): string | null {
+  if (!isModalityId(set.modalityId)) return `bad modality id ${set.modalityId}`;
+  if (!isUnilateralMode(set.unilateralMode)) return `bad unilateral mode ${set.unilateralMode}`;
+  if (set.side !== null && set.side !== "left" && set.side !== "right") {
+    return `bad side ${set.side}`;
+  }
+  if (set.bandId !== null && !isBandId(set.bandId)) return `bad band id ${set.bandId}`;
+  if (set.bandRole !== null && !isBandRole(set.bandRole)) return `bad band role ${set.bandRole}`;
+  if (!Number.isInteger(set.position) || set.position < 1) return `bad position ${set.position}`;
+  if (!Number.isInteger(set.setNumber) || set.setNumber < 1) return `bad set number ${set.setNumber}`;
+  if (!isCount(set.reps, 1000)) return `bad reps ${set.reps}`;
+  if (!isCount(set.rir, 10)) return `bad RIR ${set.rir}`;
+  if (!isAmount(set.weightLbs, 2000)) return `bad weight ${set.weightLbs}`;
+  if (!isAmount(set.addedWeightLbs, 2000)) return `bad added weight ${set.addedWeightLbs}`;
+  if (!isAmount(set.durationSeconds, 86_400)) return `bad duration ${set.durationSeconds}`;
+  if (!isAmount(set.distanceFeet, 1_000_000)) return `bad distance ${set.distanceFeet}`;
+  return null;
+}
+
+/** Band work never carries pounds: its load comes from the band (a tension
+ *  range, or rank only for hip bands). Strip any stray weight a modality swap
+ *  left behind so ordinal work can't acquire a lbs value at write time. */
+export function normalizeSetLog(set: SetLog): SetLog {
+  if (set.modalityId !== "band") return set;
+  if (set.weightLbs === null && set.addedWeightLbs === null) return set;
+  return { ...set, weightLbs: null, addedWeightLbs: null };
 }

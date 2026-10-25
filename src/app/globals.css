@@ -39,6 +39,22 @@
   --success-text: #006300;
   --warning-text: #8a5a00;
   --danger-text: #b02a2a;
+  /* Ink on a filled danger badge. */
+  --danger-fg: #ffffff;
+
+  /* Modal backdrop. */
+  --scrim: rgb(0 0 0 / 0.4);
+  /* Elevation shadow color (the bottom tab bar). */
+  --shadow: rgb(0 0 0 / 0.25);
+
+  /* Muscle-group identity hues (MUSCLE_GROUP_COLORS) — categorical, clear of
+     the status green/yellow/red; same in both schemes. */
+  --group-chest: #ec4899;
+  --group-back: #3987e5;
+  --group-shoulders: #f97316;
+  --group-arms: #8b5cf6;
+  --group-legs: #14b8a6;
+  --group-core: #06b6d4;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -70,6 +86,10 @@
     --success-text: #22b04b;
     --warning-text: #e0a025;
     --danger-text: #e05252;
+    --danger-fg: #0b0e13;
+
+    --scrim: rgb(0 0 0 / 0.6);
+    --shadow: rgb(0 0 0 / 0.6);
   }
 }
 
@@ -98,6 +118,8 @@
   --color-success-text: var(--success-text);
   --color-warning-text: var(--warning-text);
   --color-danger-text: var(--danger-text);
+  --color-danger-fg: var(--danger-fg);
+  --color-scrim: var(--scrim);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -145,4 +167,34 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* Select chevron: the native arrow sits wherever the OS puts it (flush to
+ * the edge on iOS/macOS), so selects draw their own at a fixed inset that
+ * the padding in ui.tsx's Select clears. Stroke = the --muted token. */
+.select-chevron {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6472' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+  background-size: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .select-chevron {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2398a2b3' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  }
+}
+
+/* Focus mode: a live workout (solo runner, group board) marks its root with
+ * data-focus-mode and the app nav steps aside — pure CSS, so there's no
+ * flash on load and the completed-session recap (same route) keeps its nav.
+ * PageShell's top gutter and the bottom one it reserves for the tab bar
+ * shrink to match. */
+body:has([data-focus-mode]) [data-app-nav] {
+  display: none;
+}
+main:has(> [data-focus-mode]) {
+  padding-top: 1rem;
+  padding-bottom: 2.5rem;
 }

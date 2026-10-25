@@ -8,7 +8,9 @@ import {
   localDayLabel,
   localIso,
   mondayOf,
+  relativeDayLabel,
   resolvePeriod,
+  shortDayLabel,
 } from "./periods";
 
 const data = seedSnapshot();
@@ -51,6 +53,25 @@ describe("gym timezone (assertions hold under any process TZ)", () => {
     expect(ageOnIso("1990-08-19", "2026-08-19")).toBe(36);
     expect(ageOnIso("1992-02-29", "2026-02-28")).toBe(33);
     expect(ageOnIso("1992-02-29", "2026-03-01")).toBe(34);
+  });
+});
+
+describe("relativeDayLabel", () => {
+  it("buckets by days, weeks, months, years", () => {
+    const today = "2026-10-24";
+    expect(relativeDayLabel(today, today)).toBe("today");
+    expect(relativeDayLabel("2026-10-25", today)).toBe("today");
+    expect(relativeDayLabel("2026-10-23", today)).toBe("1d ago");
+    expect(relativeDayLabel("2026-10-11", today)).toBe("13d ago");
+    expect(relativeDayLabel("2026-10-10", today)).toBe("2 wk ago");
+    expect(relativeDayLabel("2026-08-26", today)).toBe("8 wk ago");
+    expect(relativeDayLabel("2026-08-25", today)).toBe("2 mo ago");
+    expect(relativeDayLabel("2024-10-24", today)).toBe("2 yr ago");
+  });
+
+  it("shortDayLabel is the gym day, not shifted by the process zone", () => {
+    expect(shortDayLabel("2026-10-23")).toBe("Oct 23");
+    expect(shortDayLabel("2026-01-01")).toBe("Jan 1");
   });
 });
 

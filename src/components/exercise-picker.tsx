@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ModalityChip } from "@/components/modality-chip";
 import { Button, Input } from "@/components/ui";
@@ -19,6 +19,7 @@ export function ExercisePicker({
   onClose,
   emphasizePattern,
   recentKeys,
+  inSession = false,
 }: {
   variants: Variant[];
   onSelect: (variant: Variant) => void;
@@ -28,8 +29,23 @@ export function ExercisePicker({
   /** "exerciseId|modalityId" keys pinned as a Recent group while the search
    *  is empty — 95% of picks are the same handful of lifts. */
   recentKeys?: string[];
+  /** Mid-workout: hide the authoring tags (default / no fail-safe). */
+  inSession?: boolean;
 }) {
   const [search, setSearch] = useState("");
+  // Autofocus only with a mouse/trackpad — on a phone or iPad it pops the
+  // keyboard over the Recent list, which is usually the pick.
+  const [autoFocus] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches,
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const recent = useMemo(() => {
     if (!recentKeys || recentKeys.length === 0 || search.trim()) return [];
@@ -68,12 +84,11 @@ export function ExercisePicker({
       .map((p) => ({ pattern: p, variants: byPattern.get(p)! }));
   }, [variants, search, emphasizePattern]);
 
-  // Portaled to <body>: a group-board card dims itself with opacity while its
-  // person rests, and opacity < 1 creates a stacking context that would trap
-  // this "fixed" overlay beneath the neighboring card.
+  // Portaled to <body> so no ancestor stacking context (opacity, transforms
+  // on a board card) can trap this "fixed" overlay beneath a neighbor.
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 sm:p-4 sm:pt-16"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-scrim sm:p-4 sm:pt-16"
       onClick={onClose}
     >
       <div
@@ -86,7 +101,7 @@ export function ExercisePicker({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search exercises…"
-            autoFocus
+            autoFocus={autoFocus}
             className="w-full"
           />
           <Button variant="ghost" onClick={onClose}>
@@ -105,7 +120,7 @@ export function ExercisePicker({
                   <button
                     type="button"
                     onClick={() => onSelect(variant)}
-                    className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-current/5"
+                    className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-current/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                   >
                     <span>{variant.exerciseName}</span>
                     <ModalityChip modalityId={variant.exerciseModality.modalityId} />
@@ -127,14 +142,14 @@ export function ExercisePicker({
                   <button
                     type="button"
                     onClick={() => onSelect(variant)}
-                    className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-current/5"
+                    className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-current/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                   >
                     <span>{variant.exerciseName}</span>
                     <ModalityChip modalityId={variant.exerciseModality.modalityId} />
-                    {!variant.allowsFailure && (
+                    {!inSession && !variant.allowsFailure && (
                       <span className="text-xs text-muted">no fail-safe</span>
                     )}
-                    {variant.exerciseModality.isDefault && (
+                    {!inSession && variant.exerciseModality.isDefault && (
                       <span className="text-xs text-muted">default</span>
                     )}
                   </button>
