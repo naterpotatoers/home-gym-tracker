@@ -9,6 +9,8 @@
 
   --background: #f4f6f9;
   --surface: #ffffff;
+  /* Zebra stripe for stacked list items (exercise blocks) on a surface. */
+  --surface-alt: #eef1f5;
   --surface-input: #ffffff;
   --foreground: #101418;
   --muted: #5b6472;
@@ -61,6 +63,7 @@
   :root {
     --background: #0b0e13;
     --surface: #12161d;
+    --surface-alt: #1a1f28;
     --surface-input: #1c222b;
     --foreground: #e7eaf0;
     --muted: #98a2b3;
@@ -97,6 +100,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
   --color-surface-input: var(--surface-input);
   --color-muted: var(--muted);
   --color-border: var(--border);

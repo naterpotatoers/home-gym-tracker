@@ -12,6 +12,7 @@ import { useSessionFlow } from "@/components/use-session-flow";
 import { useSetEditor } from "@/components/use-set-editor";
 import { finishSession } from "@/lib/actions/workout";
 import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
+import { swapSuggestions } from "@/lib/similar";
 import type { Variant } from "@/lib/queries";
 import type { Block } from "@/lib/set-blocks";
 import { errorMessage } from "@/lib/format";
@@ -202,6 +203,9 @@ export function GroupPersonCard({
             }
           }}
           onClose={() => setPicker(null)}
+          suggestions={
+            picker.mode === "replace" ? swapSuggestions(catalog, variants, picker.block) : undefined
+          }
           emphasizePattern={
             picker.mode === "replace"
               ? exerciseLookup(catalog).exerciseById.get(picker.block.exerciseId)

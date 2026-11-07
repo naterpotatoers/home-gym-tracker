@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FinisherOffer } from "@/components/finisher-offer";
 import { ArrowLeftIcon } from "@/components/icons";
 import { WorkoutRunner } from "@/components/workout-runner";
 import {
@@ -12,6 +13,7 @@ import {
   Stat,
 } from "@/components/ui";
 import { ModalityChip } from "@/components/modality-chip";
+import { suggestFinishers } from "@/lib/care";
 import { catalogSlice } from "@/lib/exercise-catalog";
 import { localDayLabel } from "@/lib/periods";
 import { recentVariantHistory } from "@/lib/progress";
@@ -97,6 +99,17 @@ export default async function SessionPage({
           />
           <Stat label="Exercises" value={String(blocks.length)} />
         </dl>
+
+        {session.status === "completed" && (
+          <FinisherOffer
+            clientId={session.clientId}
+            routines={suggestFinishers(data, session.id).map(({ id, name, notes }) => ({
+              id,
+              name,
+              notes,
+            }))}
+          />
+        )}
 
         <div className="mt-6 space-y-3">
           {blocks.map((block) => {

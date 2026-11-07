@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
 import { blocksFor } from "./queries";
-import { renumber, toBlocks } from "./set-blocks";
+import { cascadePatch, cascadeTargets, renumber, toBlocks } from "./set-blocks";
 import type { SetLog } from "./types";
 
 function stub(overrides: Partial<SetLog>): SetLog {
@@ -97,5 +97,57 @@ describe("toBlocks keys", () => {
     const before = toBlocks(sets).map((b) => b.key);
     const after = toBlocks(sets.slice(1)).map((b) => b.key);
     expect(after).toEqual(before.slice(1));
+  });
+});
+
+describe("cascadeTargets", () => {
+  const block = (states: Partial<SetLog>[]) =>
+    states.map((o, i) => stub({ id: `s${i + 1}`, position: i + 1, setNumber: i + 1, ...o }));
+
+  it("rolls a reps edit forward to every later pending set", () => {
+    const sets = block([{}, {}, {}]);
+    expect(cascadeTargets(sets, "s1", { reps: 8 })).toEqual(["s2", "s3"]);
+  });
+
+  it("cascades from an already-logged set while the later sets are pending", () => {
+    const sets = block([{ completed: true }, {}, {}]);
+    expect(cascadeTargets(sets, "s1", { weightLbs: 145, reps: 6 })).toEqual(["s2", "s3"]);
+  });
+
+  it("stops at the first completed set", () => {
+    const sets = block([{ completed: true }, { completed: true }, {}]);
+    expect(cascadeTargets(sets, "s1", { reps: 6 })).toEqual([]);
+    const mid = block([{}, {}, { completed: true }, {}]);
+    expect(cascadeTargets(mid, "s1", { reps: 6 })).toEqual(["s2"]);
+  });
+
+  it("never crosses into another exercise block", () => {
+    const sets = [
+      ...block([{}, {}]),
+      stub({ id: "o1", exerciseId: "bench_press", position: 3 }),
+    ];
+    expect(cascadeTargets(sets, "s1", { reps: 6 })).toEqual(["s2"]);
+  });
+
+  it("keeps warm-ups and working sets apart", () => {
+    const sets = block([{ isWarmup: true }, { isWarmup: true }, {}, {}]);
+    expect(cascadeTargets(sets, "s1", { weightLbs: 95 })).toEqual(["s2"]);
+    expect(cascadeTargets(sets, "s3", { weightLbs: 185 })).toEqual(["s4"]);
+  });
+
+  it("covers both sides of unilateral work", () => {
+    const sets = block([
+      { side: "left", unilateralMode: "alternating" },
+      { side: "right", unilateralMode: "alternating" },
+      { side: "left", unilateralMode: "alternating" },
+    ]);
+    expect(cascadeTargets(sets, "s1", { reps: 12 })).toEqual(["s2", "s3"]);
+  });
+
+  it("ignores non-prescription fields", () => {
+    const sets = block([{}, {}]);
+    expect(cascadeTargets(sets, "s1", { completed: true })).toEqual([]);
+    expect(cascadeTargets(sets, "s1", { notes: "felt easy", rir: 2 })).toEqual([]);
+    expect(cascadePatch({ reps: 5, notes: "x", completed: true })).toEqual({ reps: 5 });
   });
 });

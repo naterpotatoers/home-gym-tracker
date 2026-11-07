@@ -8,7 +8,7 @@ import { muscles } from "./data/muscles";
 import { exerciseLookup, type ExerciseCatalog } from "./exercise-catalog";
 import type { GymData } from "./gym-data";
 import { nearestLoadableWeight } from "./loading";
-import { ageOnIso, currentProgramWeek, localIso, localTodayIso } from "./periods";
+import { ageOnIso, currentProgramWeek, localIso, localTodayIso, programEnded } from "./periods";
 import { toBlocks, type Block } from "./set-blocks";
 import { weighInHistory } from "./weigh-ins";
 import {
@@ -655,7 +655,8 @@ export function hipBandLadder(): { band: HipBand; rank: number }[] {
 
 /** The routine prescribed for a client on a given weekday of the program's
  *  CURRENT week — multi-week programs schedule different routines per week,
- *  so filtering by dayOfWeek alone would offer week 1 forever. */
+ *  so filtering by dayOfWeek alone would offer week 1 forever. Null once the
+ *  program has run its length. */
 export function routineForDay(
   data: GymData,
   clientId: ClientId,
@@ -667,6 +668,9 @@ export function routineForDay(
   );
   if (!assignment) return null;
   const program = data.programById.get(assignment.programId);
+  // A program runs its length, then stops — Home prompts to complete or
+  // restart it instead of serving the final week forever.
+  if (program && programEnded(assignment, program, todayIso)) return null;
   const week = program ? currentProgramWeek(assignment, program, todayIso) : 1;
   const day = data.programDays.find(
     (d) =>

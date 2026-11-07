@@ -4,7 +4,7 @@ import { newId } from "./ids";
 import { nearestLoadableWeight } from "./loading";
 import { bestE1rm, effectiveLoadFactor, latestBodyweight } from "./modality";
 import { latestSet, suggestedLoad, weightForReps, workingSets } from "./queries";
-import { addDaysIso, currentProgramWeek, isoDow, utcDay } from "./periods";
+import { addDaysIso, currentProgramWeek, isoDow, programEnded } from "./periods";
 import type {
   Assignment,
   ClientId,
@@ -238,8 +238,7 @@ export function programWeekStatus(
   if (!assignment || !program) return null;
 
   const week = currentProgramWeek(assignment, program, todayIso);
-  const finished =
-    utcDay(todayIso) >= utcDay(addDaysIso(assignment.startDate, Math.max(program.weeks, 1) * 7));
+  const finished = programEnded(assignment, program, todayIso);
   const weekStart = addDaysIso(assignment.startDate, (week - 1) * 7);
   const weekEnd = addDaysIso(assignment.startDate, week * 7);
 

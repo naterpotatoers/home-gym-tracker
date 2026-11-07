@@ -8,6 +8,7 @@ import {
   programToRow,
 } from "../db/mappers";
 import { newId, slugId } from "../ids";
+import { localTodayIso } from "../periods";
 import type { Assignment } from "../types";
 import { isIsoDate, MAX_PROGRAM_WEEKS } from "../validate";
 import { assertNoRefs, revalidateAll, run, runMatched } from "./_helpers";
@@ -254,6 +255,24 @@ export async function createAssignment(formData: FormData): Promise<void> {
   const programId = String(formData.get("programId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
   const startDate = String(formData.get("startDate") ?? "");
+  await assign(programId, clientId, startDate);
+}
+
+/** Run a finished program again from week 1, starting today. The old
+ *  assignment is completed (its logged sessions keep pointing at it). */
+export async function restartAssignment(assignmentId: string): Promise<void> {
+  const row = await run(
+    "restarting program",
+    supabase
+      .from("assignments")
+      .select("program_id, client_id")
+      .eq("id", assignmentId)
+      .single(),
+  );
+  await assign(row!.program_id, row!.client_id, localTodayIso());
+}
+
+async function assign(programId: string, clientId: string, startDate: string): Promise<void> {
   await assertClientId(clientId);
   if (!isIsoDate(startDate)) throw new Error("Pick a start date.");
   await weekState(programId); // throws when the program doesn't exist

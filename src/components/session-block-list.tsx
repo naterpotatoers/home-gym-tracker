@@ -85,7 +85,7 @@ export function SessionBlockList({
   return (
     <>
       {/* A size container — set rows lay out by the card's width. */}
-      <ul className="@container">
+      <ul className="@container space-y-1">
         {shownBlocks.map((block, index) => {
           const exercise = exerciseById.get(block.exerciseId);
           const blockBandRoles =
@@ -107,7 +107,12 @@ export function SessionBlockList({
           const prevSame = label !== undefined && !!prev && supersets.get(keyOf(prev)) === label;
           const nextSame = label !== undefined && !!next && supersets.get(keyOf(next)) === label;
           const inSuperset = prevSame || nextSame;
-          const supersetClass = inSuperset ? "border-l-2 border-l-accent/60 pl-1.5" : "";
+          const supersetClass = inSuperset ? "border-l-2 border-l-accent/60" : "";
+          // Zebra by block index (not CSS even:) so exercises stay separable
+          // in dark mode; the current one also gets an accent ring.
+          const stripe = `rounded-lg px-2 ${index % 2 === 1 ? "bg-surface-alt" : "bg-surface"} ${
+            isCurrent ? "ring-1 ring-accent/40" : ""
+          }`;
           const supersetTag = inSuperset && !prevSame && (
             <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-semibold text-accent-text">
               superset
@@ -118,7 +123,7 @@ export function SessionBlockList({
             return (
               <li
                 key={block.key}
-                className={`border-t border-border first:border-t-0 ${supersetClass}`}
+                className={`${stripe} ${supersetClass}`}
               >
                 <button
                   type="button"
@@ -144,7 +149,7 @@ export function SessionBlockList({
           return (
             <li
               key={block.key}
-              className={`border-t border-border py-2 first:border-t-0 ${supersetClass}`}
+              className={`${stripe} py-2 ${supersetClass}`}
             >
               {/* Expanded header — tap collapses a manually opened block */}
               <div className="flex items-center gap-1">
@@ -221,7 +226,9 @@ export function SessionBlockList({
           );
         })}
         {laterBlocks.length > 0 && (
-          <li className="border-t border-border">
+          <li
+            className={`rounded-lg px-2 ${shownBlocks.length % 2 === 1 ? "bg-surface-alt" : "bg-surface"}`}
+          >
             <button
               type="button"
               onClick={() => setShowLater(true)}

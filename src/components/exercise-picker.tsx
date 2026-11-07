@@ -6,6 +6,7 @@ import { ModalityChip } from "@/components/modality-chip";
 import { Button, Input } from "@/components/ui";
 import { PATTERN_LABELS, PATTERN_ORDER } from "@/lib/exercise-catalog";
 import type { Variant } from "@/lib/queries";
+import type { SwapSuggestion } from "@/lib/similar";
 import type { MovementPattern } from "@/lib/types";
 
 /**
@@ -20,6 +21,7 @@ export function ExercisePicker({
   emphasizePattern,
   recentKeys,
   inSession = false,
+  suggestions,
 }: {
   variants: Variant[];
   onSelect: (variant: Variant) => void;
@@ -31,6 +33,9 @@ export function ExercisePicker({
   recentKeys?: string[];
   /** Mid-workout: hide the authoring tags (default / no fail-safe). */
   inSession?: boolean;
+  /** Swap mode: like-for-like picks pinned above Recent while the search is
+   *  empty (see swapSuggestions). */
+  suggestions?: SwapSuggestion[];
 }) {
   const [search, setSearch] = useState("");
   // Autofocus only with a mouse/trackpad — on a phone or iPad it pops the
@@ -108,6 +113,41 @@ export function ExercisePicker({
             Close
           </Button>
         </div>
+
+        {!search.trim() &&
+          (
+            [
+              ["equipment", "Same exercise, other equipment"],
+              ["similar", "Similar exercises"],
+            ] as const
+          ).map(([kind, title]) => {
+            const items = suggestions?.filter((s) => s.kind === kind) ?? [];
+            if (items.length === 0) return null;
+            return (
+              <div key={kind} className="mt-4">
+                <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-accent-text">
+                  {title}
+                </h3>
+                <ul>
+                  {items.map(({ variant, reason }) => (
+                    <li key={`${kind}-${variant.exerciseModality.exerciseId}-${variant.exerciseModality.modalityId}`}>
+                      <button
+                        type="button"
+                        onClick={() => onSelect(variant)}
+                        className="flex min-h-11 w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md px-2 py-2 text-left text-sm hover:bg-current/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                      >
+                        <span>{variant.exerciseName}</span>
+                        <ModalityChip modalityId={variant.exerciseModality.modalityId} />
+                        {kind === "similar" && reason && (
+                          <span className="text-xs text-muted">{reason}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
 
         {recent.length > 0 && (
           <div className="mt-4">

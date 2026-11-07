@@ -5,7 +5,7 @@ import { getSuggestedLoad, syncSetLogs, updateSetLog } from "@/lib/actions/worko
 import { errorMessage } from "@/lib/format";
 import { randomSuffix } from "@/lib/ids";
 import type { Variant } from "@/lib/queries";
-import { renumber, toBlocks, type Block } from "@/lib/set-blocks";
+import { cascadePatch, cascadeTargets, renumber, toBlocks, type Block } from "@/lib/set-blocks";
 import type { Session, SetLog } from "@/lib/types";
 
 function clientSetId(): string {
@@ -77,14 +77,12 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
     };
   }, []);
 
-  /** Load fields cascade forward when edited — "update once, rolls out". */
-  const LOAD_KEYS = ["weightLbs", "addedWeightLbs", "bandId", "bandRole"] as const;
-
   /**
    * Field edit: optimistic local update, debounced single-row save. Editing a
-   * load field on an INCOMPLETE set also applies it to every later incomplete
-   * set of the same exercise block; completed sets are never touched, and
-   * fixing a completed set never cascades.
+   * prescription field (load, reps, time, distance) also applies it to the
+   * later not-yet-performed sets of the same block, up to the first completed
+   * one — even when the edited set is already logged, so fixing an
+   * accidental early LOG fixes the sets still to do (see cascadeTargets).
    *
    * Everything is computed synchronously from setsRef — never inside the
    * setSets updater, whose execution React may defer past this function's
@@ -93,23 +91,9 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
    */
   function patchSet(id: string, changes: Partial<SetLog>) {
     const current = setsRef.current;
-    const target = current.find((s) => s.id === id);
-    if (!target) return;
-    const loadPatch: Partial<SetLog> = {};
-    for (const key of LOAD_KEYS) {
-      if (key in changes) (loadPatch as Record<string, unknown>)[key] = changes[key];
-    }
-    let cascadeIds: ReadonlySet<string> = new Set();
-    if (!target.completed && Object.keys(loadPatch).length > 0) {
-      const block = toBlocks(current).find((b) => b.sets.some((s) => s.id === id));
-      if (block) {
-        cascadeIds = new Set(
-          block.sets
-            .filter((s) => s.position > target.position && !s.completed)
-            .map((s) => s.id),
-        );
-      }
-    }
+    if (!current.some((s) => s.id === id)) return;
+    const cascadeFields = cascadePatch(changes);
+    const cascadeIds: ReadonlySet<string> = new Set(cascadeTargets(current, id, changes));
 
     const updated = new Map<string, SetLog>();
     const next = current.map((set) => {
@@ -119,7 +103,7 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
         return row;
       }
       if (cascadeIds.has(set.id)) {
-        const row = { ...set, ...loadPatch };
+        const row = { ...set, ...cascadeFields };
         updated.set(set.id, row);
         return row;
       }

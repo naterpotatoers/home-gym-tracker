@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
-import { CalendarIcon, PlayIcon } from "@/components/icons";
+import { CalendarIcon, CheckIcon, PlayIcon } from "@/components/icons";
 import { Button, Checkbox, ColorDot, Select } from "@/components/ui";
 import { startGroupFromForm } from "@/lib/actions/group";
+import { restartAssignment, updateAssignmentStatus } from "@/lib/actions/programs";
+import { errorMessage } from "@/lib/format";
 import { discardSession } from "@/lib/actions/workout";
 
 /** One person on the launcher — plain data only (it crosses the server →
@@ -16,11 +18,25 @@ export type LauncherRow = {
   clientId: string;
   firstName: string;
   color: string | null;
-  options: { value: string; label: string }[];
+  /** `group` becomes an <optgroup>; options arrive already in group order. */
+  options: { value: string; label: string; group: string }[];
   defaultPlan: string;
   defaultChecked: boolean;
   unfinished: { id: string; name: string; date: string }[];
+  /** The active program has run its length — prompt instead of serving it. */
+  finishedProgram: { assignmentId: string; programName: string } | null;
 };
+
+/** Consecutive runs of options sharing a group label, in order. */
+function grouped(options: LauncherRow["options"]) {
+  const out: { group: string; options: LauncherRow["options"] }[] = [];
+  for (const option of options) {
+    const last = out.at(-1);
+    if (last && last.group === option.group) last.options.push(option);
+    else out.push({ group: option.group, options: [option] });
+  }
+  return out;
+}
 
 /**
  * Tap who's training, confirm their plan, one Start. The button names what
@@ -88,10 +104,14 @@ export function WorkoutLauncher({ rows }: { rows: LauncherRow[] }) {
                   aria-label={`${row.firstName}'s plan`}
                   className="order-last w-full sm:order-none sm:w-64"
                 >
-                  {row.options.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
+                  {grouped(row.options).map(({ group, options }) => (
+                    <optgroup key={group} label={group}>
+                      {options.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </Select>
                 <Link
@@ -101,6 +121,10 @@ export function WorkoutLauncher({ rows }: { rows: LauncherRow[] }) {
                   <CalendarIcon size={14} /> Program
                 </Link>
               </div>
+
+              {row.finishedProgram && (
+                <ProgramFinished {...row.finishedProgram} />
+              )}
 
               {row.unfinished.map((s) => (
                 <div key={s.id} className="mt-1 flex items-center gap-2 text-xs text-muted">
@@ -126,6 +150,68 @@ export function WorkoutLauncher({ rows }: { rows: LauncherRow[] }) {
         <StartButton label={label} disabled={selected.length === 0} />
       </div>
     </form>
+  );
+}
+
+/** A program that has run its length: finish it, run it again, or pick
+ *  another. Plain buttons (not submits) — they sit inside the Start form. */
+function ProgramFinished({
+  assignmentId,
+  programName,
+}: {
+  assignmentId: string;
+  programName: string;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const act = (fn: () => Promise<void>) =>
+    startTransition(async () => {
+      try {
+        setError(null);
+        await fn();
+      } catch (e) {
+        setError(errorMessage(e, "Couldn't update the program."));
+      }
+    });
+  return (
+    <div className="mt-1 mb-1 rounded-lg border border-success/40 bg-success/10 px-3 py-2 text-sm">
+      <p>
+        <span className="font-semibold text-success-text">
+          <span className="mr-1 inline-block align-[-2px]">
+            <CheckIcon size={14} />
+          </span>
+          Program finished:
+        </span>{" "}
+        {programName}
+      </p>
+      <div className="mt-1 flex flex-wrap items-center gap-1">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={pending}
+          onClick={() => act(() => updateAssignmentStatus(assignmentId, "completed"))}
+        >
+          Mark complete
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={pending}
+          onClick={() => act(() => restartAssignment(assignmentId))}
+        >
+          Restart from week 1
+        </Button>
+        <Link
+          href="/programs"
+          className="inline-flex min-h-9 items-center rounded-md px-2 text-sm text-accent-text underline-offset-2 hover:underline pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+        >
+          Pick another
+        </Link>
+      </div>
+      {error && <p className="mt-1 text-xs text-danger-text">{error}</p>}
+    </div>
   );
 }
 

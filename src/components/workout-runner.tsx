@@ -14,6 +14,7 @@ import { useSetEditor } from "@/components/use-set-editor";
 import { useWakeLock } from "@/components/use-wake-lock";
 import { discardSession, finishSession } from "@/lib/actions/workout";
 import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
+import { swapSuggestions } from "@/lib/similar";
 import type { VariantSessionSummary } from "@/lib/progress";
 import type { Variant } from "@/lib/queries";
 import type { RoutineExercise, Session, SetLog } from "@/lib/types";
@@ -195,6 +196,9 @@ export function WorkoutRunner({
             }
           }}
           onClose={() => setPicker(null)}
+          suggestions={
+            picker.mode === "replace" ? swapSuggestions(catalog, variants, picker.block) : undefined
+          }
           emphasizePattern={
             picker.mode === "replace"
               ? exerciseLookup(catalog).exerciseById.get(picker.block.exerciseId)?.pattern

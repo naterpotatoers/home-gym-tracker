@@ -3,7 +3,8 @@ import { PlayIcon } from "@/components/icons";
 import { Chip, PageShell } from "@/components/ui";
 import { WorkoutLauncher, type LauncherRow } from "@/components/workout-launcher";
 import { loadGymData } from "@/lib/db/snapshot";
-import { localDayLabel, localTodayIso, todayDow } from "@/lib/periods";
+import { isCareRoutine } from "@/lib/data/care-routines";
+import { localDayLabel, localTodayIso, programEnded, todayDow } from "@/lib/periods";
 import { openBoardGroups, routineForDay } from "@/lib/queries";
 
 /**
@@ -28,29 +29,52 @@ export default async function Home() {
     const assignment = data.assignments.find(
       (a) => a.clientId === client.id && a.status === "active",
     );
+    const program = assignment ? data.programById.get(assignment.programId) : undefined;
+    const ended = !!assignment && !!program && programEnded(assignment, program, today);
     const todaysRoutine = routineForDay(data, client.id, dow, today);
 
-    const options = [
+    // Grouped so the program you're on leads and one-off care work sits at
+    // the bottom (it's also offered as a finisher after a workout).
+    const programGroup = program && !ended ? program.name : null;
+    const programRoutineIds = new Set(
+      programGroup
+        ? data.programDays.filter((d) => d.programId === program!.id).map((d) => d.routineId)
+        : [],
+    );
+    const options: LauncherRow["options"] = [
       ...planned.map((s) => ({
         value: `resume:${s.id}`,
         label: `Resume: ${routineName(s.routineId)} (${s.date})`,
+        group: "Resume",
       })),
       ...(todaysRoutine
         ? [
             {
               value: `${todaysRoutine.routineId}|${assignment?.id ?? ""}`,
               label: `${routineName(todaysRoutine.routineId)} — today's program day`,
+              group: programGroup ?? "Program",
             },
           ]
         : []),
-      ...routines.map((routine) => ({ value: `${routine.id}|`, label: routine.name })),
+      ...routines
+        .filter((r) => programRoutineIds.has(r.id) && r.id !== todaysRoutine?.routineId)
+        .map((r) => ({ value: `${r.id}|${assignment?.id ?? ""}`, label: r.name, group: programGroup! })),
+      ...routines
+        .filter((r) => !programRoutineIds.has(r.id) && !isCareRoutine(r))
+        .map((r) => ({ value: `${r.id}|`, label: r.name, group: "Other routines" })),
+      ...routines
+        .filter((r) => !programRoutineIds.has(r.id) && isCareRoutine(r))
+        .map((r) => ({ value: `${r.id}|`, label: r.name, group: "Care & mobility" })),
     ];
     // No resume and no program day: default to what they did last rather than
     // whichever routine sorts first alphabetically.
     const lastRoutineId = data.sessions
       .filter((s) => s.clientId === client.id && s.status === "completed" && s.routineId)
       .sort((a, b) => b.date.localeCompare(a.date))[0]?.routineId;
-    const lastValue = `${lastRoutineId}|`;
+    // Program routines carry the assignment in their value.
+    const lastValue =
+      options.find((o) => o.value.startsWith(`${lastRoutineId}|`) && !o.value.startsWith("resume:"))
+        ?.value ?? `${lastRoutineId}|`;
     const defaultPlan =
       planned.length > 0 || todaysRoutine || !options.some((o) => o.value === lastValue)
         ? (options[0]?.value ?? "")
@@ -63,6 +87,10 @@ export default async function Home() {
       options,
       defaultPlan,
       defaultChecked: planned.length > 0 || todaysRoutine !== null,
+      finishedProgram:
+        ended && assignment && program
+          ? { assignmentId: assignment.id, programName: program.name }
+          : null,
       unfinished: planned.map((s) => ({
         id: s.id,
         name: routineName(s.routineId),

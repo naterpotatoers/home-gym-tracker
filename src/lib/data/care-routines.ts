@@ -18,6 +18,13 @@ import { re } from "./routine-builder";
  * rows keep RIR modest or null — care work is quality reps, not grinding.
  */
 
+/** Care routines are plain routines — identified by the `_care` id suffix
+ *  every built-in one carries, or a "Care:" name for hand-made ones. Used to
+ *  keep them out of the day-to-day picker and offer them as finishers. */
+export function isCareRoutine(routine: Pick<Routine, "id" | "name">): boolean {
+  return routine.id.endsWith("_care") || /^care\s*:/i.test(routine.name);
+}
+
 // ---------------------------------------------------------------------------
 // Routines
 // ---------------------------------------------------------------------------

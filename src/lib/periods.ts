@@ -115,8 +115,8 @@ export function utcDay(date: string): number {
 }
 
 /** Which 1-based program week a date falls in, clamped into the program —
- *  before the start it's week 1, past the end the final week keeps being
- *  offered (matches the week grid's behavior). */
+ *  before the start it's week 1, past the end it stays on the final week
+ *  (check `programEnded` before offering that week's days). */
 export function currentProgramWeek(
   assignment: { startDate: string },
   program: { weeks: number },
@@ -124,6 +124,16 @@ export function currentProgramWeek(
 ): number {
   const elapsed = Math.floor((utcDay(todayIso) - utcDay(assignment.startDate)) / 7);
   return Math.min(Math.max(elapsed + 1, 1), Math.max(program.weeks, 1));
+}
+
+/** True once every scheduled week is behind us: from day `weeks × 7` after
+ *  the start date on, the program has run its length and stops serving days. */
+export function programEnded(
+  assignment: { startDate: string },
+  program: { weeks: number },
+  todayIso: string,
+): boolean {
+  return utcDay(todayIso) >= utcDay(assignment.startDate) + Math.max(program.weeks, 1) * 7;
 }
 
 export function resolvePeriod(

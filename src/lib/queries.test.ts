@@ -137,8 +137,11 @@ describe("routineForDay is week-aware", () => {
     expect(routineForDay(weekData, "nate", 1, "2026-07-13")?.routineId).toBe("r_week2");
   });
 
-  it("keeps offering the final week after the program ends", () => {
-    expect(routineForDay(weekData, "nate", 1, "2026-09-01")?.routineId).toBe("r_week2");
+  it("stops once the program has run its length", () => {
+    // Two weeks from Mon 2026-07-06: the last scheduled day is 07-19.
+    expect(routineForDay(weekData, "nate", 7, "2026-07-19")).toBeNull(); // nothing on Sundays
+    expect(routineForDay(weekData, "nate", 1, "2026-07-20")).toBeNull();
+    expect(routineForDay(weekData, "nate", 1, "2026-09-01")).toBeNull();
   });
 
   it("returns null for a weekday with nothing scheduled", () => {

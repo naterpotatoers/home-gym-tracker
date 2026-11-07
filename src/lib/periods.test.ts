@@ -4,6 +4,7 @@ import {
   addDaysIso,
   ageOnIso,
   currentProgramWeek,
+  programEnded,
   isoDow,
   localDayLabel,
   localIso,
@@ -92,6 +93,19 @@ describe("currentProgramWeek", () => {
   it("clamps to week 1 before the start and the final week after the end", () => {
     expect(currentProgramWeek(assignment, program, "2026-06-01")).toBe(1);
     expect(currentProgramWeek(assignment, program, "2026-09-15")).toBe(4);
+  });
+});
+
+describe("programEnded", () => {
+  const assignment = { startDate: "2026-07-06" };
+  const program = { weeks: 4 };
+  it("runs through the last day of the final week", () => {
+    expect(programEnded(assignment, program, "2026-07-06")).toBe(false);
+    expect(programEnded(assignment, program, "2026-08-02")).toBe(false);
+  });
+  it("ends the day after", () => {
+    expect(programEnded(assignment, program, "2026-08-03")).toBe(true);
+    expect(programEnded(assignment, program, "2026-12-01")).toBe(true);
   });
 });
 
