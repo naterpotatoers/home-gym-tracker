@@ -71,6 +71,14 @@ Home syncs on open (at most every 30 minutes) and has a **Sync Strava**
 button. The first sync pulls the last 90 days. If Strava ever rejects the
 token, repeat step 4.
 
+**Older history:** the live sync looks back only 90 days. To backfill further,
+request your archive on Strava (Settings › My Account › Download or Delete
+Your Account) and run
+`node scripts/strava-import.mjs <archive>/activities.csv <clientId>`. That
+command is a dry run; add `--write` to insert. It imports runs only, skipping
+hikes, walks and rides. Each run is keyed on the same `strava:<id>` as the
+sync, so re-running the import, or a later sync, never creates duplicates.
+
 ```bash
 npm run dev    # http://localhost:3000
 npm run build

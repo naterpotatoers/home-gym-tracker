@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { PlayIcon } from "@/components/icons";
-import { ColorDot } from "@/components/ui";
 import type { ClientSummary } from "@/lib/queries";
 
 /** "185.5" — weigh-ins log in half pounds, so keep one decimal when present. */
@@ -9,7 +8,7 @@ function weight(value: number): string {
 }
 
 /**
- * The one person strip above the Clients tabs — the single home for the
+ * The person strip under the Clients title switcher — the single home for the
  * at-a-glance counts (age, body weight, sessions, last trained) plus the
  * one primary action: resume their open session, else start one from the
  * launcher.
@@ -31,13 +30,7 @@ export function PersonHeader({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-surface px-4 py-3">
-      <div className="flex min-w-0 items-center gap-2">
-        <ColorDot color={client.color} size="lg" />
-        <h2 className="truncate text-xl font-bold tracking-tight">{client.firstName}</h2>
-        {client.isTrainer && (
-          <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">trainer</span>
-        )}
-      </div>
+      <h2 className="sr-only">{client.firstName}</h2>
       <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
         <div className="flex gap-1">
           <dt className="sr-only">Age</dt>

@@ -43,16 +43,20 @@ export function RunningCard({
   runners,
   clients,
   today,
+  className = "mt-8",
 }: {
   runners: RunnerSummary[];
   clients: { id: string; firstName: string }[];
   today: string;
+  /** Outer spacing — Home sets it to sit level with the launcher in its
+   *  landscape side column. */
+  className?: string;
 }) {
   const [logging, setLogging] = useState(false);
   const stravaRunner = runners.find((r) => r.strava);
 
   return (
-    <section className="mt-8">
+    <section className={className}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-bold tracking-tight">Running</h2>
         <div className="flex items-center gap-1">

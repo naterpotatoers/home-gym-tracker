@@ -93,6 +93,20 @@ export type StravaActivity = {
   workout_type?: number | null;
 };
 
+/** The subset of a Garmin Connect activity-list item this app reads. */
+export type GarminActivity = {
+  activityId: number;
+  activityName: string;
+  /** "YYYY-MM-DD HH:mm:ss" — the athlete's local wall clock. */
+  startTimeLocal: string;
+  activityType: { typeKey: string };
+  distance?: number; // meters
+  duration?: number; // seconds
+  movingDuration?: number; // seconds
+  elevationGain?: number; // meters
+  averageHR?: number;
+};
+
 /** Strava activity → Run fields (everything but the row id). */
 export function runFromActivity(a: StravaActivity, clientId: ClientId): Omit<Run, "id"> {
   return {

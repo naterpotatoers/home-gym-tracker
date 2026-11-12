@@ -42,15 +42,18 @@ export default async function GroupBoardPage({
 
   if (people.length === 0) {
     return (
-      <PageShell className="max-w-3xl">
-        <h1 className="text-2xl font-bold tracking-tight">Group board</h1>
-        <p className="mt-3 text-sm text-muted">
-          No open sessions here.{" "}
-          <Link href="/" className="text-accent-text underline underline-offset-2">
-            Set up a workout
-          </Link>
-          .
-        </p>
+      <PageShell>
+        {/* Reading width, left edge still lined up with the nav. */}
+        <div className="max-w-3xl">
+          <h1 className="text-2xl font-bold tracking-tight">Group board</h1>
+          <p className="mt-3 text-sm text-muted">
+            No open sessions here.{" "}
+            <Link href="/" className="text-accent-text underline underline-offset-2">
+              Set up a workout
+            </Link>
+            .
+          </p>
+        </div>
       </PageShell>
     );
   }

@@ -159,7 +159,7 @@ export default async function Home() {
     });
 
   return (
-    <PageShell className="max-w-3xl">
+    <PageShell>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Today</h1>
         <span className="text-sm text-muted">{localDayLabel(today)}</span>
@@ -186,33 +186,38 @@ export default async function Home() {
         </ul>
       )}
 
-      {rows.length === 0 ? (
-        <p className="mt-6 text-sm text-muted">
-          No clients yet — add the first one at{" "}
-          <Link href="/users" className="text-accent-text underline underline-offset-2">
-            Clients
-          </Link>
-          .
-        </p>
-      ) : (
-        <WorkoutLauncher rows={rows} />
-      )}
+      {/* Landscape (lg+): the launcher leads, running rides alongside in a
+          side column; stacked on phones and iPad portrait. */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-8">
+        {rows.length === 0 ? (
+          <p className="mt-6 text-sm text-muted">
+            No clients yet — add the first one at{" "}
+            <Link href="/users" className="text-accent-text underline underline-offset-2">
+              Clients
+            </Link>
+            .
+          </p>
+        ) : (
+          <WorkoutLauncher rows={rows} />
+        )}
 
-      {data.runsSource === "missing" ? (
-        <p className="mt-8 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
-          Running isn&apos;t set up yet — run{" "}
-          <code className="font-mono">supabase/migrations/2026-11-07-runs.sql</code> in the
-          Supabase SQL editor, then reload.
-        </p>
-      ) : (
-        rows.length > 0 && (
-          <RunningCard
-            runners={runners}
-            clients={data.clients.map((c) => ({ id: c.id, firstName: c.firstName }))}
-            today={today}
-          />
-        )
-      )}
+        {data.runsSource === "missing" ? (
+          <p className="mt-8 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs lg:mt-6">
+            Running isn&apos;t set up yet — run{" "}
+            <code className="font-mono">supabase/migrations/2026-11-07-runs.sql</code> in the
+            Supabase SQL editor, then reload.
+          </p>
+        ) : (
+          rows.length > 0 && (
+            <RunningCard
+              runners={runners}
+              clients={data.clients.map((c) => ({ id: c.id, firstName: c.firstName }))}
+              today={today}
+              className="mt-8 lg:mt-6"
+            />
+          )
+        )}
+      </div>
     </PageShell>
   );
 }
