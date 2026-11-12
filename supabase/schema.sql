@@ -113,6 +113,26 @@ create table weigh_ins (
   bodyweight_lbs double precision not null
 );
 
+-- Runs: their own table, not set_logs — a run is distance × time with a
+-- pace, never sets/reps/load, and must stay out of lifting volume and the
+-- heat map. Imported from Strava (external_id = "strava:<activity id>",
+-- unique so a re-sync never duplicates) or logged by hand.
+create table if not exists runs (
+  id text primary key,
+  client_id text not null,
+  date date not null,
+  distance_miles double precision not null check (distance_miles > 0),
+  duration_seconds int not null check (duration_seconds > 0),
+  kind text not null default 'easy' check (kind in ('easy', 'long', 'workout', 'race')),
+  avg_heart_rate int,
+  elevation_gain_ft int,
+  name text not null default '',
+  source text not null default 'manual' check (source in ('manual', 'strava')),
+  external_id text unique,
+  notes text not null default ''
+);
+create index if not exists runs_client_idx on runs (client_id, date);
+
 -- Clients live in the database (not TS reference data) so people can be added
 -- and edited at /users, each with a card color. Ids stay readable text slugs;
 -- other tables keep referencing client_id as plain text.
@@ -267,7 +287,7 @@ begin
     'routines', 'routine_exercises', 'programs', 'program_days',
     'assignments', 'sessions', 'set_logs', 'weigh_ins', 'clients',
     'foods', 'food_logs',
-    'exercises', 'exercise_muscle_scores', 'exercise_modalities'
+    'exercises', 'exercise_muscle_scores', 'exercise_modalities', 'runs'
   ] loop
     execute format('alter table %I enable row level security', t);
     execute format(

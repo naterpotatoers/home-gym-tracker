@@ -23,6 +23,7 @@ import {
   rowToProgramDay,
   rowToRoutine,
   rowToRoutineExercise,
+  rowToRun,
   rowToSession,
   rowToSetLog,
   rowToWeighIn,
@@ -81,6 +82,7 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       exerciseRows,
       scoreRows,
       modalityRows,
+      runRows,
     ] = await Promise.all([
       // Clients get their own fallback: null means migration 002 hasn't run
       // yet, and the TS seed roster serves read-only.
@@ -103,6 +105,8 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       fetchAll("exercises", ["name", "id"]).catch(nullIfMissing),
       fetchAll("exercise_muscle_scores", ["exercise_id", "muscle_id"]).catch(nullIfMissing),
       fetchAll("exercise_modalities", ["exercise_id", "modality_id"]).catch(nullIfMissing),
+      // Runs: null until the runs migration has run — Home shows a note.
+      fetchAll("runs", ["client_id", "date", "id"]).catch(nullIfMissing),
     ]);
 
     // The three catalog tables fall back as a unit — never mix database
@@ -125,6 +129,8 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       nutritionSource: foodRows === null || foodLogRows === null ? "missing" : "database",
       foods: foodRows === null ? [] : foodRows.map(rowToFood),
       foodLogs: foodLogRows === null ? [] : foodLogRows.map(rowToFoodLog),
+      runsSource: runRows === null ? "missing" : "database",
+      runs: runRows === null ? [] : runRows.map(rowToRun),
       exercisesSource: exercisesMissing ? "seed" : "database",
       exercises: exercisesMissing
         ? seedExercises

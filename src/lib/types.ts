@@ -328,6 +328,34 @@ export type WeighIn = {
 };
 
 // ---------------------------------------------------------------------------
+// Running
+// ---------------------------------------------------------------------------
+
+/** easy = conversational, long = the week's long run, workout = intervals /
+ *  tempo, race = race effort. Mirrors Strava's workout_type. */
+export type RunKind = "easy" | "long" | "workout" | "race";
+
+/** One run. Kept apart from sessions/set_logs: distance × time with a pace,
+ *  never sets, reps or load, and never counted as lifting volume. */
+export type Run = {
+  id: string;
+  clientId: ClientId;
+  /** Local date the run started. */
+  date: string;
+  distanceMiles: number;
+  /** Moving time. */
+  durationSeconds: number;
+  kind: RunKind;
+  avgHeartRate: number | null;
+  elevationGainFt: number | null;
+  name: string;
+  source: "manual" | "strava";
+  /** "strava:<activity id>" for imports — the re-sync dedupe key. */
+  externalId: string | null;
+  notes: string;
+};
+
+// ---------------------------------------------------------------------------
 // Nutrition
 // ---------------------------------------------------------------------------
 

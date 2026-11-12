@@ -1,10 +1,30 @@
 import Link from "next/link";
 import { PlayIcon } from "@/components/icons";
 import { Chip, PageShell } from "@/components/ui";
+import { RunningCard, type RunnerSummary } from "@/components/running-card";
 import { WorkoutLauncher, type LauncherRow } from "@/components/workout-launcher";
 import { loadGymData } from "@/lib/db/snapshot";
 import { isCareRoutine } from "@/lib/data/care-routines";
-import { localDayLabel, localTodayIso, programEnded, todayDow } from "@/lib/periods";
+import {
+  addDaysIso,
+  DAY_LABELS,
+  hmmss,
+  isoDow,
+  localDayLabel,
+  localTodayIso,
+  programEnded,
+  shortDayLabel,
+  todayDow,
+} from "@/lib/periods";
+import {
+  milesLabel,
+  paceLabel,
+  RUN_KIND_LABELS,
+  runsFor,
+  runWeek,
+  weeklyMiles,
+} from "@/lib/running";
+import { stravaAthlete } from "@/lib/strava";
 import { openBoardGroups, routineForDay } from "@/lib/queries";
 
 /**
@@ -99,6 +119,45 @@ export default async function Home() {
     };
   });
 
+  // Running: the Strava athlete plus anyone who has run in the last 6 weeks.
+  const athlete = stravaAthlete();
+  const sixWeeksAgo = addDaysIso(today, -42);
+  const runners: RunnerSummary[] = data.clients
+    .filter(
+      (c) =>
+        c.id === athlete || data.runs.some((r) => r.clientId === c.id && r.date >= sixWeeksAgo),
+    )
+    .map((client) => {
+      const week = runWeek(data, client.id, today);
+      const recent = week.runs.length > 0 ? week.runs : runsFor(data, client.id).slice(0, 3);
+      return {
+        clientId: client.id,
+        firstName: client.firstName,
+        color: client.color,
+        weekRuns: week.runs.length,
+        weekMiles: milesLabel(week.miles),
+        weekly: weeklyMiles(data, client.id, today).map((w) => ({
+          label: shortDayLabel(w.weekStart),
+          miles: w.miles,
+        })),
+        recent: recent.map((r) => ({
+          id: r.id,
+          dayLabel: week.runs.includes(r)
+            ? DAY_LABELS[isoDow(r.date) - 1]
+            : shortDayLabel(r.date),
+          kind: r.kind,
+          kindLabel: RUN_KIND_LABELS[r.kind],
+          miles: milesLabel(r.distanceMiles),
+          time: hmmss(r.durationSeconds),
+          pace: paceLabel(r),
+          heartRate: r.avgHeartRate,
+          name: r.name,
+          fromStrava: r.source === "strava",
+        })),
+        strava: client.id === athlete,
+      };
+    });
+
   return (
     <PageShell className="max-w-3xl">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -137,6 +196,22 @@ export default async function Home() {
         </p>
       ) : (
         <WorkoutLauncher rows={rows} />
+      )}
+
+      {data.runsSource === "missing" ? (
+        <p className="mt-8 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+          Running isn&apos;t set up yet — run{" "}
+          <code className="font-mono">supabase/migrations/2026-11-07-runs.sql</code> in the
+          Supabase SQL editor, then reload.
+        </p>
+      ) : (
+        rows.length > 0 && (
+          <RunningCard
+            runners={runners}
+            clients={data.clients.map((c) => ({ id: c.id, firstName: c.firstName }))}
+            today={today}
+          />
+        )
       )}
     </PageShell>
   );

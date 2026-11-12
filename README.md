@@ -20,6 +20,9 @@ an honest data model that never fakes a number it doesn't have.
 - **People** (`/users`) — per-person hub: profile, weigh-ins, recent
   workouts, e1RM progress charts, cross-client PR comparisons, "what weight
   fits 8–10 reps," and the reverse, with plate-loadable suggestions.
+- **Running** (Home) — runs synced from Strava (Garmin → Strava → here) or
+  logged by hand: this week's runs and miles, six weeks of mileage, pace and
+  heart rate. Runs live in their own table and never count as lifting volume.
 - **Muscle heat map** (`/metrics/heatmap`) — front/back body figures colored
   by per-muscle training intensity; compare day/week/program periods on one
   shared scale. Band-only work is hatched (rank-based, no fake pounds).
@@ -41,6 +44,32 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<your publishable key>
 editor (the publishable key can't create tables), then start the app and add
 people at `/users`. Until then the app runs read-only off the TypeScript seed
 and shows a banner.
+
+### Strava sync (optional)
+
+Runs import from Strava for one person. Credentials stay in server env vars
+only — never the database, which anyone holding the publishable key can read.
+
+1. Run `supabase/migrations/2026-11-07-runs.sql` in the Supabase SQL editor.
+2. Create an API app at <https://www.strava.com/settings/api>. Any name and
+   website work; set **Authorization Callback Domain** to `localhost`.
+3. Add to `.env.local`:
+   ```
+   STRAVA_CLIENT_ID=<Client ID>
+   STRAVA_CLIENT_SECRET=<Client Secret>
+   STRAVA_ATHLETE=<the gym client id the runs belong to, e.g. nate>
+   ```
+4. `node scripts/strava-auth.mjs`: open the printed link and click
+   Authorize. The browser lands on a `localhost/exchange_token?...code=…` page
+   that won't load; copy the `code` value, then run
+   `node scripts/strava-auth.mjs <code>` and add the printed
+   `STRAVA_REFRESH_TOKEN=…` to `.env.local`.
+5. Restart the dev server. Add the same four variables in Vercel → Settings →
+   Environment Variables, then redeploy.
+
+Home syncs on open (at most every 30 minutes) and has a **Sync Strava**
+button. The first sync pulls the last 90 days. If Strava ever rejects the
+token, repeat step 4.
 
 ```bash
 npm run dev    # http://localhost:3000

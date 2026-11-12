@@ -12,6 +12,7 @@ import type {
   Routine,
   RoutineExercise,
   Session,
+  Run,
   SetLog,
   WeighIn,
 } from "./types";
@@ -37,6 +38,10 @@ export type GymData = {
   /** "seed" while the exercise tables haven't been created — the catalog is
    *  read-only from src/lib/data/exercises.ts and /exercises shows a note. */
   exercisesSource: "database" | "seed";
+  /** "missing" until the runs migration has run — Home hides running and
+   *  shows a run-the-SQL note. */
+  runsSource: "database" | "missing";
+  runs: readonly Run[];
   exercises: readonly Exercise[];
   exerciseMuscleScores: readonly ExerciseMuscleScore[];
   exerciseModalities: readonly ExerciseModality[];
@@ -86,6 +91,8 @@ export type GymTables = Pick<
   | "nutritionSource"
   | "foods"
   | "foodLogs"
+  | "runsSource"
+  | "runs"
 >;
 
 export function buildGymData(tables: GymTables): GymData {

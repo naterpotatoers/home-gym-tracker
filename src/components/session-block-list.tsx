@@ -211,7 +211,13 @@ export function SessionBlockList({
                     metricType={exercise?.metricType ?? "reps"}
                     bandRoles={blockBandRoles}
                     onChange={(changes) => editor.patchSet(set.id, changes)}
-                    onLog={() => (set.id === current?.id ? flow.logCurrent() : flow.logSet(set.id))}
+                    onLog={({ relog }) =>
+                      relog
+                        ? flow.logSet(set.id, { rest: false })
+                        : set.id === current?.id
+                          ? flow.logCurrent()
+                          : flow.logSet(set.id)
+                    }
                     onRemove={() => flow.removeSetKeepingCursor(set.id)}
                     active={set.id === activeSetId}
                     onActivate={() => setPicked({ cursor: current?.id, id: set.id })}

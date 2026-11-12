@@ -87,8 +87,14 @@ export function useSessionFlow(
 
   /** Complete any set — LOG on whichever row is active. The current set goes
    *  through logCurrent (rest timer, cursor);
-   *  any other set is marked done and still starts its rest. */
-  function logSet(setId: string) {
+   *  any other set is marked done and still starts its rest. With
+   *  `rest: false` (re-confirming a corrected set) it is only marked done —
+   *  no rest restart, no cursor move. */
+  function logSet(setId: string, { rest = true }: { rest?: boolean } = {}) {
+    if (!rest) {
+      editor.patchSet(setId, { completed: true });
+      return;
+    }
     if (current && setId === current.id) {
       logCurrent();
       return;

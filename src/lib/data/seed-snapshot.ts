@@ -45,5 +45,7 @@ export function seedSnapshot(): GymData {
     nutritionSource: "database",
     foods,
     foodLogs: [],
+    runsSource: "missing",
+    runs: [],
   });
 }

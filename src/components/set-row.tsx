@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { TrashIcon } from "@/components/icons";
 import { Select, StepperInput } from "@/components/ui";
@@ -36,8 +37,9 @@ export function SetRow({
    *  catalog so this row doesn't need one. */
   bandRoles?: readonly BandRole[];
   onChange: (changes: Partial<SetLog>) => void;
-  /** LOG: marks the set done and starts the rest timer. */
-  onLog: () => void;
+  /** LOG: marks the set done and starts the rest timer — unless `relog`
+   *  (re-confirming an edited, previously logged set), which only marks it. */
+  onLog: (opts: { relog: boolean }) => void;
   onRemove: () => void;
   active?: boolean;
   /** Tap on a compact row — make it the active (editable) one. */
@@ -46,7 +48,21 @@ export function SetRow({
   /** Group-board cards: 36px controls with a mouse (44px on touch). */
   dense?: boolean;
 }) {
+  /** Set when an edit un-logged this set: LOG then re-confirms a correction
+   *  rather than performing a new set. */
+  const [relog, setRelog] = useState(false);
   const controlSize = dense ? ("sm" as const) : ("md" as const);
+
+  /** Load/metric edits. Changing a logged set's result un-logs it, so ✓ never
+   *  vouches for values nobody confirmed — LOG must be tapped again. */
+  function edit(changes: Partial<SetLog>) {
+    if (set.completed) {
+      setRelog(true);
+      onChange({ ...changes, completed: false });
+    } else {
+      onChange(changes);
+    }
+  }
   const timed = metricType === "time" || set.durationSeconds !== null;
   const distance = !timed && metricType === "distance";
 
@@ -136,7 +152,7 @@ export function SetRow({
           <Select
             size={controlSize}
             value={set.bandId ?? ""}
-            onChange={(e) => onChange({ bandId: (e.target.value || null) as BandId | null })}
+            onChange={(e) => edit({ bandId: (e.target.value || null) as BandId | null })}
             aria-label="Band"
             className="min-w-0 flex-1 @min-[27rem]:max-w-36"
           >
@@ -153,7 +169,7 @@ export function SetRow({
             <Select
               size={controlSize}
               value={set.bandRole ?? ""}
-              onChange={(e) => onChange({ bandRole: (e.target.value || null) as BandRole | null })}
+              onChange={(e) => edit({ bandRole: (e.target.value || null) as BandRole | null })}
               aria-label="Band role"
               className="min-w-0 flex-1"
             >
@@ -171,7 +187,7 @@ export function SetRow({
             size={controlSize}
             step={step ?? 2.5}
             value={set.addedWeightLbs}
-            onChange={(v) => onChange({ addedWeightLbs: v || null })}
+            onChange={(v) => edit({ addedWeightLbs: v || null })}
             label="added weight"
             className={`w-14 ${FILL_INPUT}`}
             wrapperClassName={FILL_WRAPPER}
@@ -187,7 +203,7 @@ export function SetRow({
             size={controlSize}
             step={step ?? 5}
             value={set.weightLbs}
-            onChange={(v) => onChange({ weightLbs: v })}
+            onChange={(v) => edit({ weightLbs: v })}
             label="weight"
             className={`w-14 ${FILL_INPUT}`}
             wrapperClassName={FILL_WRAPPER}
@@ -202,7 +218,7 @@ export function SetRow({
             size={controlSize}
             step={5}
             value={set.durationSeconds}
-            onChange={(v) => onChange({ durationSeconds: v })}
+            onChange={(v) => edit({ durationSeconds: v })}
             label="seconds"
             className={`w-12 ${FILL_INPUT}`}
             wrapperClassName={FILL_WRAPPER}
@@ -214,7 +230,7 @@ export function SetRow({
             size={controlSize}
             step={10}
             value={set.distanceFeet}
-            onChange={(v) => onChange({ distanceFeet: v })}
+            onChange={(v) => edit({ distanceFeet: v })}
             label="distance"
             className={`w-14 ${FILL_INPUT}`}
             wrapperClassName={FILL_WRAPPER}
@@ -225,7 +241,7 @@ export function SetRow({
           <StepperInput
             size={controlSize}
             value={set.reps}
-            onChange={(v) => onChange({ reps: v })}
+            onChange={(v) => edit({ reps: v })}
             label="reps"
             className={`w-11 ${FILL_INPUT}`}
             wrapperClassName={FILL_WRAPPER}
@@ -242,7 +258,10 @@ export function SetRow({
         ) : (
           <button
             type="button"
-            onClick={onLog}
+            onClick={() => {
+              onLog({ relog });
+              setRelog(false);
+            }}
             disabled={logDisabled}
             // The one FILLED button on the screen — logging a set is the action.
             className="min-h-11 min-w-16 flex-1 cursor-pointer @min-[27rem]:max-w-48 rounded-md bg-accent-warm px-3 text-base font-bold tracking-wide text-accent-warm-fg hover:bg-accent-warm-strong disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"

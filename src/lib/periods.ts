@@ -108,6 +108,29 @@ export function mmss(totalSeconds: number): string {
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
 }
 
+/** "1:05:20" / "42:07" — a run's moving time. */
+export function hmmss(totalSeconds: number): string {
+  const s = Math.round(totalSeconds);
+  const h = Math.floor(s / 3600);
+  return h > 0 ? `${h}:${mmss(s % 3600).padStart(5, "0")}` : mmss(s);
+}
+
+/** Parse a typed duration — "42:07", "1:05:20", or plain minutes "42" —
+ *  into whole seconds; null when it isn't one. */
+export function parseDuration(text: string): number | null {
+  const parts = text.trim().split(":");
+  if (parts.length > 3 || parts.some((p) => !/^\d+(\.\d+)?$/.test(p))) return null;
+  const nums = parts.map(Number);
+  const seconds =
+    nums.length === 1
+      ? nums[0] * 60
+      : nums.length === 2
+        ? nums[0] * 60 + nums[1]
+        : nums[0] * 3600 + nums[1] * 60 + nums[2];
+  if (nums.length > 1 && nums.slice(1).some((n) => n >= 60)) return null;
+  return seconds > 0 ? Math.round(seconds) : null;
+}
+
 /** Days since epoch, in UTC — immune to DST and local offsets. For trend
  *  math only, never display. */
 export function utcDay(date: string): number {

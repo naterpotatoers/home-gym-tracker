@@ -12,6 +12,7 @@ import type {
   RoutineExercise,
   Session,
   SetLog,
+  Run,
   WeighIn,
 } from "../types";
 
@@ -123,6 +124,55 @@ export type ClientRow = {
   color: string | null;
   notes: string;
 };
+
+export type RunRow = {
+  id: string;
+  client_id: Run["clientId"];
+  date: string;
+  distance_miles: number;
+  duration_seconds: number;
+  kind: Run["kind"];
+  avg_heart_rate: number | null;
+  elevation_gain_ft: number | null;
+  name: string;
+  source: Run["source"];
+  external_id: string | null;
+  notes: string;
+};
+
+export function rowToRun(r: RunRow): Run {
+  return {
+    id: r.id,
+    clientId: r.client_id,
+    date: r.date,
+    distanceMiles: r.distance_miles,
+    durationSeconds: r.duration_seconds,
+    kind: r.kind,
+    avgHeartRate: r.avg_heart_rate,
+    elevationGainFt: r.elevation_gain_ft,
+    name: r.name,
+    source: r.source,
+    externalId: r.external_id,
+    notes: r.notes,
+  };
+}
+
+export function runToRow(r: Run): RunRow {
+  return {
+    id: r.id,
+    client_id: r.clientId,
+    date: r.date,
+    distance_miles: r.distanceMiles,
+    duration_seconds: r.durationSeconds,
+    kind: r.kind,
+    avg_heart_rate: r.avgHeartRate,
+    elevation_gain_ft: r.elevationGainFt,
+    name: r.name,
+    source: r.source,
+    external_id: r.externalId,
+    notes: r.notes,
+  };
+}
 
 export type WeighInRow = {
   id: string;
