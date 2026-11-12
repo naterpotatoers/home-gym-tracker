@@ -85,7 +85,7 @@ export function SessionBlockList({
   return (
     <>
       {/* A size container — set rows lay out by the card's width. */}
-      <ul className="@container space-y-1">
+      <ul className="@container space-y-1.5">
         {shownBlocks.map((block, index) => {
           const exercise = exerciseById.get(block.exerciseId);
           const blockBandRoles =
@@ -108,9 +108,12 @@ export function SessionBlockList({
           const nextSame = label !== undefined && !!next && supersets.get(keyOf(next)) === label;
           const inSuperset = prevSame || nextSame;
           const supersetClass = inSuperset ? "border-l-2 border-l-accent/60" : "";
-          // Zebra by block index (not CSS even:) so exercises stay separable
-          // in dark mode; the current one also gets an accent ring.
-          const stripe = `rounded-lg px-2 ${index % 2 === 1 ? "bg-surface-alt" : "bg-surface"} ${
+          // Collapsed exercises are lighter outlined cards so each one reads
+          // on its own (zebra stripes blurred together in dark mode); the open
+          // one stays on the darker card surface, and the current one also
+          // gets an accent ring.
+          const collapsedCard = "rounded-lg border border-border bg-surface-alt px-2";
+          const openCard = `rounded-lg border border-transparent bg-surface px-2 ${
             isCurrent ? "ring-1 ring-accent/40" : ""
           }`;
           const supersetTag = inSuperset && !prevSame && (
@@ -121,10 +124,7 @@ export function SessionBlockList({
 
           if (!isExpanded) {
             return (
-              <li
-                key={block.key}
-                className={`${stripe} ${supersetClass}`}
-              >
+              <li key={block.key} className={`${collapsedCard} ${supersetClass}`}>
                 <button
                   type="button"
                   onClick={() => flow.tapBlock(block)}
@@ -147,10 +147,7 @@ export function SessionBlockList({
           }
 
           return (
-            <li
-              key={block.key}
-              className={`${stripe} py-2 ${supersetClass}`}
-            >
+            <li key={block.key} className={`${openCard} py-2 ${supersetClass}`}>
               {/* Expanded header — tap collapses a manually opened block */}
               <div className="flex items-center gap-1">
                 <button
@@ -232,9 +229,7 @@ export function SessionBlockList({
           );
         })}
         {laterBlocks.length > 0 && (
-          <li
-            className={`rounded-lg px-2 ${shownBlocks.length % 2 === 1 ? "bg-surface-alt" : "bg-surface"}`}
-          >
+          <li className="rounded-lg border border-border bg-surface-alt px-2">
             <button
               type="button"
               onClick={() => setShowLater(true)}

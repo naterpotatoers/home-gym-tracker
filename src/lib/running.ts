@@ -1,5 +1,5 @@
 import type { GymData } from "./gym-data";
-import { addDaysIso, mmss, mondayOf } from "./periods";
+import { addDaysIso, DAY_LABELS, hmmss, isoDow, mmss, mondayOf, shortDayLabel } from "./periods";
 import type { ClientId, Run, RunKind } from "./types";
 
 export const RUN_KIND_LABELS: Record<RunKind, string> = {
@@ -71,6 +71,68 @@ export function weeklyMiles(
       .reduce((sum, r) => sum + r.distanceMiles, 0);
     return { weekStart, miles };
   });
+}
+
+/** One run as display text — plain data for the client-side Running
+ *  section (no GymData, no Maps across the boundary). */
+export type RunView = {
+  id: string;
+  dayLabel: string;
+  kind: RunKind;
+  kindLabel: string;
+  miles: string;
+  time: string;
+  pace: string;
+  heartRate: number | null;
+  name: string;
+  fromStrava: boolean;
+};
+
+export type RunnerSummary = {
+  clientId: ClientId;
+  weekRuns: number;
+  weekMiles: string;
+  /** Last 6 Monday-weeks, oldest first: { "Oct 6", 12.4 }. */
+  weekly: { label: string; miles: number }[];
+  /** This week's runs, or the latest few when this week has none. */
+  recent: RunView[];
+  /** This person's runs sync from Strava. */
+  strava: boolean;
+};
+
+/** Everything the Running section shows for one person. */
+export function runnerSummary(
+  data: GymData,
+  clientId: ClientId,
+  todayIso: string,
+  strava: boolean,
+  recentLimit = 5,
+): RunnerSummary {
+  const week = runWeek(data, clientId, todayIso);
+  const recent = week.runs.length > 0 ? week.runs : runsFor(data, clientId).slice(0, recentLimit);
+  return {
+    clientId,
+    weekRuns: week.runs.length,
+    weekMiles: milesLabel(week.miles),
+    weekly: weeklyMiles(data, clientId, todayIso).map((w) => ({
+      label: shortDayLabel(w.weekStart),
+      miles: w.miles,
+    })),
+    recent: recent.map((r) => ({
+      id: r.id,
+      // This week's runs by weekday; older ones by date.
+      dayLabel: week.runs.includes(r) ? DAY_LABELS[isoDow(r.date) - 1] : shortDayLabel(r.date),
+      kind: r.kind,
+      kindLabel: RUN_KIND_LABELS[r.kind],
+      miles: milesLabel(r.distanceMiles),
+      time: hmmss(r.durationSeconds),
+      pace: paceLabel(r),
+      heartRate: r.avgHeartRate,
+      name: r.name,
+      fromStrava: r.source === "strava",
+    })),
+    strava,
+  };
 }
 
 /** Strava's workout_type for runs: 1 race, 2 long run, 3 workout; else easy. */

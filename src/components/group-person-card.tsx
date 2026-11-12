@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ContinuePrompt, useFinisherAddOns } from "@/components/continue-prompt";
 import { ExercisePicker } from "@/components/exercise-picker";
 import { FinishPanel, type FinishPayload } from "@/components/finish-panel";
 import { CheckIcon } from "@/components/icons";
@@ -11,6 +12,7 @@ import type { BoardPerson, CardStatus } from "@/components/group-board";
 import { useSessionFlow } from "@/components/use-session-flow";
 import { useSetEditor } from "@/components/use-set-editor";
 import { finishSession } from "@/lib/actions/workout";
+import type { FinisherOption } from "@/lib/care";
 import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import { swapSuggestions } from "@/lib/similar";
 import type { Variant } from "@/lib/queries";
@@ -53,9 +55,11 @@ export function GroupPersonCard({
   const bleed = tight ? "-mx-2 px-2" : "-mx-2 px-2 sm:-mx-3 sm:px-3";
   const { session, initialSets, prescriptions, clientName, routineName, color } = person;
   const editor = useSetEditor(session, initialSets);
-  const flow = useSessionFlow(editor, prescriptions, now);
+  const addOns = useFinisherAddOns(person.finishers, prescriptions);
+  const flow = useSessionFlow(editor, addOns.allPrescriptions, now);
   const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [finishBusy, setFinishBusy] = useState(false);
   /** Set once the session is saved as completed — holds the recap payload. */
   const [finishedHere, setFinishedHere] = useState<FinishPayload | null>(null);
@@ -93,6 +97,20 @@ export function GroupPersonCard({
       editor.setError(errorMessage(e, "Save failed."));
     } finally {
       setFinishBusy(false);
+    }
+  }
+
+  /** "Continue your workout?" → a finisher: append it to this session and
+   *  close the check-in; the cursor jumps to its first set. */
+  async function continueWith(option: FinisherOption) {
+    setAdding(true);
+    try {
+      const newSets = await editor.addRoutine(option.prescriptions, variants);
+      addOns.markAdded(option);
+      flow.onExerciseAdded(newSets);
+      setFinishing(false);
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -148,7 +166,7 @@ export function GroupPersonCard({
       <SessionBlockList
         editor={editor}
         flow={flow}
-        prescriptions={prescriptions}
+        prescriptions={addOns.allPrescriptions}
         catalog={catalog}
         history={person.history}
         dense
@@ -184,6 +202,15 @@ export function GroupPersonCard({
             busy={finishBusy}
             error={editor.error}
             onFinish={handleFinish}
+            continueSlot={
+              <ContinuePrompt
+                options={addOns.remaining}
+                disabled={editor.busy}
+                pending={adding}
+                onRoutine={continueWith}
+                onExercise={() => setPicker({ mode: "add" })}
+              />
+            }
           />
         </div>
       )}
@@ -198,6 +225,7 @@ export function GroupPersonCard({
             setPicker(null);
             if (target.mode === "add") {
               flow.onExerciseAdded(await editor.addExercise(variant));
+              setFinishing(false); // added from the check-in: back to logging
             } else {
               editor.swapExercise(target.block, variant);
             }

@@ -9,6 +9,7 @@ import { recentFoods } from "@/lib/nutrition";
 import { localTodayIso } from "@/lib/periods";
 import { parseProgressParams, progressHref } from "@/lib/progress-url";
 import { clientSummaries, resumeTargetForClient } from "@/lib/queries";
+import { stravaAthlete } from "@/lib/strava";
 import { weighInHistory } from "@/lib/weigh-ins";
 import { ProfileForm } from "./_components/forms";
 import { LogPane } from "./_components/log-pane";
@@ -180,6 +181,7 @@ export default async function UsersPage({
                 params={params}
                 personName={person.firstName}
                 today={today}
+                stravaAthlete={stravaAthlete() === person.id}
               />
             )}
           </>

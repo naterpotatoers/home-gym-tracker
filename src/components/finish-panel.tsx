@@ -24,6 +24,7 @@ export function FinishPanel({
   error,
   onFinish,
   durationSlot,
+  continueSlot,
 }: {
   /** Button text, e.g. "Finish session" or "Finish Nate". */
   label: string;
@@ -32,6 +33,8 @@ export function FinishPanel({
   onFinish: (payload: FinishPayload) => void;
   /** Optional extra control (the solo runner's minutes input). */
   durationSlot?: React.ReactNode;
+  /** Asked first, before the review — "Continue your workout?". */
+  continueSlot?: React.ReactNode;
 }) {
   const [rpe, setRpe] = useState<number | null>(null);
   const [condition, setCondition] = useState<SessionCondition | null>(null);
@@ -39,6 +42,7 @@ export function FinishPanel({
 
   return (
     <div className="space-y-3">
+      {continueSlot && <div className="border-b border-border pb-3">{continueSlot}</div>}
       <EffortPicker
         rpe={rpe}
         condition={condition}

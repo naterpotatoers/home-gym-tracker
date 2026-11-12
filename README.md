@@ -20,7 +20,7 @@ an honest data model that never fakes a number it doesn't have.
 - **People** (`/users`) — per-person hub: profile, weigh-ins, recent
   workouts, e1RM progress charts, cross-client PR comparisons, "what weight
   fits 8–10 reps," and the reverse, with plate-loadable suggestions.
-- **Running** (Home) — runs synced from Strava (Garmin → Strava → here) or
+- **Running** (Clients › Progress) — runs synced from Strava (Garmin → Strava → here) or
   logged by hand: this week's runs and miles, six weeks of mileage, pace and
   heart rate. Runs live in their own table and never count as lifting volume.
 - **Muscle heat map** (`/metrics/heatmap`) — front/back body figures colored
@@ -67,7 +67,7 @@ only — never the database, which anyone holding the publishable key can read.
 5. Restart the dev server. Add the same four variables in Vercel → Settings →
    Environment Variables, then redeploy.
 
-Home syncs on open (at most every 30 minutes) and has a **Sync Strava**
+The athlete's Clients › Progress tab syncs on open (at most every 30 minutes) and has a **Sync Strava**
 button. The first sync pulls the last 90 days. If Strava ever rejects the
 token, repeat step 4.
 

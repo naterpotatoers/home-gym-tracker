@@ -6,7 +6,7 @@ import { errorMessage } from "@/lib/format";
 import { randomSuffix } from "@/lib/ids";
 import type { Variant } from "@/lib/queries";
 import { cascadePatch, cascadeTargets, renumber, toBlocks, type Block } from "@/lib/set-blocks";
-import type { Session, SetLog } from "@/lib/types";
+import type { RoutineExercise, Session, SetLog } from "@/lib/types";
 
 function clientSetId(): string {
   return `sl_${randomSuffix(8)}`;
@@ -210,35 +210,77 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
     );
   }
 
-  /** Append an ad-hoc exercise to the end of the session: `count` fresh sets
-   *  prefilled with the client's last-used load. Returns the new sets so the
-   *  caller can point its cursor at them. */
-  async function addExercise(variant: Variant, count = 3): Promise<SetLog[]> {
+  /** `count` fresh, not-done sets of one variant, numbered from `position`
+   *  (renumber() inside restructure re-derives position and setNumber). */
+  function freshSets(
+    variant: Variant,
+    prefill: Awaited<ReturnType<typeof fetchPrefill>>,
+    count: number,
+    position: number,
+    rx?: RoutineExercise,
+  ): SetLog[] {
     const em = variant.exerciseModality;
-    const prefill = await fetchPrefill(em);
-    // Re-read AFTER the await, same as swapExercise.
-    const current = setsRef.current;
     const timed = variant.metricType === "time";
-    const newSets = Array.from({ length: count }, (_, i): SetLog => ({
+    return Array.from({ length: count }, (_, i): SetLog => ({
       id: clientSetId(),
       sessionId: session.id,
       exerciseId: em.exerciseId,
       modalityId: em.modalityId,
-      // renumber() inside restructure re-derives both of these
-      position: current.length + i + 1,
+      position: position + i,
       setNumber: i + 1,
-      unilateralMode: em.defaultUnilateralMode,
+      unilateralMode: rx?.unilateralMode ?? em.defaultUnilateralMode,
       side: null,
-      reps: timed ? null : 10,
+      reps: timed ? null : (rx?.repMax ?? rx?.repMin ?? 10),
       ...prefill,
-      durationSeconds: timed ? 30 : null,
+      bandRole: rx?.bandRole ?? prefill.bandRole,
+      durationSeconds: timed ? (rx?.durationSeconds ?? 30) : null,
       distanceFeet: null,
       rir: null,
       isWarmup: false,
       completed: false,
       notes: "",
     }));
+  }
+
+  /** Append an ad-hoc exercise to the end of the session: `count` fresh sets
+   *  prefilled with the client's last-used load. Returns the new sets so the
+   *  caller can point its cursor at them. */
+  async function addExercise(variant: Variant, count = 3): Promise<SetLog[]> {
+    const prefill = await fetchPrefill(variant.exerciseModality);
+    // Re-read AFTER the await, same as swapExercise.
+    const current = setsRef.current;
+    const newSets = freshSets(variant, prefill, count, current.length + 1);
     restructure([...current, ...newSets]);
+    return newSets;
+  }
+
+  /** Append a whole routine (a finisher) to the end of the session in one
+   *  sync: each prescription's set count, reps/time and band role, with the
+   *  client's last-used loads. Prescriptions without a live variant are
+   *  skipped. Returns the new sets for the caller's cursor. */
+  async function addRoutine(
+    prescriptions: readonly RoutineExercise[],
+    variants: readonly Variant[],
+  ): Promise<SetLog[]> {
+    const byKey = new Map(
+      variants.map((v) => [`${v.exerciseModality.exerciseId}|${v.exerciseModality.modalityId}`, v]),
+    );
+    const planned = prescriptions.flatMap((rx) => {
+      const variant = byKey.get(`${rx.exerciseId}|${rx.modalityId}`);
+      return variant && rx.sets > 0 ? [{ rx, variant }] : [];
+    });
+    const prefills = await Promise.all(
+      planned.map(({ variant }) => fetchPrefill(variant.exerciseModality)),
+    );
+    // Re-read AFTER the await, same as swapExercise.
+    const current = setsRef.current;
+    const newSets: SetLog[] = [];
+    planned.forEach(({ rx, variant }, i) => {
+      newSets.push(
+        ...freshSets(variant, prefills[i], rx.sets, current.length + newSets.length + 1, rx),
+      );
+    });
+    if (newSets.length > 0) restructure([...current, ...newSets]);
     return newSets;
   }
 
@@ -263,6 +305,7 @@ export function useSetEditor(session: Session, initialSets: SetLog[]) {
     removeBlock,
     swapExercise,
     addExercise,
+    addRoutine,
     flush,
   };
 }

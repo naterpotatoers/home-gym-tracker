@@ -5,6 +5,7 @@ import { loadGymData } from "@/lib/db/snapshot";
 import { catalogSlice } from "@/lib/exercise-catalog";
 import { recentVariantHistory } from "@/lib/progress";
 import { availableVariants, recentVariantKeys } from "@/lib/queries";
+import { finisherOptions } from "@/lib/care";
 
 export default async function GroupBoardPage({
   searchParams,
@@ -38,6 +39,7 @@ export default async function GroupBoardPage({
       recentKeys: recentVariantKeys(data, session!.clientId),
       history: recentVariantHistory(data, session!.clientId, session!.id),
       finished: session!.status === "completed",
+      finishers: session!.status === "planned" ? finisherOptions(data, session!.id) : [],
     }));
 
   if (people.length === 0) {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { useState } from "react";
+import { ContinuePrompt, useFinisherAddOns } from "@/components/continue-prompt";
 import { ExercisePicker } from "@/components/exercise-picker";
 import { ArrowLeftIcon, CheckIcon, TrashIcon } from "@/components/icons";
 import { FinishPanel, type FinishPayload } from "@/components/finish-panel";
@@ -13,6 +14,7 @@ import { useSessionFlow } from "@/components/use-session-flow";
 import { useSetEditor } from "@/components/use-set-editor";
 import { useWakeLock } from "@/components/use-wake-lock";
 import { discardSession, finishSession } from "@/lib/actions/workout";
+import type { FinisherOption } from "@/lib/care";
 import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import { swapSuggestions } from "@/lib/similar";
 import type { VariantSessionSummary } from "@/lib/progress";
@@ -53,6 +55,7 @@ export function WorkoutRunner({
   routineName,
   recentKeys,
   history,
+  finishers = [],
 }: {
   session: Session;
   initialSets: SetLog[];
@@ -64,15 +67,19 @@ export function WorkoutRunner({
   recentKeys?: string[];
   /** Last sessions per variant, for each block's "Last" line. */
   history?: Record<string, VariantSessionSummary[]>;
+  /** "Continue your workout?" add-ons, suggested first. */
+  finishers?: FinisherOption[];
 }) {
   const editor = useSetEditor(session, initialSets);
   const clock = useSessionClock(session.id);
-  const flow = useSessionFlow(editor, prescriptions, clock.now);
+  const addOns = useFinisherAddOns(finishers, prescriptions);
+  const flow = useSessionFlow(editor, addOns.allPrescriptions, clock.now);
   useWakeLock();
   const [picker, setPicker] = useState<PickerTarget | null>(null);
   /** "End early" opened the check-in before every set was logged. */
   const [endingEarly, setEndingEarly] = useState(false);
   const [finishBusy, setFinishBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
   /** Manual minutes correction; undefined = trust the clock, null = the
    *  field was cleared (saves no duration). */
   const [durationOverride, setDurationOverride] = useState<number | null | undefined>(
@@ -101,6 +108,20 @@ export function WorkoutRunner({
       rethrowAfter(e, clock.clear);
       editor.setError(errorMessage(e, "Save failed."));
       setFinishBusy(false);
+    }
+  }
+
+  /** "Continue your workout?" → a finisher: append it to this session; the
+   *  check-in closes itself once there are sets to log again. */
+  async function continueWith(option: FinisherOption) {
+    setAdding(true);
+    try {
+      const newSets = await editor.addRoutine(option.prescriptions, variants);
+      addOns.markAdded(option);
+      flow.onExerciseAdded(newSets);
+      setEndingEarly(false);
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -139,7 +160,7 @@ export function WorkoutRunner({
         <SessionBlockList
           editor={editor}
           flow={flow}
-          prescriptions={prescriptions}
+          prescriptions={addOns.allPrescriptions}
           catalog={catalog}
           history={history}
           onReplace={(block) => setPicker({ mode: "replace", block })}
@@ -156,6 +177,15 @@ export function WorkoutRunner({
               busy={finishBusy}
               error={editor.error}
               onFinish={handleFinish}
+              continueSlot={
+                <ContinuePrompt
+                  options={addOns.remaining}
+                  disabled={editor.busy}
+                  pending={adding}
+                  onRoutine={continueWith}
+                  onExercise={() => setPicker({ mode: "add" })}
+                />
+              }
               durationSlot={
                 <label className="flex items-center gap-1 text-sm">
                   <NumberInput
@@ -191,6 +221,7 @@ export function WorkoutRunner({
             setPicker(null);
             if (target.mode === "add") {
               flow.onExerciseAdded(await editor.addExercise(variant));
+              setEndingEarly(false); // added from the check-in: back to logging
             } else {
               editor.swapExercise(target.block, variant);
             }

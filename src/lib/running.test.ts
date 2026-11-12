@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { buildGymData } from "./gym-data";
 import { seedSnapshot } from "./data/seed-snapshot";
 import { hmmss, parseDuration } from "./periods";
-import { kindFromStrava, paceLabel, runFromActivity, runWeek, weeklyMiles } from "./running";
+import {
+  kindFromStrava,
+  paceLabel,
+  runFromActivity,
+  runnerSummary,
+  runWeek,
+  weeklyMiles,
+} from "./running";
 import type { Run } from "./types";
 
 const run = (o: Partial<Run>): Run => ({
@@ -65,6 +72,23 @@ describe("weekly tallies", () => {
     expect(week.weekStart).toBe("2026-11-02");
     expect(week.runs.map((r) => r.id)).toEqual(["c", "b", "a"]);
     expect(week.miles).toBeCloseTo(16.5);
+  });
+
+  it("summarizes this week's runs by weekday", () => {
+    const summary = runnerSummary(data, "nate", "2026-11-08", true);
+    expect(summary.weekRuns).toBe(3);
+    expect(summary.weekMiles).toBe("16.5 mi");
+    expect(summary.weekly).toHaveLength(6);
+    expect(summary.recent.map((r) => r.dayLabel)).toEqual(["Sat", "Thu", "Tue"]);
+    expect(summary.recent[0]).toMatchObject({ kindLabel: "Long", miles: "7.0 mi", fromStrava: false });
+    expect(summary.strava).toBe(true);
+  });
+
+  it("falls back to the latest runs, by date, in a week without any", () => {
+    const summary = runnerSummary(data, "nate", "2026-11-12", false, 2);
+    expect(summary.weekRuns).toBe(0);
+    expect(summary.recent.map((r) => r.id)).toEqual(["c", "b"]);
+    expect(summary.recent[0].dayLabel).not.toBe("Sat");
   });
 
   it("lists weekly mileage oldest first", () => {

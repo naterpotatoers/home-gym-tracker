@@ -11,6 +11,7 @@ import type { ExerciseCatalog } from "@/lib/exercise-catalog";
 import type { VariantSessionSummary } from "@/lib/progress";
 import type { Variant } from "@/lib/queries";
 import type { RoutineExercise, Session, SetLog } from "@/lib/types";
+import type { FinisherOption } from "@/lib/care";
 
 export type BoardPerson = {
   session: Session;
@@ -26,6 +27,8 @@ export type BoardPerson = {
   history?: Record<string, VariantSessionSummary[]>;
   /** The session was already completed when the page rendered. */
   finished: boolean;
+  /** "Continue your workout?" add-ons, suggested first. */
+  finishers: FinisherOption[];
 };
 
 /** What a card reports up for the portrait person tabs. */
