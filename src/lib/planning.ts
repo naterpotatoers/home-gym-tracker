@@ -1,19 +1,38 @@
+import {
+  conditioningTarget,
+  EMPTY_CONDITIONING,
+  EMPTY_TARGET,
+  pieceSeconds,
+} from "./conditioning";
 import { dumbbells } from "./data/equipment";
-import type { GymData } from "./gym-data";
+import { groupBy } from "./exercise-catalog";
+import { activeAssignment, type GymData } from "./gym-data";
 import { newId } from "./ids";
-import { nearestLoadableWeight } from "./loading";
-import { bestE1rm, effectiveLoadFactor, latestBodyweight } from "./modality";
-import { latestSet, suggestedLoad, weightForReps, workingSets } from "./queries";
+import { nearestLoadableWeight, weightStep } from "./loading";
+import {
+  bestE1rm,
+  effectiveLoadFactor,
+  implementsPerRep,
+  latestBodyweight,
+  variantOf,
+  weightForReps,
+  workingSets,
+} from "./modality";
+import { latestSet, suggestedLoad } from "./queries";
 import { addDaysIso, currentProgramWeek, isoDow, programEnded } from "./periods";
 import type {
   Assignment,
   ClientId,
-  ModalityId,
   Program,
   RoutineExercise,
   Session,
   SetLog,
 } from "./types";
+
+/** Round to the nearest multiple of `step`. */
+function roundTo(lbs: number, step: number): number {
+  return Math.round(lbs / step) * step;
+}
 
 type Prefill = Pick<SetLog, "weightLbs" | "addedWeightLbs" | "bandId" | "bandRole">;
 
@@ -34,8 +53,16 @@ function roundedPrefill(
       return w === null ? null : { ...empty, weightLbs: w };
     }
     case "dumbbell": {
-      const implementsPerRep = rx.unilateralMode === "single_side" ? 1 : 2;
-      const per = totalLbs / implementsPerRep;
+      // Same load shape setLoad reads back: a dumbbell-weighted pull-up's
+      // total includes the lifter, and a goblet squat moves one implement.
+      let dumbbellLbs = totalLbs;
+      if (variantOf(data, rx)?.loadIncludesBodyweight) {
+        const bw = latestBodyweight(data, clientId, date);
+        if (bw === null) return null;
+        dumbbellLbs = totalLbs - bw;
+        if (dumbbellLbs <= 0) return null;
+      }
+      const per = dumbbellLbs / implementsPerRep(data, rx);
       const owned = dumbbells.map((d) => d.weightLbs);
       if (owned.length === 0) return null;
       const nearest = owned.reduce((a, b) =>
@@ -45,16 +72,21 @@ function roundedPrefill(
       );
       return { ...empty, weightLbs: nearest };
     }
-    case "machine":
-      return { ...empty, weightLbs: Math.max(5, Math.round(totalLbs / 5) * 5) };
+    case "machine": {
+      const step = weightStep("machine")!;
+      return { ...empty, weightLbs: Math.max(step, roundTo(totalLbs, step)) };
+    }
     case "bodyweight": {
       const bw = latestBodyweight(data, clientId, date);
       if (bw === null) return null;
-      const added = Math.max(0, Math.round((totalLbs - bw) / 2.5) * 2.5);
+      const added = Math.max(0, roundTo(totalLbs - bw, weightStep("bodyweight")!));
       return { ...empty, addedWeightLbs: added > 0 ? added : null };
     }
     case "band":
       // Ordinal territory — never fabricate a pound value for a band.
+      return null;
+    case "cardio":
+      // Watts and RPM, never pounds (conditioningTarget handles these).
       return null;
   }
 }
@@ -109,13 +141,10 @@ export function smartPrefill(
 
   // 3. Cross-modality transfer — never INTO band work (ordinal).
   if (rx.modalityId === "band") return null;
-  const byModality = new Map<ModalityId, SetLog[]>();
-  for (const set of workingSets(data, clientId, rx.exerciseId)) {
-    if (set.modalityId === rx.modalityId) continue;
-    const existing = byModality.get(set.modalityId);
-    if (existing) existing.push(set);
-    else byModality.set(set.modalityId, [set]);
-  }
+  const byModality = groupBy(
+    workingSets(data, clientId, rx.exerciseId).filter((set) => set.modalityId !== rx.modalityId),
+    (set) => set.modalityId,
+  );
   let source: { e1rm: number; factor: number; lastDate: string } | null = null;
   for (const [modalityId, sets] of byModality) {
     const e1rm = bestE1rm(data, sets);
@@ -146,7 +175,8 @@ export function smartPrefill(
 /**
  * Build a planned session from a routine: one editable SetLog per prescribed
  * set, prefilled via `smartPrefill`. Pure — the solo and group start actions
- * both insert what this returns.
+ * both insert what this returns. Throws on a missing routine or an
+ * assignment that isn't this person's (ids arrive from forms).
  */
 export function plannedSessionFromRoutine(
   data: GymData,
@@ -155,6 +185,10 @@ export function plannedSessionFromRoutine(
   assignmentId: string | null,
   date: string,
 ): { session: Session; sets: SetLog[] } {
+  if (!data.routineById.has(routineId)) throw new Error("That routine no longer exists.");
+  if (assignmentId !== null && data.assignments.find((a) => a.id === assignmentId)?.clientId !== clientId) {
+    throw new Error(`bad assignment ${assignmentId}`);
+  }
   const prescriptions = data.exercisesByRoutine.get(routineId) ?? [];
   if (prescriptions.length === 0) throw new Error("Routine has no exercises.");
 
@@ -173,7 +207,12 @@ export function plannedSessionFromRoutine(
 
   const sets: SetLog[] = [];
   for (const rx of prescriptions) {
-    const prefill = smartPrefill(data, clientId, rx, date);
+    // A bike piece: the person's own target, no pounds, timed by the piece.
+    const conditioning =
+      data.exerciseById.get(rx.exerciseId)?.pattern === "conditioning"
+        ? { ...EMPTY_CONDITIONING, ...conditioningTarget(data, clientId, rx.exerciseId, rx.conditioning ?? EMPTY_TARGET) }
+        : null;
+    const prefill = conditioning ? null : smartPrefill(data, clientId, rx, date);
     for (let i = 0; i < rx.sets; i++) {
       sets.push({
         id: newId("sl"),
@@ -184,17 +223,18 @@ export function plannedSessionFromRoutine(
         setNumber: i + 1,
         unilateralMode: rx.unilateralMode,
         side: null,
-        reps: rx.durationSeconds !== null ? null : rx.repMax ?? rx.repMin,
+        reps: conditioning || rx.durationSeconds !== null ? null : rx.repMax ?? rx.repMin,
         weightLbs: prefill?.weightLbs ?? null,
         addedWeightLbs: prefill?.addedWeightLbs ?? null,
         bandId: prefill?.bandId ?? null,
         bandRole: prefill?.bandRole ?? rx.bandRole,
-        durationSeconds: rx.durationSeconds,
+        durationSeconds: conditioning ? pieceSeconds(rx) : rx.durationSeconds,
         distanceFeet: null,
         rir: null,
         isWarmup: false,
         completed: false,
         notes: "",
+        conditioning,
       });
     }
   }
@@ -231,9 +271,7 @@ export function programWeekStatus(
   clientId: ClientId,
   todayIso: string,
 ): ProgramWeekStatus | null {
-  const assignment = data.assignments.find(
-    (a) => a.clientId === clientId && a.status === "active",
-  );
+  const assignment = activeAssignment(data, clientId);
   const program = assignment ? data.programById.get(assignment.programId) : undefined;
   if (!assignment || !program) return null;
 

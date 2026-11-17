@@ -6,10 +6,21 @@ import { createClient, deleteClient, updateClient } from "@/lib/actions/clients"
 import { createWeighIn, deleteWeighIn } from "@/lib/actions/weigh-ins";
 import { loadGymData } from "@/lib/db/snapshot";
 import { recentFoods } from "@/lib/nutrition";
-import { localTodayIso } from "@/lib/periods";
+import { localTodayIso, shortDayLabel } from "@/lib/periods";
 import { parseProgressParams, progressHref } from "@/lib/progress-url";
 import { clientSummaries, resumeTargetForClient } from "@/lib/queries";
+import { garminAthlete } from "@/lib/garmin";
 import { stravaAthlete } from "@/lib/strava";
+import type { RunSource } from "@/lib/types";
+
+/** Which import sources sync this person's runs — each source has one
+ *  configured athlete (server env). */
+function runSyncSourcesFor(clientId: string): RunSource[] {
+  return [
+    ...(stravaAthlete() === clientId ? (["strava"] as const) : []),
+    ...(garminAthlete() === clientId ? (["garmin"] as const) : []),
+  ];
+}
 import { weighInHistory } from "@/lib/weigh-ins";
 import { ProfileForm } from "./_components/forms";
 import { LogPane } from "./_components/log-pane";
@@ -156,12 +167,12 @@ export default async function UsersPage({
                         .reverse()
                         .map((w) => (
                           <li key={w.id} className="flex items-center gap-3 py-1">
-                            <span className="font-mono text-xs text-muted">{w.date}</span>
+                            <span className="w-24 shrink-0 text-xs text-muted">{shortDayLabel(w.date, today)}</span>
                             <span className="font-mono">{w.bodyweightLbs} lb</span>
                             <ConfirmDeleteButton
                               action={deleteWeighIn.bind(null, w.id)}
-                              confirmText={`Delete the ${w.date} (${w.bodyweightLbs} lb) body weight entry?`}
-                              ariaLabel={`Delete body weight entry: ${w.date} (${w.bodyweightLbs} lb)`}
+                              confirmText={`Delete the ${shortDayLabel(w.date, today)} (${w.bodyweightLbs} lb) body weight entry?`}
+                              ariaLabel={`Delete body weight entry: ${shortDayLabel(w.date, today)} (${w.bodyweightLbs} lb)`}
                               title="Delete body weight entry"
                             />
                           </li>
@@ -181,7 +192,7 @@ export default async function UsersPage({
                 params={params}
                 personName={person.firstName}
                 today={today}
-                stravaAthlete={stravaAthlete() === person.id}
+                runSyncSources={runSyncSourcesFor(person.id)}
               />
             )}
           </>

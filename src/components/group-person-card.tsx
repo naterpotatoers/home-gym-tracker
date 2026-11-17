@@ -2,25 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ContinuePrompt, useFinisherAddOns } from "@/components/continue-prompt";
-import { ExercisePicker } from "@/components/exercise-picker";
+import { useFinisherAddOns } from "@/components/continue-prompt";
 import { FinishPanel, type FinishPayload } from "@/components/finish-panel";
 import { CheckIcon } from "@/components/icons";
 import { RestReadyChips, SessionBlockList } from "@/components/session-block-list";
-import { Button, clientBorderStyle, ColorDot, ErrorText } from "@/components/ui";
+import { Button, Chip, clientBorderStyle, ColorDot, ErrorText } from "@/components/ui";
 import type { BoardPerson, CardStatus } from "@/components/group-board";
 import { useSessionFlow } from "@/components/use-session-flow";
 import { useSetEditor } from "@/components/use-set-editor";
 import { finishSession } from "@/lib/actions/workout";
-import type { FinisherOption } from "@/lib/care";
-import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
-import { swapSuggestions } from "@/lib/similar";
+import type { ExerciseCatalog } from "@/lib/exercise-catalog";
 import type { Variant } from "@/lib/queries";
-import type { Block } from "@/lib/set-blocks";
 import { errorMessage } from "@/lib/format";
 import { completedCount } from "@/lib/session-labels";
-
-type PickerTarget = { mode: "add" } | { mode: "replace"; block: Block };
+import { useSessionActions } from "@/components/use-session-actions";
 
 /**
  * One person's live card on the group board: header (name, progress, rest
@@ -54,12 +49,19 @@ export function GroupPersonCard({
   const pad = tight ? "p-2" : "p-2 sm:p-3";
   const bleed = tight ? "-mx-2 px-2" : "-mx-2 px-2 sm:-mx-3 sm:px-3";
   const { session, initialSets, prescriptions, clientName, routineName, color } = person;
-  const editor = useSetEditor(session, initialSets);
+  const editor = useSetEditor(session, initialSets, catalog);
   const addOns = useFinisherAddOns(person.finishers, prescriptions);
   const flow = useSessionFlow(editor, addOns.allPrescriptions, now);
-  const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [finishing, setFinishing] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const actions = useSessionActions({
+    editor,
+    flow,
+    addOns,
+    variants,
+    catalog,
+    recentKeys: person.recentKeys,
+    onBackToLogging: () => setFinishing(false),
+  });
   const [finishBusy, setFinishBusy] = useState(false);
   /** Set once the session is saved as completed — holds the recap payload. */
   const [finishedHere, setFinishedHere] = useState<FinishPayload | null>(null);
@@ -100,36 +102,14 @@ export function GroupPersonCard({
     }
   }
 
-  /** "Continue your workout?" → a finisher: append it to this session and
-   *  close the check-in; the cursor jumps to its first set. */
-  async function continueWith(option: FinisherOption) {
-    setAdding(true);
-    try {
-      const newSets = await editor.addRoutine(option.prescriptions, variants);
-      addOns.markAdded(option);
-      flow.onExerciseAdded(newSets);
-      setFinishing(false);
-    } finally {
-      setAdding(false);
-    }
-  }
-
   if (finishedAs) {
     return (
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-sm">
         <ColorDot color={color} size="md" />
         <span className="font-semibold">{clientName}</span>
         <span className="text-muted">done · {doneCount} sets</span>
-        {finishedAs.rpe !== null && (
-          <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">
-            RPE {finishedAs.rpe}
-          </span>
-        )}
-        {finishedAs.condition && (
-          <span className="rounded bg-current/10 px-1.5 py-0.5 text-xs">
-            felt {finishedAs.condition}
-          </span>
-        )}
+        {finishedAs.rpe !== null && <Chip>RPE {finishedAs.rpe}</Chip>}
+        {finishedAs.condition && <Chip>felt {finishedAs.condition}</Chip>}
         <Link
           href={`/workout/session/${session.id}?board=${encodeURIComponent(boardSessionIds)}`}
           className="ml-auto inline-flex min-h-11 items-center px-2 text-xs text-accent-text underline underline-offset-2"
@@ -170,8 +150,8 @@ export function GroupPersonCard({
         catalog={catalog}
         history={person.history}
         dense
-        onReplace={(block) => setPicker({ mode: "replace", block })}
-        onAdd={() => setPicker({ mode: "add" })}
+        onReplace={actions.openReplace}
+        onAdd={actions.openAdd}
       />
 
       {/* Footer — at the card bottom so cards in a row line up, and sticky to
@@ -202,46 +182,12 @@ export function GroupPersonCard({
             busy={finishBusy}
             error={editor.error}
             onFinish={handleFinish}
-            continueSlot={
-              <ContinuePrompt
-                options={addOns.remaining}
-                disabled={editor.busy}
-                pending={adding}
-                onRoutine={continueWith}
-                onExercise={() => setPicker({ mode: "add" })}
-              />
-            }
+            continueSlot={actions.continuePrompt}
           />
         </div>
       )}
 
-      {picker && (
-        <ExercisePicker
-          inSession
-          variants={variants}
-          recentKeys={person.recentKeys}
-          onSelect={async (variant) => {
-            const target = picker;
-            setPicker(null);
-            if (target.mode === "add") {
-              flow.onExerciseAdded(await editor.addExercise(variant));
-              setFinishing(false); // added from the check-in: back to logging
-            } else {
-              editor.swapExercise(target.block, variant);
-            }
-          }}
-          onClose={() => setPicker(null)}
-          suggestions={
-            picker.mode === "replace" ? swapSuggestions(catalog, variants, picker.block) : undefined
-          }
-          emphasizePattern={
-            picker.mode === "replace"
-              ? exerciseLookup(catalog).exerciseById.get(picker.block.exerciseId)
-                  ?.pattern
-              : undefined
-          }
-        />
-      )}
+      {actions.pickerElement}
     </div>
   );
 }

@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { GroupBoard, type BoardPerson } from "@/components/group-board";
+import { GroupBoard } from "@/components/group-board";
 import { PageShell } from "@/components/ui";
 import { loadGymData } from "@/lib/db/snapshot";
 import { catalogSlice } from "@/lib/exercise-catalog";
-import { recentVariantHistory } from "@/lib/progress";
-import { availableVariants, recentVariantKeys } from "@/lib/queries";
-import { finisherOptions } from "@/lib/care";
+import { availableVariants } from "@/lib/queries";
+import { livePerson } from "@/lib/live-session";
 
 export default async function GroupBoardPage({
   searchParams,
@@ -18,29 +17,14 @@ export default async function GroupBoardPage({
   // Completed sessions stay on the board: finishing someone revalidates this
   // page, and dropping them would unmount their recap card, change the
   // board's clock key, and make "everyone done" fire early.
-  const people: BoardPerson[] = (s ?? "")
+  const people = (s ?? "")
     .split(",")
-    .filter(Boolean)
-    .map((id) => data.sessionById.get(id))
-    .filter(
-      (session) =>
-        session !== undefined &&
-        (session.status === "planned" || session.status === "completed"),
-    )
-    .map((session) => ({
-      session: session!,
-      initialSets: data.setsBySession.get(session!.id) ?? [],
-      prescriptions: session!.routineId
-        ? (data.exercisesByRoutine.get(session!.routineId) ?? [])
-        : [],
-      clientName: data.clientById.get(session!.clientId)?.firstName ?? session!.clientId,
-      color: data.clientById.get(session!.clientId)?.color ?? null,
-      routineName: data.routineById.get(session!.routineId ?? "")?.name ?? "Session",
-      recentKeys: recentVariantKeys(data, session!.clientId),
-      history: recentVariantHistory(data, session!.clientId, session!.id),
-      finished: session!.status === "completed",
-      finishers: session!.status === "planned" ? finisherOptions(data, session!.id) : [],
-    }));
+    .flatMap((id) => {
+      const session = data.sessionById.get(id);
+      return session && (session.status === "planned" || session.status === "completed")
+        ? [livePerson(data, session)]
+        : [];
+    });
 
   if (people.length === 0) {
     return (

@@ -7,25 +7,24 @@ import { loadGymData } from "../db/snapshot";
 import { localTodayIso } from "../periods";
 import { plannedSessionFromRoutine } from "../planning";
 import { suggestedLoad } from "../queries";
-import type {
-  ClientId,
-  ExerciseId,
-  ModalityId,
-  SessionCondition,
-  SetLog,
-} from "../types";
+import { conditioningTarget, EMPTY_TARGET } from "../conditioning";
+import type { LoadPrefill } from "../set-templates";
+import type { ClientId, ConditioningTarget, ExerciseId, ModalityId, SetLog } from "../types";
+import type { FinishPayload } from "../validate";
+
+import {
+  finishProblem,
+  isLocalPath,
+  normalizeSetLog,
+  setListProblem,
+  setLogProblem,
+} from "../validate";
+import { assertClientId, assertExerciseIds } from "../db/guards";
+import { insertSessions, revalidateAll, run, runMatched, rpc } from "./_helpers";
 
 /** Set ids are slugs (clientSetId / newId) — anything else could break out of
  *  the quoted `not in` filter below. */
 const SET_ID = /^[a-z0-9_-]+$/i;
-import {
-  isSessionCondition,
-  normalizeSetLog,
-  setLogProblem,
-} from "../validate";
-import { insertSessions, revalidateAll, run, runMatched } from "./_helpers";
-import { assertClientId } from "./clients";
-import { assertExerciseIds } from "./exercises";
 
 /**
  * Start a session from a routine: a planned Session plus one editable SetLog
@@ -74,12 +73,10 @@ export async function updateSetLog(set: SetLog): Promise<void> {
   await assertExerciseIds([set.exerciseId]);
   assertSetLog(set);
   const { id, session_id, ...fields } = setLogToRow(normalizeSetLog(set));
-  const { error } = await supabase
-    .from("set_logs")
-    .update(fields)
-    .eq("id", id)
-    .eq("session_id", session_id);
-  if (error) throw new Error(`saving set: ${error.message}`);
+  await run(
+    "saving set",
+    supabase.from("set_logs").update(fields).eq("id", id).eq("session_id", session_id),
+  );
   revalidateAll();
 }
 
@@ -98,49 +95,37 @@ export async function syncSetLogs(
     if (!SET_ID.test(set.id)) throw new Error(`bad set id ${set.id}`);
     assertSetLog(set);
   }
+  const listProblem = setListProblem(sets);
+  if (listProblem) throw new Error(listProblem);
 
-  // The upsert matches on id alone, so an id owned by another session would
-  // be moved into this one. Refuse instead.
-  const ids = sets.map((s) => s.id);
-  if (ids.length > 0) {
-    const owned = await run(
-      "saving sets",
-      supabase.from("set_logs").select("id").in("id", ids).neq("session_id", sessionId),
-    );
-    if (owned && owned.length > 0) throw new Error("set belongs to another session");
-  }
-
-  await run(
-    "saving sets",
-    supabase.from("set_logs").upsert(sets.map((set) => setLogToRow(normalizeSetLog(set)))),
-  );
-
-  let deletion = supabase.from("set_logs").delete().eq("session_id", sessionId);
-  if (ids.length > 0) {
-    deletion = deletion.not("id", "in", `(${ids.map((id) => `"${id}"`).join(",")})`);
-  }
-  await run("saving sets", deletion);
+  // One transaction: upsert the list, delete the session's other sets. It
+  // also refuses ids owned by another session (the upsert matches on id
+  // alone, so such an id would otherwise be moved into this one).
+  await rpc("saving sets", "sync_set_logs", {
+    p_session: sessionId,
+    p_rows: sets.map((set) => setLogToRow(normalizeSetLog(set))),
+  });
 
   revalidateAll();
 }
 
-/** Prefill for a variant the client is swapping to mid-session. */
+/** Prefill for a variant the client is adding or swapping to mid-session.
+ *  A conditioning variant gets the person's next target instead of a load —
+ *  for `rx`'s interval scheme when it comes from a routine row. */
 export async function getSuggestedLoad(
   clientId: ClientId,
   exerciseId: ExerciseId,
   modalityId: ModalityId,
-): Promise<Pick<SetLog, "weightLbs" | "addedWeightLbs" | "bandId" | "bandRole"> | null> {
+  rx?: ConditioningTarget | null,
+): Promise<LoadPrefill | null> {
   const data = await loadGymData();
+  if (data.exerciseById.get(exerciseId)?.pattern === "conditioning") {
+    const target = conditioningTarget(data, clientId, exerciseId, rx === undefined ? undefined : (rx ?? EMPTY_TARGET));
+    return { weightLbs: null, addedWeightLbs: null, bandId: null, bandRole: null, target };
+  }
   return suggestedLoad(data, clientId, exerciseId, modalityId);
 }
 
-export type FinishPayload = {
-  durationMinutes: number | null;
-  notes: string;
-  /** Session RPE 1-10, optional. */
-  rpe: number | null;
-  condition: SessionCondition | null;
-};
 
 /** Complete a session with the end-of-workout check-in. `redirectTo: null`
  *  stays put — the group board finishes people without navigating. */
@@ -149,23 +134,9 @@ export async function finishSession(
   payload: FinishPayload,
   redirectTo: string | null = `/workout/session/${sessionId}`,
 ): Promise<void> {
-  if (
-    payload.rpe !== null &&
-    (!Number.isInteger(payload.rpe) || payload.rpe < 1 || payload.rpe > 10)
-  ) {
-    throw new Error(`bad rpe ${payload.rpe}`);
-  }
-  if (payload.condition !== null && !isSessionCondition(payload.condition)) {
-    throw new Error(`bad condition ${payload.condition}`);
-  }
-  if (
-    payload.durationMinutes !== null &&
-    (!Number.isInteger(payload.durationMinutes) ||
-      payload.durationMinutes < 0 ||
-      payload.durationMinutes > 24 * 60)
-  ) {
-    throw new Error(`bad duration ${payload.durationMinutes}`);
-  }
+  const problem = finishProblem(payload);
+  if (problem) throw new Error(problem);
+  if (redirectTo !== null && !isLocalPath(redirectTo)) throw new Error(`bad redirect ${redirectTo}`);
   await runMatched(
     "finishing session",
     supabase
@@ -186,9 +157,11 @@ export async function finishSession(
 
 /** Delete a planned session that never happened. Cascades its set logs. */
 export async function discardSession(sessionId: string): Promise<void> {
-  await run(
+  // runMatched: discarding a session that already finished (another device
+  // completed it) must say so, not silently do nothing.
+  await runMatched(
     "discarding session",
-    supabase.from("sessions").delete().eq("id", sessionId).eq("status", "planned"),
+    supabase.from("sessions").delete().eq("id", sessionId).eq("status", "planned").select("id"),
   );
   revalidateAll();
   redirect("/");

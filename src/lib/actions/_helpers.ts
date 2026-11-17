@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { supabase } from "../db/client";
+import { isMissingTable } from "../db/guards";
 import { sessionToRow, setLogToRow } from "../db/mappers";
 import type { Session, SetLog } from "../types";
 
@@ -44,6 +45,42 @@ export async function runOrDuplicate<T>(
   return data;
 }
 
+/** Which migration creates each database function — the fix-it hint when a
+ *  write reaches a database that hasn't run it yet. */
+const RPC_MIGRATION = {
+  remove_program_week: "2026-10-24-audit-fixes.sql",
+  duplicate_program_week: "2026-10-24-audit-fixes.sql",
+  sync_set_logs: "2026-11-16-hardening.sql",
+  save_exercise: "2026-11-16-hardening.sql",
+  save_routine: "2026-11-16-hardening.sql",
+  assign_program: "2026-11-16-hardening.sql",
+  set_assignment_status: "2026-11-16-hardening.sql",
+  add_program_week: "2026-11-16-hardening.sql",
+} as const;
+
+/**
+ * Call a Postgres function (supabase/schema.sql) — the one path for writes
+ * that must be all-or-nothing, since PostgREST has no client-side
+ * transactions. A missing function (PGRST202) names the migration to run; a
+ * unique violation becomes `duplicateMessage` when given.
+ */
+export async function rpc(
+  label: string,
+  fn: keyof typeof RPC_MIGRATION,
+  args: Record<string, unknown>,
+  duplicateMessage?: string,
+): Promise<void> {
+  const { error } = await supabase.rpc(fn, args);
+  if (!error) return;
+  if (error.code === "PGRST202") {
+    throw new Error(
+      `${label}: database function ${fn} is missing — run supabase/migrations/${RPC_MIGRATION[fn]} in the Supabase SQL editor.`,
+    );
+  }
+  if (duplicateMessage && error.code === "23505") throw new Error(duplicateMessage);
+  throw new Error(`${label}: ${error.message}`);
+}
+
 /** Referential-integrity guard for deletes: refuse while any row in `table`
  *  still references `value` in `column`. `optionalTable` treats a missing
  *  table (migration not run) as "no references". */
@@ -61,7 +98,7 @@ export async function assertNoRefs(
     .limit(1);
   // A table with its own snapshot fallback (nutrition) may not exist yet —
   // then nothing can reference the value.
-  if (optionalTable && error?.code === "PGRST205") return;
+  if (optionalTable && isMissingTable(error)) return;
   if (error) throw new Error(`checking ${table}: ${error.message}`);
   if ((count ?? 0) > 0) throw new Error(message);
 }

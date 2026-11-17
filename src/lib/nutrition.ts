@@ -17,6 +17,13 @@ export type Macros = {
   fatG: number;
 };
 
+/** "40P / 120C / 18F" — rounded grams; `compact` drops the spaces for
+ *  dense list rows. */
+export function macroLabel(m: Omit<Macros, "kcal">, { compact = false } = {}): string {
+  const sep = compact ? "/" : " / ";
+  return [`${Math.round(m.proteinG)}P`, `${Math.round(m.carbsG)}C`, `${Math.round(m.fatG)}F`].join(sep);
+}
+
 /** A food's kcal/macros scaled to the covered plate fraction. */
 export function scaledMacros(food: Food, fraction: number): Macros {
   return {

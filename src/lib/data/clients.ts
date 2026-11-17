@@ -7,14 +7,18 @@ import type { Client, WeighIn } from "../types";
  * history and makes both bodyweight trends and relative-strength stats
  * impossible.
  */
-/** Preset card colors — curated so none collides with the status hues
- *  (success/warning/danger) that carry meaning elsewhere in the UI. */
+/** Preset card colors — curated so none reads as a status hue (success
+ *  green / warning yellow / danger red carry meaning elsewhere in the UI).
+ *  Stored as hex on the client row; changing this list means migrating rows
+ *  (see supabase/migrations/2026-11-16-hardening.sql). */
 export const CLIENT_COLORS = [
-  { id: "red", hex: "#FF0000" },
-  { id: "blue", hex: "#0000FF" },
-  { id: "green", hex: "#00FF00" },
-  { id: "purple", hex: "#B200ED" },
-  { id: "yellow", hex: "#FFFF00" },
+  { id: "blue", hex: "#3987e5" },
+  { id: "violet", hex: "#8b5cf6" },
+  { id: "pink", hex: "#ec4899" },
+  { id: "orange", hex: "#f97316" },
+  { id: "teal", hex: "#14b8a6" },
+  { id: "cyan", hex: "#06b6d4" },
+  { id: "indigo", hex: "#6366f1" },
 ] as const;
 
 /** Seed roster: the app falls back to this list read-only while the clients

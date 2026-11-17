@@ -1,90 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
 import { buildGymData } from "./gym-data";
-import type { SetLog } from "./types";
+import { e1rm, weightForReps } from "./modality";
 import {
-  compactSet,
   muscleVolume,
   openBoardGroups,
-  prComparison,
   priorBestE1rm,
   recentVariantKeys,
-  repRangeForWeight,
   resumeTargetForClient,
-  repsForWeight,
   routineForDay,
+  sessionRecap,
   sessionVolumeLbs,
   suggestedLoad,
-  weightForReps,
-  workingWeightForRepRange,
 } from "./queries";
 
 const data = seedSnapshot();
 
-describe("Epley inversions", () => {
-  it("round-trips: the weight predicted for N reps predicts N reps back", () => {
+describe("weightForReps (Epley inverted)", () => {
+  it("round-trips: e1RM of the predicted weight at N reps is the e1RM back", () => {
+    const set = data.setLogs.find((x) => x.modalityId === "barbell" && x.reps && !x.isWarmup)!;
     for (const reps of [1, 5, 8, 12]) {
       const weight = weightForReps(200, reps);
-      expect(repsForWeight(200, weight)).toBeCloseTo(reps, 6);
+      expect(e1rm(data, { ...set, weightLbs: weight, reps })).toBeCloseTo(200, 6);
     }
   });
 
-  it("weightForReps at 0 reps is the e1RM itself", () => {
+  it("at 0 reps is the e1RM itself", () => {
     expect(weightForReps(200, 0)).toBe(200);
-  });
-
-  it("repsForWeight clamps nonsense inputs to 0", () => {
-    expect(repsForWeight(200, 0)).toBe(0);
-    expect(repsForWeight(200, -10)).toBe(0);
-    expect(repsForWeight(100, 500)).toBe(0); // heavier than you could ever lift
-  });
-});
-
-describe("workingWeightForRepRange (seed-data integration)", () => {
-  it("answers for a trained barbell variant, with a buildable bar load", () => {
-    const answer = workingWeightForRepRange(data, "nate", "bench_press", "barbell", 8, 10);
-    expect(answer.bestActual).not.toBeNull();
-    expect(answer.bestActual!.reps).toBeGreaterThanOrEqual(8);
-    expect(answer.bestActual!.reps).toBeLessThanOrEqual(10);
-    expect(answer.predicted).toBeGreaterThan(0);
-    expect(answer.suggestedBarLoad).toBeGreaterThan(0);
-  });
-
-  it("suggests a bar load only for barbell work", () => {
-    const answer = workingWeightForRepRange(data, "nate", "bench_press", "dumbbell", 8, 10);
-    expect(answer.predicted).toBeGreaterThan(0);
-    expect(answer.suggestedBarLoad).toBeNull();
-  });
-
-  it("returns nulls, never fake numbers, for an untrained variant", () => {
-    const answer = workingWeightForRepRange(data, "nate", "donkey_kick", "bodyweight", 8, 10);
-    expect(answer).toEqual({ bestActual: null, predicted: null, suggestedBarLoad: null });
-  });
-});
-
-describe("repRangeForWeight", () => {
-  it("finds the most reps ever done at or above the asked weight", () => {
-    const answer = repRangeForWeight(data, "nate", "bench_press", "barbell", 135);
-    expect(answer.bestActual).not.toBeNull();
-    expect(answer.bestActual!.weightLbs).toBeGreaterThanOrEqual(135);
-    expect(answer.predictedReps).toBeGreaterThan(0);
-  });
-});
-
-describe("prComparison", () => {
-  it("returns one row per client, null-safe for clients who never did the lift", () => {
-    const rows = prComparison(data, "bench_press", "barbell");
-    expect(rows).toHaveLength(data.clients.length);
-    const nate = rows.find((r) => r.clientId === "nate")!;
-    expect(nate.bestE1rmLbs).toBeGreaterThan(0);
-    expect(nate.heaviestLbs).toBeGreaterThan(0);
-    expect(nate.date).not.toBeNull();
-    for (const row of rows) {
-      if (row.bestE1rmLbs === null) {
-        expect(row.heaviestLbs).toBeNull();
-        expect(row.date).toBeNull();
-      }
-    }
   });
 });
 
@@ -337,6 +279,7 @@ describe("sessionVolumeLbs", () => {
     isWarmup: false,
     completed: true,
     notes: "",
+    conditioning: null,
     ...overrides,
   });
 
@@ -376,63 +319,31 @@ describe("sessionVolumeLbs", () => {
   });
 });
 
-describe("compactSet", () => {
-  const base: SetLog = {
-    id: "x",
-    sessionId: data.sessions[0].id,
-    exerciseId: "squat",
-    modalityId: "barbell",
-    position: 1,
-    setNumber: 1,
-    unilateralMode: "bilateral",
-    side: null,
-    reps: 10,
-    weightLbs: 135,
-    addedWeightLbs: null,
-    bandId: null,
-    bandRole: null,
-    durationSeconds: null,
-    distanceFeet: null,
-    rir: 2,
-    isWarmup: false,
-    completed: true,
-    notes: "",
-  };
-  const label = (patch: Partial<SetLog>) => compactSet(data, { ...base, ...patch });
+describe("sessionRecap", () => {
+  const data = seedSnapshot();
+  const completed = data.sessions
+    .filter((s) => s.status === "completed" && (data.setsBySession.get(s.id)?.length ?? 0) > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
-  it("plates and dumbbells read weight as entered × reps", () => {
-    expect(label({})).toBe("135×10");
-    expect(label({ modalityId: "dumbbell", weightLbs: 50 })).toBe("50×10");
-    expect(label({ rir: 0 })).toBe("135×10 F");
-    expect(label({ unilateralMode: "single_side", weightLbs: 40 })).toBe("40×10/side");
+  it("counts working sets and per-block done like the raw sets", () => {
+    const session = completed[completed.length - 1];
+    const recap = sessionRecap(data, session.id);
+    const sets = data.setsBySession.get(session.id)!;
+    expect(recap.workingSets).toBe(sets.filter((s) => s.completed && !s.isWarmup).length);
+    expect(recap.blocks.reduce((n, b) => n + b.sets.length, 0)).toBe(sets.length);
+    for (const b of recap.blocks) expect(b.done).toBe(b.sets.filter((s) => s.completed).length);
   });
 
-  it("bodyweight shows BW and any added load", () => {
-    expect(label({ modalityId: "bodyweight", weightLbs: null })).toBe("BW×10");
-    expect(label({ modalityId: "bodyweight", weightLbs: null, addedWeightLbs: 25, reps: 8 })).toBe(
-      "BW+25×8",
-    );
-    expect(
-      label({ modalityId: "bodyweight", weightLbs: null, reps: null, durationSeconds: 30 }),
-    ).toBe("BW×30s");
+  it("never calls a PR on a person's first session", () => {
+    const first = completed.find((s) => s === completed.find((c) => c.clientId === s.clientId));
+    for (const b of sessionRecap(data, first!.id).blocks) expect(b.pr).toBeNull();
   });
 
-  it("bands read by color; hip bands never get pounds", () => {
-    expect(
-      label({ modalityId: "band", weightLbs: null, bandId: "band_blue", bandRole: "resistance", reps: 12 }),
-    ).toBe("blue×12");
-    expect(
-      label({ modalityId: "band", weightLbs: null, bandId: "band_blue", bandRole: "assistance", reps: 6 }),
-    ).toBe("−blue×6");
-    const hip = label({
-      modalityId: "band",
-      exerciseId: "lateral_walk",
-      weightLbs: null,
-      bandId: "hip_band_medium",
-      bandRole: "resistance",
-      reps: 15,
-    });
-    expect(hip).toBe("medium band×15");
-    expect(hip).not.toMatch(/lb|\d+×/);
+  it("every PR beats its prior best", () => {
+    for (const s of completed) {
+      for (const b of sessionRecap(data, s.id).blocks) {
+        if (b.pr) expect(b.pr.bestLbs).toBeGreaterThan(b.pr.priorLbs);
+      }
+    }
   });
 });

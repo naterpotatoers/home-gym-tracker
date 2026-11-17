@@ -1,4 +1,6 @@
-import { bandLabel } from "./queries";
+import { EMPTY_TARGET, pieceLabel, readoutLabel, targetLabel } from "./conditioning";
+import { bandById } from "./data/equipment";
+import { variantKey } from "./exercise-catalog";
 import { toBlocks } from "./set-blocks";
 import type { RoutineExercise, SetLog } from "./types";
 
@@ -10,27 +12,72 @@ export function completedCount(sets: readonly SetLog[]): number {
   return sets.filter((s) => s.completed).length;
 }
 
-/** Short prefilled-target label for the one-tap hero row. */
-export function describeTarget(set: SetLog): string {
-  if (set.durationSeconds !== null) return `${set.durationSeconds}s`;
-  const reps = set.reps !== null ? ` × ${set.reps}` : "";
-  switch (set.modalityId) {
-    case "barbell":
-    case "machine":
-      return `${set.weightLbs ?? "—"} lb${reps}`;
-    case "dumbbell":
-      return set.distanceFeet !== null
-        ? `${set.weightLbs ?? "—"} lb × ${set.distanceFeet} ft`
-        : `${set.weightLbs ?? "—"} lb ea${reps}`;
-    case "bodyweight":
-      return `BW${set.addedWeightLbs ? `+${set.addedWeightLbs}` : ""}${reps}`;
-    case "band":
-      return `${bandLabel(set) || "band"} band${reps}`;
-  }
+/** Short band name for labels — "blue", "small". Shared so every surface
+ *  renders bands identically. */
+export function bandLabel(set: Pick<SetLog, "bandId">): string {
+  return set.bandId?.replace(/^(band|hip_band)_/, "").replace(/_/g, "/") ?? "";
 }
 
-/** "3×10", "3×8–12", or "1×30s" — the high-level scheme, no RIR/rest. */
+type LoadFields = Pick<SetLog, "modalityId" | "bandId" | "bandRole" | "weightLbs" | "addedWeightLbs">;
+
+/**
+ * The load half of every set label, as entered — the one band / bodyweight /
+ * weight ladder. Compact: "135", "50" (per dumbbell), "BW+25", "BW", "blue",
+ * "−green" (assist), "small band" (hip band: ordinal, never pounds).
+ * Verbose adds units: "135 lb", "BW+25 lb", "blue band", "−green band
+ * assist". Null when no load is entered.
+ */
+export function loadLabel(set: LoadFields, { verbose = false } = {}): string | null {
+  if (set.bandId) {
+    const name = bandLabel(set);
+    if (bandById.get(set.bandId)?.family === "hip") return `${name} band`;
+    if (set.bandRole === "assistance") return verbose ? `−${name} band assist` : `−${name}`;
+    return verbose ? `${name} band` : name;
+  }
+  if (set.modalityId === "bodyweight") {
+    if (!set.addedWeightLbs) return "BW";
+    return verbose ? `BW+${set.addedWeightLbs} lb` : `BW+${set.addedWeightLbs}`;
+  }
+  if (set.weightLbs === null) return null;
+  return verbose ? `${set.weightLbs} lb` : String(set.weightLbs);
+}
+
+/** Terse one-set label for history chips — "135×10", "50×10" (per
+ *  dumbbell, as entered), "BW+25×8", "blue×12", "−green×6" (assist),
+ *  "medium band×15" (hip band: ordinal, never pounds), "30s", "×10/side".
+ *  "F" marks a set taken to failure. */
+export function compactSet(set: SetLog): string {
+  if (set.conditioning) return conditioningSetLabel(set);
+  const what = loadLabel(set) ?? "";
+  let amount = "";
+  if (set.durationSeconds !== null) amount = `${set.durationSeconds}s`;
+  else if (set.distanceFeet !== null) amount = `${set.distanceFeet}ft`;
+  else if (set.reps !== null) {
+    amount = `${set.reps}${set.unilateralMode !== "bilateral" ? "/side" : ""}`;
+  }
+  const label = what && amount ? `${what}×${amount}` : what || amount || "—";
+  return set.rir === 0 ? `${label} F` : label;
+}
+
+/** A bike piece: "8 × 20/10 · 182 W avg (410 max) · 64 rpm · 38 cal", or
+ *  "5:00 steady · target 55 rpm" before anything is entered. */
+export function conditioningSetLabel(set: SetLog): string {
+  const log = set.conditioning;
+  const piece = pieceLabel(log?.intervalScheme ?? null, set.durationSeconds);
+  if (!log) return piece;
+  const result = readoutLabel(log, set.distanceFeet);
+  const target = targetLabel(log);
+  return [piece, result ?? (target ? `target ${target}` : null)].filter(Boolean).join(" · ");
+}
+
+/** "3×10", "3×8–12", or "1×30s" — the high-level scheme, no RIR/rest. A bike
+ *  row: "8 × 20/10 @ 200 W" or "5:00 steady @ 55 rpm". */
 export function schemeLabel(rx: RoutineExercise): string {
+  if (rx.conditioning) {
+    const piece = pieceLabel(rx.conditioning.intervalScheme, rx.durationSeconds);
+    const target = targetLabel(rx.conditioning);
+    return `${rx.sets > 1 ? `${rx.sets}× ` : ""}${piece}${target ? ` @ ${target}` : ""}`;
+  }
   if (rx.durationSeconds !== null) return `${rx.sets}×${rx.durationSeconds}s`;
   if (rx.repMin !== null && rx.repMax !== null && rx.repMin !== rx.repMax) {
     return `${rx.sets}×${rx.repMin}–${rx.repMax}`;
@@ -38,8 +85,12 @@ export function schemeLabel(rx: RoutineExercise): string {
   return `${rx.sets}×${rx.repMax ?? rx.repMin ?? "?"}`;
 }
 
-/** "3×10 @ RIR 2 · rest 90s" — the scheme plus intensity and rest. */
-export function rxLabel(rx: RoutineExercise): string {
+/** "3×10 @ RIR 2 · rest 90s" — the scheme plus intensity and rest. `bike`:
+ *  a conditioning row even with no scheme or target saved yet. */
+export function rxLabel(rx: RoutineExercise, bike = Boolean(rx.conditioning)): string {
+  if (bike) {
+    return `${schemeLabel({ ...rx, conditioning: rx.conditioning ?? EMPTY_TARGET })} · rest ${rx.restSeconds}s`;
+  }
   return `${schemeLabel(rx)}${rx.targetRir !== null ? ` @ RIR ${rx.targetRir}` : ""} · rest ${rx.restSeconds}s`;
 }
 
@@ -78,6 +129,42 @@ export function advanceCursor(sets: readonly SetLog[], fromId: string): string |
   return next === -1 ? null : sets[next].id;
 }
 
+type VariantFields = Pick<SetLog, "exerciseId" | "modalityId">;
+
+/** Rest after a set with no prescription (an exercise added mid-session). */
+export const DEFAULT_REST_SECONDS = 90;
+
+/** The routine's prescription for a set's variant, if it has one. */
+export function prescriptionFor(
+  prescriptions: readonly RoutineExercise[],
+  set: VariantFields,
+): RoutineExercise | undefined {
+  return prescriptions.find(
+    (p) => p.exerciseId === set.exerciseId && p.modalityId === set.modalityId,
+  );
+}
+
+/**
+ * Seconds of rest to start after logging `logged`, or null for none. No rest
+ * inside a superset pair — the "rest" is the partner exercise; the
+ * prescription's rest applies once the round hands back to a new exercise
+ * (or the pair is done). `next` is where the cursor goes (undefined = none).
+ */
+export function restAfterLog(
+  logged: VariantFields,
+  next: VariantFields | undefined,
+  prescriptions: readonly RoutineExercise[],
+  supersets: ReadonlyMap<string, string>,
+): number | null {
+  const key = variantKey(logged.exerciseId, logged.modalityId);
+  const label = supersets.get(key);
+  if (next && label !== undefined) {
+    const nextKey = variantKey(next.exerciseId, next.modalityId);
+    if (nextKey !== key && supersets.get(nextKey) === label) return null;
+  }
+  return prescriptionFor(prescriptions, logged)?.restSeconds ?? DEFAULT_REST_SECONDS;
+}
+
 /** Variant key → superset label, for prescriptions that declare one. */
 export function supersetGroups(
   prescriptions: readonly RoutineExercise[],
@@ -85,7 +172,7 @@ export function supersetGroups(
   const out = new Map<string, string>();
   for (const rx of prescriptions) {
     if (rx.supersetGroup) {
-      out.set(`${rx.exerciseId}|${rx.modalityId}`, rx.supersetGroup);
+      out.set(variantKey(rx.exerciseId, rx.modalityId), rx.supersetGroup);
     }
   }
   return out;
@@ -107,7 +194,7 @@ export function performOrder(
   const out: SetLog[] = [];
   let i = 0;
   while (i < blocks.length) {
-    const label = groups.get(`${blocks[i].exerciseId}|${blocks[i].modalityId}`);
+    const label = groups.get(variantKey(blocks[i].exerciseId, blocks[i].modalityId));
     if (label === undefined) {
       out.push(...blocks[i].sets);
       i++;
@@ -117,7 +204,7 @@ export function performOrder(
     let j = i;
     while (
       j < blocks.length &&
-      groups.get(`${blocks[j].exerciseId}|${blocks[j].modalityId}`) === label
+      groups.get(variantKey(blocks[j].exerciseId, blocks[j].modalityId)) === label
     ) {
       j++;
     }

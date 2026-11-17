@@ -24,12 +24,3 @@ export type ChartPoint = {
   /** Pinned-row line, e.g. "2026-06-15 · 185 lb × 5 · e1RM 216 lb". */
   detail: string;
 };
-
-/** Dashed projection segment — fitted value at the window end, extrapolated
- *  +8 weeks. */
-export type TrendSegment = {
-  fromDate: string;
-  fromY: number;
-  toDate: string;
-  toY: number;
-};

@@ -7,6 +7,14 @@
  * on neutral elements. Numbers are mono.
  */
 
+import Link from "next/link";
+import { ArrowLeftIcon } from "@/components/icons";
+
+/** The keyboard focus treatment for every hand-rolled interactive element —
+ *  never a bare `outline-none`. */
+export const FOCUS_RING =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60";
+
 /** Base classes for text controls. `size="sm"` is h-9 for dense desktop
  *  cells; every `sm` control (here, Button, IconButton) grows back to 44px
  *  under `pointer-coarse`, so touch screens always get full targets. */
@@ -327,11 +335,35 @@ export function Caret() {
 /** The app's selected/unselected chip-button vocabulary — tabs, filters,
  *  person switchers. */
 export function chipClass(selected: boolean, extra = "min-h-11 px-3 text-xs"): string {
-  return `inline-flex cursor-pointer items-center gap-1.5 rounded-md ${extra} ${
+  return `inline-flex cursor-pointer items-center gap-1.5 rounded-md ${FOCUS_RING} ${extra} ${
     selected
       ? "bg-accent-soft font-semibold text-accent-text"
       : "text-muted hover:bg-current/5 hover:text-foreground"
   }`;
+}
+
+/** An aria-pressed toggle — RPE/feel pickers, band-role and equipment chips,
+ *  Single/Range. `extra` carries size and rounding. */
+export function toggleChipClass(
+  pressed: boolean,
+  extra = "min-h-11 rounded-md px-3 text-xs",
+): string {
+  return `cursor-pointer border disabled:cursor-default ${FOCUS_RING} ${extra} ${
+    pressed
+      ? "border-accent bg-accent-soft font-semibold text-accent-text"
+      : "border-border-strong bg-surface text-muted hover:text-foreground"
+  }`;
+}
+
+/** The small "← Back" chip at the top of focused pages. */
+export const backLinkClass = chipClass(false, "min-h-9 pointer-coarse:min-h-11 px-2.5 text-xs");
+
+export function BackLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} className={backLinkClass}>
+      <ArrowLeftIcon size={14} /> {children}
+    </Link>
+  );
 }
 
 const dotSize = {
@@ -416,8 +448,10 @@ export function Note({ children }: { children: React.ReactNode }) {
   return <p className="mt-3 text-xs leading-relaxed text-muted">{children}</p>;
 }
 
-/** Inline action-failure message — always paired with the failing control. */
+/** Inline action-failure message — always paired with the failing control.
+ *  Renders nothing without a message, so call sites can pass `error` as is. */
 export function ErrorText({ children }: { children: React.ReactNode }) {
+  if (children === null || children === undefined || children === "") return null;
   return <span className="text-xs font-semibold text-danger-text">{children}</span>;
 }
 

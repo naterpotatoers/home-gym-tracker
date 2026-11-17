@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MoreIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui";
+import { useEscape } from "@/components/use-escape";
 
 export type OverflowItem = {
   label: string;
@@ -37,16 +38,10 @@ export function OverflowMenu({
     const onPointer = (e: PointerEvent) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
     document.addEventListener("pointerdown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("pointerdown", onPointer);
   }, [open]);
+  useEscape(open ? () => setOpen(false) : null);
 
   return (
     <div ref={ref} className="relative shrink-0">

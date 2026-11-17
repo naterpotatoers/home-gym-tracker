@@ -1,19 +1,18 @@
 "use client";
 
-import Link from "next/link";
-import { unstable_rethrow } from "next/navigation";
 import { useMemo, useState } from "react";
 import { BodyHeatmap } from "@/components/body-heatmap";
 import { ExercisePicker } from "@/components/exercise-picker";
-import { ArrowLeftIcon, CopyIcon, PlusIcon, SwapIcon, TrashIcon } from "@/components/icons";
+import { CopyIcon, PlusIcon, SwapIcon, TrashIcon } from "@/components/icons";
 import { ModalityChip } from "@/components/modality-chip";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { useDebouncedSave } from "@/components/use-debounced-save";
 import {
+  BackLink,
   Button,
-  chipClass,
   ColorDot,
   ErrorText,
+  FOCUS_RING,
   Input,
   Select,
   StepperInput,
@@ -27,9 +26,13 @@ import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
 import { newId } from "@/lib/ids";
 import { bandRolesFor, type Variant } from "@/lib/queries";
-import type { Routine, RoutineExercise, UnilateralMode } from "@/lib/types";
-import { errorMessage } from "@/lib/format";
+import type { ConditioningTarget, Routine, RoutineExercise, UnilateralMode } from "@/lib/types";
+import { CONSOLE_PRESETS, DEFAULT_STEADY_SECONDS, EMPTY_TARGET } from "@/lib/conditioning";
 import { rxLabel } from "@/lib/session-labels";
+import { useEscape } from "@/components/use-escape";
+import { UNILATERAL_MODES } from "@/lib/validate";
+import { runAction } from "@/components/run-action";
+import { defaultPrescription } from "@/lib/set-templates";
 
 type PickerTarget = { mode: "add" } | { mode: "replace"; index: number };
 
@@ -60,29 +63,6 @@ function groupColor(
   return groupId ? MUSCLE_GROUP_COLORS[groupId] : null;
 }
 
-function rowFromVariant(routineId: string, variant: Variant, order: number): RoutineExercise {
-  const em = variant.exerciseModality;
-  // Stretches: one hold (per side via unilateralMode), transition-length rest,
-  // and no RIR — reps-in-reserve is meaningless for a stretch.
-  const isMobility = variant.pattern === "mobility";
-  return {
-    routineId,
-    order,
-    exerciseId: em.exerciseId,
-    modalityId: em.modalityId,
-    bandRole: em.bandRoles[0] ?? null,
-    unilateralMode: em.defaultUnilateralMode,
-    sets: isMobility ? 1 : 3,
-    repMin: 10,
-    repMax: 10,
-    durationSeconds: variant.metricType === "time" ? 30 : null,
-    restSeconds: isMobility ? 15 : 90,
-    targetRir: isMobility ? null : 2,
-    supersetGroup: null,
-    notes: "",
-  };
-}
-
 /** A field in the open row: small label over its control, like the Reps
  *  cell's label row. Fields bottom-align, so controls share a baseline. */
 function Captioned({ label, children }: { label: string; children: React.ReactNode }) {
@@ -91,6 +71,85 @@ function Captioned({ label, children }: { label: string; children: React.ReactNo
       <span className="text-[10px] uppercase tracking-wide text-muted">{label}</span>
       {children}
     </span>
+  );
+}
+
+const STEADY = "steady";
+
+/** A bike row (Echo Bike): pieces, the piece (a console preset or steady
+ *  minutes), the default target and rest. The target is where everyone
+ *  starts; each person's own target then rolls forward from their last piece,
+ *  so set it for the least-conditioned person you'd run it with. */
+function ConditioningRxFields({
+  row,
+  onPatch,
+}: {
+  row: RoutineExercise;
+  onPatch: (changes: Partial<RoutineExercise>) => void;
+}) {
+  const target = row.conditioning ?? EMPTY_TARGET;
+  const scheme = target.intervalScheme;
+  const custom = scheme !== null && !CONSOLE_PRESETS.some((p) => p.scheme === scheme);
+  const patchTarget = (changes: Partial<ConditioningTarget>) =>
+    onPatch({ conditioning: { ...target, ...changes } });
+  return (
+    <>
+      <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+        <Captioned label="Pieces">
+          <StepperInput size="sm" value={row.sets} min={1} max={10} onChange={(v) => onPatch({ sets: v ?? 1 })} label="pieces" className="w-12" />
+        </Captioned>
+        <Captioned label="Piece">
+          <Select
+            size="sm"
+            value={scheme ?? STEADY}
+            onChange={(e) => {
+              const intervalScheme = e.target.value === STEADY ? null : e.target.value;
+              onPatch({
+                conditioning: { ...target, intervalScheme },
+                durationSeconds: intervalScheme ? null : (row.durationSeconds ?? DEFAULT_STEADY_SECONDS),
+              });
+            }}
+            aria-label="Piece"
+          >
+            {CONSOLE_PRESETS.map((p) => (
+              <option key={p.scheme} value={p.scheme}>
+                {p.label}
+              </option>
+            ))}
+            {custom && <option value={scheme}>{scheme.replace("x", " × ")}</option>}
+            <option value={STEADY}>Steady</option>
+          </Select>
+        </Captioned>
+        {scheme === null && (
+          <Captioned label="Minutes">
+            <StepperInput
+              size="sm"
+              value={row.durationSeconds === null ? null : Math.round(row.durationSeconds / 60)}
+              min={1}
+              max={60}
+              onChange={(v) => onPatch({ durationSeconds: v ? v * 60 : null })}
+              label="minutes"
+              className="w-12"
+            />
+          </Captioned>
+        )}
+        <Captioned label="Rest (s)">
+          <StepperInput size="sm" value={row.restSeconds} min={0} step={15} onChange={(v) => onPatch({ restSeconds: v ?? 0 })} label="rest" className="w-14" />
+        </Captioned>
+      </div>
+      <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+        <Captioned label="Target watts">
+          <StepperInput size="sm" value={target.targetWatts} min={0} max={2000} step={5} onChange={(v) => patchTarget({ targetWatts: v || null })} label="target watts" className="w-16" />
+        </Captioned>
+        <Captioned label="Target RPM">
+          <StepperInput size="sm" value={target.targetRpm} min={0} max={250} onChange={(v) => patchTarget({ targetRpm: v || null })} label="target RPM" className="w-14" />
+        </Captioned>
+      </div>
+      <p className="text-xs text-muted">
+        Everyone starts here; after that each person&apos;s own target carries over from
+        their last piece, and goes up a notch after they hit it twice in a row.
+      </p>
+    </>
   );
 }
 
@@ -112,7 +171,7 @@ function RepTargets({
   const showRange = rangeMode || isRange;
 
   const segment = (active: boolean) =>
-    `min-h-9 cursor-pointer px-2 text-[11px] pointer-coarse:min-h-11 pointer-coarse:px-3 ${
+    `min-h-9 cursor-pointer px-2 text-[11px] pointer-coarse:min-h-11 pointer-coarse:px-3 ${FOCUS_RING} focus-visible:ring-inset ${
       active
         ? "bg-accent-soft font-semibold text-accent-text"
         : "text-muted hover:bg-current/5 hover:text-foreground"
@@ -204,6 +263,7 @@ export function RoutineEditor({
   const [rows, setRows] = useState<EditorRow[]>(() => initialRows.map(withKey));
   const [picker, setPicker] = useState<PickerTarget | null>(null);
   const [coverageOpen, setCoverageOpen] = useState(false);
+  useEscape(coverageOpen ? () => setCoverageOpen(false) : null);
   /** The one row open for editing — everything else is a one-line summary. */
   const [openKey, setOpenKey] = useState<string | null>(null);
 
@@ -240,7 +300,7 @@ export function RoutineEditor({
   function handlePick(variant: Variant) {
     if (!picker) return;
     if (picker.mode === "add") {
-      const added = withKey(rowFromVariant(routine.id, variant, rows.length + 1));
+      const added = withKey(defaultPrescription(routine.id, variant, rows.length + 1));
       setRows((prev) => [...prev, added]);
       setOpenKey(added.rowKey);
     } else {
@@ -257,14 +317,15 @@ export function RoutineEditor({
 
   async function handleDuplicate() {
     setError(null);
-    try {
-      // The copy is made from the DB — save the last second's edits first.
-      await autosave.flush();
-      await duplicateRoutine(routine.id);
-    } catch (e) {
-      unstable_rethrow(e);
-      setError(errorMessage(e, "Duplicate failed."));
-    }
+    await runAction(
+      async () => {
+        // The copy is made from the DB — save the last second's edits first.
+        await autosave.flush();
+        await duplicateRoutine(routine.id);
+      },
+      setError,
+      "Duplicate failed.",
+    );
   }
 
   async function handleDelete() {
@@ -272,25 +333,19 @@ export function RoutineEditor({
     setError(null);
     // No autosave may land after the delete (it would fail, or worse race it).
     autosave.cancel();
-    try {
-      await deleteRoutine(routine.id);
-    } catch (e) {
-      // deleteRoutine redirects on success — that internal throw must pass
-      // through or the redirect would render as "Delete failed."
-      unstable_rethrow(e);
-      autosave.resume();
-      setError(errorMessage(e, "Delete failed."));
-    }
+    await runAction(
+      () => deleteRoutine(routine.id),
+      (message) => {
+        autosave.resume();
+        setError(message);
+      },
+      "Delete failed.",
+    );
   }
 
   return (
     <div>
-      <Link
-        href="/programs"
-        className={chipClass(false, "min-h-9 pointer-coarse:min-h-11 px-2.5 text-xs")}
-      >
-        <ArrowLeftIcon size={14} /> Plan
-      </Link>
+      <BackLink href="/programs">Plan</BackLink>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Input
           type="text"
@@ -334,6 +389,7 @@ export function RoutineEditor({
             const exercise = exerciseLookup(catalog).exerciseById.get(row.exerciseId);
             const name = exercise?.name ?? row.exerciseId;
             const timed = exercise?.metricType === "time";
+            const isBike = exercise?.pattern === "conditioning";
             const color = groupColor(catalog, row.exerciseId);
             const bandRoles =
               row.modalityId === "band"
@@ -394,7 +450,7 @@ export function RoutineEditor({
                       </span>
                     )}
                     <span className="font-mono text-xs text-muted">
-                      {rxLabel(row)}
+                      {rxLabel(row, isBike)}
                       {row.unilateralMode !== "bilateral" &&
                         ` · ${row.unilateralMode.replace("_", " ")}`}
                     </span>
@@ -405,7 +461,20 @@ export function RoutineEditor({
                   {menu}
                 </div>
 
-                {open && (
+                {open && isBike && (
+                  <div className="space-y-3 px-3 pb-3 pl-9 pt-1 text-sm">
+                    <ConditioningRxFields row={row} onPatch={(changes) => patch(index, changes)} />
+                    <Input
+                      type="text"
+                      value={row.notes}
+                      onChange={(e) => patch(index, { notes: e.target.value })}
+                      className="w-full"
+                      placeholder="Notes"
+                      aria-label="Notes"
+                    />
+                  </div>
+                )}
+                {open && !isBike && (
                   <div className="space-y-3 px-3 pb-3 pl-9 pt-1 text-sm">
                     {/* Prescription: sets · reps (or seconds) · rest */}
                     <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
@@ -453,9 +522,11 @@ export function RoutineEditor({
                           onChange={(e) => patch(index, { unilateralMode: e.target.value as UnilateralMode })}
                           aria-label="Mode"
                         >
-                          <option value="bilateral">bilateral</option>
-                          <option value="alternating">alternating</option>
-                          <option value="single_side">single side</option>
+                          {UNILATERAL_MODES.map((mode) => (
+                            <option key={mode} value={mode}>
+                              {mode.replace("_", " ")}
+                            </option>
+                          ))}
                         </Select>
                       </Captioned>
                       {bandRoles.length > 1 && (
@@ -511,12 +582,17 @@ export function RoutineEditor({
           onClick={() => setCoverageOpen(false)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="coverage-sheet-title"
             className="ml-auto flex h-dvh w-full max-w-md flex-col overflow-y-auto border-l border-border bg-surface p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
-              <h2 className="text-lg font-semibold">Muscle coverage</h2>
-              <Button variant="ghost" onClick={() => setCoverageOpen(false)}>
+              <h2 id="coverage-sheet-title" className="text-lg font-semibold">
+                Muscle coverage
+              </h2>
+              <Button variant="ghost" autoFocus onClick={() => setCoverageOpen(false)}>
                 Close
               </Button>
             </div>

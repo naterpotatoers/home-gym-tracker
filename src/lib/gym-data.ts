@@ -29,8 +29,8 @@ export type GymData = {
    *  exist yet and the app is running read-only off the TypeScript seed — the
    *  UI shows a setup banner and writes will fail until the migration runs. */
   source: "database" | "seed";
-  /** Clients fall back to the TypeScript seed separately, so a database that
-   *  ran migration 001 but not 002 keeps working (read-only roster). */
+  /** Clients fall back to the TypeScript seed separately, so a database
+   *  without the clients table keeps working (read-only roster). */
   clientsSource: "database" | "seed";
   /** "missing" while the nutrition tables haven't been created yet — the rest
    *  of the app keeps working; the Tracking tab shows a run-the-SQL note. */
@@ -117,4 +117,10 @@ export function buildGymData(tables: GymTables): GymData {
     foodById: new Map(tables.foods.map((f) => [f.id, f])),
     ...exerciseLookup(tables),
   };
+}
+
+/** A client's active program assignment — at most one (the assign action
+ *  completes the others, and the DB enforces it with a partial unique index). */
+export function activeAssignment(data: GymData, clientId: string): Assignment | undefined {
+  return data.assignments.find((a) => a.clientId === clientId && a.status === "active");
 }

@@ -146,3 +146,11 @@ describe("resolvePeriod (explicit dates only — no wall clock)", () => {
     expect(p.to).toBe("2026-06-30");
   });
 });
+
+describe("shortDayLabel", () => {
+  it("drops the year unless it differs from today's", () => {
+    expect(shortDayLabel("2026-10-23")).toBe("Oct 23");
+    expect(shortDayLabel("2026-10-23", "2026-11-16")).toBe("Oct 23");
+    expect(shortDayLabel("2025-10-23", "2026-11-16")).toBe("Oct 23, 2025");
+  });
+});

@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { unstable_rethrow } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ArrowLeftIcon, CopyIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { CopyIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { useDebouncedSave } from "@/components/use-debounced-save";
-import { Button, Card, chipClass, ErrorText, Input, Select } from "@/components/ui";
+import { BackLink, Button, Card, ErrorText, Input, Select } from "@/components/ui";
 import {
   addWeek,
   clearProgramDay,
@@ -18,9 +16,10 @@ import {
   updateProgramInfo,
 } from "@/lib/actions/programs";
 import type { Program, ProgramDay, Routine } from "@/lib/types";
-import { errorMessage } from "@/lib/format";
+import { errorMessage, plural } from "@/lib/format";
 import { DAY_LABELS } from "@/lib/periods";
 import { MAX_PROGRAM_WEEKS } from "@/lib/validate";
+import { runAction } from "@/components/run-action";
 
 
 /**
@@ -101,26 +100,16 @@ export function ProgramEditor({
     }
   }
 
-  // Both redirect on success — let that signal through, report anything else.
+  // Both redirect on success.
   async function handleDuplicateProgram() {
     setError(null);
-    try {
-      await duplicateProgram(program.id);
-    } catch (e) {
-      unstable_rethrow(e);
-      setError(errorMessage(e, "Duplicate failed."));
-    }
+    await runAction(() => duplicateProgram(program.id), setError, "Duplicate failed.");
   }
 
   async function handleDeleteProgram() {
     if (!confirm(`Delete ${program.name}? This can't be undone.`)) return;
     setError(null);
-    try {
-      await deleteProgram(program.id);
-    } catch (e) {
-      unstable_rethrow(e);
-      setError(errorMessage(e, "Delete failed."));
-    }
+    await runAction(() => deleteProgram(program.id), setError, "Delete failed.");
   }
 
   function confirmRemove(week: number) {
@@ -190,12 +179,7 @@ export function ProgramEditor({
 
   return (
     <div>
-      <Link
-        href="/programs"
-        className={chipClass(false, "min-h-9 pointer-coarse:min-h-11 px-2.5 text-xs")}
-      >
-        <ArrowLeftIcon size={14} /> Plan
-      </Link>
+      <BackLink href="/programs">Plan</BackLink>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Input
           type="text"
@@ -213,7 +197,7 @@ export function ProgramEditor({
           className="min-w-0 flex-[2] basis-56"
         />
         <span className="text-xs text-muted">
-          {program.weeks} {program.weeks === 1 ? "week" : "weeks"}
+          {plural(program.weeks, "week")}
           {saveState === "saving" && " · saving…"}
           {saveState === "saved" && " · saved"}
         </span>

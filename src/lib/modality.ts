@@ -1,14 +1,16 @@
 import { bandById, dumbbells } from "./data/equipment";
 import { BASELINE_MODALITY_ID, modalityById } from "./data/modalities";
-import { exerciseLookup, type ExerciseCatalog } from "./exercise-catalog";
+import { exerciseLookup, isStrengthPattern, type ExerciseCatalog } from "./exercise-catalog";
 import type { GymData } from "./gym-data";
 import type {
   ClientId,
   ExerciseId,
+  ExerciseModality,
   LoadPrecision,
   ModalityId,
   MuscleId,
   SetLog,
+  UnilateralMode,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -31,8 +33,8 @@ export function effectiveScores(
   const out = new Map<MuscleId, number>();
   const { exerciseById, scoresByExercise } = exerciseLookup(catalog);
   const exercise = exerciseById.get(exerciseId);
-  // Mobility work carries no scores and is excluded from volume entirely.
-  if (!exercise || exercise.pattern === "mobility") return out;
+  // Mobility and conditioning carry no scores and are excluded from volume.
+  if (!exercise || !isStrengthPattern(exercise.pattern)) return out;
 
   for (const row of scoresByExercise.get(exerciseId) ?? []) {
     out.set(row.muscleId, row.score);
@@ -62,22 +64,32 @@ export type SetLoad = {
 
 const MAX_DUMBBELL_LBS = Math.max(...dumbbells.map((d) => d.weightLbs));
 
-/** The variant row behind a set — its authored load shape. */
-function variantOf(data: GymData, set: SetLog) {
-  return data.modalitiesByExercise
-    .get(set.exerciseId)
-    ?.find((em) => em.modalityId === set.modalityId);
+/** Anything naming an exercise × modality variant — a SetLog, a
+ *  RoutineExercise, or a bare pair. */
+export type VariantRef = { exerciseId: ExerciseId; modalityId: ModalityId };
+
+/** The catalog row behind a variant — its authored load shape. */
+export function variantOf(
+  catalog: ExerciseCatalog,
+  ref: VariantRef,
+): ExerciseModality | undefined {
+  return exerciseLookup(catalog)
+    .modalitiesByExercise.get(ref.exerciseId)
+    ?.find((em) => em.modalityId === ref.modalityId);
 }
 
 /** How many implements move in a single rep. The variant says so where it's
  *  authored (goblet squat: one; split squat: one per hand); otherwise infer
  *  from the unilateral mode. The inference overcounts an alternating curl
  *  (one dumbbell per rep) — author `implements: 1` on such variants. */
-function implementsPerRep(data: GymData, set: SetLog): number {
-  if (set.modalityId !== "dumbbell") return 1;
-  const authored = variantOf(data, set)?.implements;
+export function implementsPerRep(
+  catalog: ExerciseCatalog,
+  ref: VariantRef & { unilateralMode: UnilateralMode },
+): number {
+  if (ref.modalityId !== "dumbbell") return 1;
+  const authored = variantOf(catalog, ref)?.implements;
   if (authored) return authored;
-  return set.unilateralMode === "single_side" ? 1 : 2;
+  return ref.unilateralMode === "single_side" ? 1 : 2;
 }
 
 /** Sides worked. Reps are stored PER SIDE, so this is the multiplier. */
@@ -168,6 +180,12 @@ export function latestBodyweight(
 // e1RM
 // ---------------------------------------------------------------------------
 
+/** Epley's multiplier: e1RM = load × epleyFactor(reps). The one place the
+ *  formula lives — e1RM and its inverse both go through it. */
+function epleyFactor(reps: number): number {
+  return 1 + reps / 30;
+}
+
 /**
  * Epley estimated 1RM. Returns null for anything without a real load — a hip
  * band set has no magnitude, so there is nothing to extrapolate from.
@@ -177,7 +195,13 @@ export function e1rm(data: GymData, set: SetLog): number | null {
   if (load.precision === "ordinal") return null;
   if (load.lbs === null || set.reps === null || set.reps <= 0) return null;
   if (set.isWarmup) return null;
-  return load.lbs * (1 + set.reps / 30);
+  return load.lbs * epleyFactor(set.reps);
+}
+
+/** Epley inverted: the weight that lands `reps` at this e1RM. Total pounds per
+ *  rep, same basis as e1RM itself. */
+export function weightForReps(e1rmLbs: number, reps: number): number {
+  return e1rmLbs / epleyFactor(reps);
 }
 
 export function bestE1rm(data: GymData, sets: readonly SetLog[]): number | null {
@@ -217,14 +241,18 @@ export type LoadFactor = {
 const MIN_SETS = 6;
 const MIN_SESSIONS = 3;
 
-function workingSetsFor(
+/** Completed working sets for one client, optionally narrowed to an exercise
+ *  or variant. The shared filter behind every strength stat, so "counts
+ *  toward a PR" means one thing. */
+export function workingSets(
   data: GymData,
   clientId: ClientId,
-  exerciseId: ExerciseId,
-  modalityId: ModalityId,
+  exerciseId?: ExerciseId,
+  modalityId?: ModalityId,
 ): SetLog[] {
   return data.setLogs.filter((set) => {
-    if (set.exerciseId !== exerciseId || set.modalityId !== modalityId) return false;
+    if (exerciseId && set.exerciseId !== exerciseId) return false;
+    if (modalityId && set.modalityId !== modalityId) return false;
     if (set.isWarmup || !set.completed) return false;
     return data.sessionById.get(set.sessionId)?.clientId === clientId;
   });
@@ -245,12 +273,10 @@ export function deriveLoadFactor(
   modalityId: ModalityId,
 ): LoadFactor {
   const modality = modalityById.get(modalityId);
-  const override = data.modalitiesByExercise
-    .get(exerciseId)
-    ?.find((em) => em.modalityId === modalityId)?.loadFactorOverride;
+  const override = variantOf(data, { exerciseId, modalityId })?.loadFactorOverride;
   const seed = override ?? modality?.seedLoadFactor ?? null;
 
-  const sets = workingSetsFor(data, clientId, exerciseId, modalityId);
+  const sets = workingSets(data, clientId, exerciseId, modalityId);
   const sessionCount = new Set(sets.map((s) => s.sessionId)).size;
   const fallback: LoadFactor = {
     factor: seed,
@@ -264,7 +290,7 @@ export function deriveLoadFactor(
   if (modalityId === BASELINE_MODALITY_ID) return { ...fallback, factor: 1 };
   if (sets.length < MIN_SETS || sessionCount < MIN_SESSIONS) return fallback;
 
-  const baselineSets = workingSetsFor(data, clientId, exerciseId, BASELINE_MODALITY_ID);
+  const baselineSets = workingSets(data, clientId, exerciseId, BASELINE_MODALITY_ID);
   const baseline = bestE1rm(data, baselineSets);
   const mine = bestE1rm(data, sets);
   if (baseline === null || mine === null || baseline <= 0) return fallback;

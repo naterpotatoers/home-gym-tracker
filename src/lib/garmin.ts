@@ -43,15 +43,20 @@ function jwtExpiry(token: string): number {
   } catch {
     // not a JWT we can read — fall through to a conservative lifetime
   }
-  return Date.now() / 1000 + 3600;
+  // Tokens live 24h; assume 2h, so it outlasts the 1h refresh window below.
+  return Date.now() / 1000 + 2 * 3600;
 }
 
-async function bearer(config: GarminConfig, force = false): Promise<string> {
+/** fetch, injectable so tests can stand in for Garmin. */
+type Http = typeof fetch;
+
+async function bearer(config: GarminConfig, http: Http, force = false): Promise<string> {
   const now = Date.now() / 1000;
-  if (!force && tokenCache?.apiKey === config.apiKey && tokenCache.expiresAt - 300 > now) {
+  // Garmin's SDK refreshes inside the last hour; match it.
+  if (!force && tokenCache?.apiKey === config.apiKey && tokenCache.expiresAt - 3600 > now) {
     return tokenCache.token;
   }
-  const res = await fetch(`${BASE_URL}${TOKEN_PATH}`, {
+  const res = await http(`${BASE_URL}${TOKEN_PATH}`, {
     method: "POST",
     headers: { Accept: "*/*", Authorization: `ApiKey ${config.apiKey}` },
     cache: "no-store",
@@ -63,10 +68,10 @@ async function bearer(config: GarminConfig, force = false): Promise<string> {
   return token;
 }
 
-async function getJson(config: GarminConfig, path: string): Promise<unknown> {
+async function getJson(config: GarminConfig, path: string, http: Http): Promise<unknown> {
   for (const force of [false, true]) {
-    const token = await bearer(config, force);
-    const res = await fetch(`${BASE_URL}${path}`, {
+    const token = await bearer(config, http, force);
+    const res = await http(`${BASE_URL}${path}`, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
@@ -81,11 +86,14 @@ async function getJson(config: GarminConfig, path: string): Promise<unknown> {
   throw new Error(EXPIRED_KEY);
 }
 
-/** Every activity (all sports) started between the two local dates, inclusive. */
+/** Every activity (all sports) started between the two local dates,
+ *  inclusive. Accepts a bare array or an {activityList} wrapper — Garmin
+ *  doesn't publish this endpoint's response schema. */
 export async function fetchActivities(
   config: GarminConfig,
   startDate: string,
   endDate: string,
+  http: Http = fetch,
 ): Promise<GarminActivity[]> {
   const out: GarminActivity[] = [];
   for (let page = 0; page < 10; page++) {
@@ -95,7 +103,7 @@ export async function fetchActivities(
       startDate,
       endDate,
     });
-    const body = await getJson(config, `${ACTIVITIES_PATH}?${params}`);
+    const body = await getJson(config, `${ACTIVITIES_PATH}?${params}`, http);
     const batch: GarminActivity[] = Array.isArray(body)
       ? body
       : ((body as { activityList?: GarminActivity[] } | null)?.activityList ?? []);

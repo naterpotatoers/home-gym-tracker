@@ -4,13 +4,12 @@ import { redirect } from "next/navigation";
 import { loadGymData } from "../db/snapshot";
 import { localTodayIso } from "../periods";
 import { plannedSessionFromRoutine } from "../planning";
+import { type Plan, parsePlanValue } from "../launcher";
 import type { ClientId, Session, SetLog } from "../types";
 import { insertSessions, revalidateAll } from "./_helpers";
-import { assertClientId } from "./clients";
+import { assertClientId } from "../db/guards";
 
-export type GroupEntry =
-  | { clientId: ClientId; routineId: string; assignmentId: string | null }
-  | { resumeSessionId: string };
+type GroupEntry = { clientId: ClientId; plan: Plan };
 
 /**
  * Start a group workout: one planned session per person (or resume their
@@ -26,21 +25,22 @@ async function startGroupSessions(entries: GroupEntry[]): Promise<void> {
   const newSessions: Session[] = [];
   const newSets: SetLog[] = [];
 
-  for (const entry of entries) {
-    if ("resumeSessionId" in entry) {
-      const session = data.sessionById.get(entry.resumeSessionId);
+  for (const { clientId, plan } of entries) {
+    if (plan.kind === "resume") {
+      const session = data.sessionById.get(plan.sessionId);
       if (!session || session.status !== "planned") {
         throw new Error("Session to resume no longer exists.");
       }
+      // A forged form must not pull someone else's session onto the board.
+      if (session.clientId !== clientId) throw new Error("That session belongs to someone else.");
       sessionIds.push(session.id);
       continue;
     }
-    await assertClientId(entry.clientId);
     const { session, sets } = plannedSessionFromRoutine(
       data,
-      entry.clientId,
-      entry.routineId,
-      entry.assignmentId,
+      clientId,
+      plan.routineId,
+      plan.assignmentId,
       localTodayIso(),
     );
     newSessions.push(session);
@@ -59,9 +59,8 @@ async function startGroupSessions(entries: GroupEntry[]): Promise<void> {
 }
 
 /**
- * FormData shape from the setup page: `include_<clientId>` checkboxes and
- * `plan_<clientId>` selects whose value is `resume:<sessionId>` or
- * `<routineId>|<assignmentId-or-empty>`.
+ * FormData shape from the launcher: `include_<clientId>` checkboxes and
+ * `plan_<clientId>` selects holding a planValue (src/lib/launcher.ts).
  */
 export async function startGroupFromForm(formData: FormData): Promise<void> {
   const entries: GroupEntry[] = [];
@@ -69,14 +68,11 @@ export async function startGroupFromForm(formData: FormData): Promise<void> {
     if (!key.startsWith("include_")) continue;
     const clientId = key.slice("include_".length);
     await assertClientId(clientId);
-    const plan = String(formData.get(`plan_${clientId}`) ?? "");
-    if (!plan) continue;
-    if (plan.startsWith("resume:")) {
-      entries.push({ resumeSessionId: plan.slice("resume:".length) });
-    } else {
-      const [routineId, assignmentId] = plan.split("|");
-      entries.push({ clientId, routineId, assignmentId: assignmentId || null });
-    }
+    const value = String(formData.get(`plan_${clientId}`) ?? "");
+    if (!value) continue;
+    const plan = parsePlanValue(value);
+    if (!plan) throw new Error(`bad plan ${value}`);
+    entries.push({ clientId, plan });
   }
   await startGroupSessions(entries);
 }

@@ -25,6 +25,7 @@ export function re(
     targetRir: null,
     supersetGroup: null,
     notes: "",
+    conditioning: null,
     ...o,
   };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
 import { bestE1rm, e1rm, latestBodyweight, normalizedLoad, setLoad } from "./modality";
-import { workingSets } from "./queries";
+import { workingSets } from "./modality";
 
 const data = seedSnapshot();
 

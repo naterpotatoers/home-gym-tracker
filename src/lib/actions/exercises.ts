@@ -7,61 +7,17 @@ import {
   exercises as seedExercises,
 } from "../data/exercises";
 import { supabase } from "../db/client";
+import { assertExerciseIds, isMissingTable } from "../db/guards";
 import {
   exerciseModalityToRow,
   exerciseMuscleScoreToRow,
   exerciseToRow,
 } from "../db/mappers";
-import {
-  findNameCollision,
-  MAX_ALIASES,
-  MAX_PRIMARY_MUSCLES,
-  MAX_SCORED_MUSCLES,
-  ROLE_SCORES,
-  scoreForRole,
-  type NamedExercise,
-} from "../exercise-catalog";
+import { findNameCollision, type NamedExercise } from "../exercise-catalog";
 import { slugId } from "../ids";
 import { nameKey, normalizeName } from "../names";
-import type { ExerciseModality, MetricType, MovementPattern, MuscleId } from "../types";
-import {
-  isBandRole,
-  isEquipmentId,
-  isMetricType,
-  isModalityId,
-  isMovementPattern,
-  isMuscleId,
-  isUnilateralMode,
-} from "../validate";
-import { assertNoRefs, revalidateAll, run, runOrDuplicate } from "./_helpers";
-
-/**
- * Exercise ids used to be a compile-time union; now they're rows, so actions
- * that take them verify existence before writing. Batched: one query for N
- * ids. Falls back to the TS seed set while the exercise tables don't exist
- * yet (PGRST205), mirroring the read-side fallback, so routine and set writes
- * keep working before the exercise tables exist in the DB.
- */
-export async function assertExerciseIds(ids: Iterable<string>): Promise<void> {
-  const unique = [...new Set(ids)];
-  if (unique.length === 0) return;
-  const { data, error } = await supabase
-    .from("exercises")
-    .select("id")
-    .in("id", unique);
-  if (error?.code === "PGRST205") {
-    const seedIds = new Set<string>(seedExercises.map((e) => e.id));
-    for (const id of unique) {
-      if (!seedIds.has(id)) throw new Error(`bad exercise id ${id}`);
-    }
-    return;
-  }
-  if (error) throw new Error(`checking exercises: ${error.message}`);
-  const found = new Set((data ?? []).map((row) => row.id));
-  for (const id of unique) {
-    if (!found.has(id)) throw new Error(`bad exercise id ${id}`);
-  }
-}
+import { exercisePayloadProblem, isMetricType, isMovementPattern, type ExercisePayload } from "../validate";
+import { assertNoRefs, revalidateAll, run, runOrDuplicate, rpc } from "./_helpers";
 
 /**
  * The duplicate guard: throws when any of `keys` (exercise-name keys) is
@@ -78,7 +34,7 @@ async function assertNameAvailable(
     .from("exercises")
     .select("id, name, aliases");
   let catalog: readonly NamedExercise[];
-  if (error?.code === "PGRST205") {
+  if (isMissingTable(error)) {
     catalog = seedExercises;
   } else if (error) {
     throw new Error(`checking exercise names: ${error.message}`);
@@ -125,110 +81,6 @@ export async function createExercise(formData: FormData): Promise<void> {
   redirect(`/exercises?exercise=${id}`);
 }
 
-export type ExercisePayload = {
-  name: string;
-  aliases: string[];
-  pattern: MovementPattern;
-  metricType: MetricType;
-  isCompound: boolean;
-  scores: { muscleId: MuscleId; score: number }[];
-  modalities: Omit<ExerciseModality, "exerciseId">[];
-};
-
-function validatePayload(payload: ExercisePayload): void {
-  if (!payload.name.trim()) throw new Error("Exercise needs a name.");
-  if (!isMovementPattern(payload.pattern)) {
-    throw new Error(`bad pattern ${payload.pattern}`);
-  }
-  if (!isMetricType(payload.metricType)) {
-    throw new Error(`bad metric type ${payload.metricType}`);
-  }
-
-  if (payload.aliases.length > MAX_ALIASES) {
-    throw new Error(`Too many aliases — ${MAX_ALIASES} at most.`);
-  }
-  const ownNameKey = nameKey(payload.name);
-  const seenAliases = new Set<string>();
-  for (const alias of payload.aliases) {
-    const clean = normalizeName(alias);
-    if (!clean) throw new Error("Aliases can't be empty.");
-    if (clean.length > 60) {
-      throw new Error(`Alias "${clean}" is too long — 60 characters at most.`);
-    }
-    const key = nameKey(clean);
-    if (key === ownNameKey) {
-      throw new Error(`"${clean}" is already the exercise's name.`);
-    }
-    if (seenAliases.has(key)) throw new Error(`duplicate alias ${clean}`);
-    seenAliases.add(key);
-  }
-
-  // Muscle scores are authored as roles (see exercise-catalog.ts), which is
-  // the guardrail against inflated profiles skewing the heat map. Zero rows
-  // is fine — the mobility convention.
-  if (payload.scores.length > MAX_SCORED_MUSCLES) {
-    throw new Error(`Too many muscles — ${MAX_SCORED_MUSCLES} at most.`);
-  }
-  const seenMuscles = new Set<string>();
-  let primaries = 0;
-  for (const row of payload.scores) {
-    if (!isMuscleId(row.muscleId)) throw new Error(`bad muscle id ${row.muscleId}`);
-    if (seenMuscles.has(row.muscleId)) {
-      throw new Error(`duplicate muscle ${row.muscleId}`);
-    }
-    seenMuscles.add(row.muscleId);
-    if (!ROLE_SCORES.has(row.score)) {
-      throw new Error(`bad score ${row.score} for ${row.muscleId} — use a role`);
-    }
-    if (row.score === scoreForRole("primary")) primaries += 1;
-  }
-  if (primaries > MAX_PRIMARY_MUSCLES) {
-    throw new Error(`At most ${MAX_PRIMARY_MUSCLES} primary muscles.`);
-  }
-
-  const seenModalities = new Set<string>();
-  let defaults = 0;
-  for (const variant of payload.modalities) {
-    if (!isModalityId(variant.modalityId)) {
-      throw new Error(`bad modality id ${variant.modalityId}`);
-    }
-    if (seenModalities.has(variant.modalityId)) {
-      throw new Error(`duplicate modality ${variant.modalityId}`);
-    }
-    seenModalities.add(variant.modalityId);
-    if (!isUnilateralMode(variant.defaultUnilateralMode)) {
-      throw new Error(`bad unilateral mode ${variant.defaultUnilateralMode}`);
-    }
-    for (const eq of variant.requiredEquipment) {
-      if (!isEquipmentId(eq)) throw new Error(`bad equipment id ${eq}`);
-    }
-    for (const role of variant.bandRoles) {
-      if (!isBandRole(role)) throw new Error(`bad band role ${role}`);
-    }
-    if (variant.bandRoles.length > 0 && variant.modalityId !== "band") {
-      throw new Error("Band roles only apply to the band modality.");
-    }
-    if (
-      variant.loadFactorOverride !== null &&
-      !(variant.loadFactorOverride > 0 && variant.loadFactorOverride <= 3)
-    ) {
-      throw new Error("Load factor override must be between 0 and 3.");
-    }
-    if (variant.implements !== null && variant.implements !== 1 && variant.implements !== 2) {
-      throw new Error(`bad dumbbell count ${variant.implements}`);
-    }
-    if (
-      (variant.implements !== null || variant.loadIncludesBodyweight) &&
-      variant.modalityId !== "dumbbell"
-    ) {
-      throw new Error("Dumbbell count and +bodyweight only apply to the dumbbell modality.");
-    }
-    if (variant.isDefault) defaults += 1;
-  }
-  if (payload.modalities.length > 0 && defaults !== 1) {
-    throw new Error("Exactly one variant must be the default.");
-  }
-}
 
 /**
  * Whole-exercise save: basics upsert plus delete-then-insert of the score and
@@ -240,7 +92,8 @@ export async function saveExercise(
   payload: ExercisePayload,
 ): Promise<void> {
   await assertExerciseIds([exerciseId]);
-  validatePayload(payload);
+  const problem = exercisePayloadProblem(payload);
+  if (problem) throw new Error(problem);
 
   const name = normalizeName(payload.name);
   const aliases = payload.aliases.map(normalizeName);
@@ -251,10 +104,13 @@ export async function saveExercise(
     exerciseId,
   );
 
-  await runOrDuplicate(
+  // Row, scores, and variants in one transaction — a failure can't leave an
+  // exercise stripped of its muscles or variants.
+  await rpc(
     "saving exercise",
-    supabase.from("exercises").upsert(
-      exerciseToRow({
+    "save_exercise",
+    {
+      p_exercise: exerciseToRow({
         id: exerciseId,
         name,
         aliases,
@@ -262,37 +118,13 @@ export async function saveExercise(
         metricType: payload.metricType,
         isCompound: payload.isCompound,
       }),
-    ),
+      p_scores: payload.scores.map((row) => exerciseMuscleScoreToRow({ exerciseId, ...row })),
+      p_modalities: payload.modalities.map((variant) =>
+        exerciseModalityToRow({ exerciseId, ...variant }),
+      ),
+    },
     `"${name}" is already in the catalog — edit that exercise instead.`,
   );
-  await run(
-    "saving exercise",
-    supabase.from("exercise_muscle_scores").delete().eq("exercise_id", exerciseId),
-  );
-  if (payload.scores.length > 0) {
-    await run(
-      "saving exercise",
-      supabase.from("exercise_muscle_scores").insert(
-        payload.scores.map((row) =>
-          exerciseMuscleScoreToRow({ exerciseId, ...row }),
-        ),
-      ),
-    );
-  }
-  await run(
-    "saving exercise",
-    supabase.from("exercise_modalities").delete().eq("exercise_id", exerciseId),
-  );
-  if (payload.modalities.length > 0) {
-    await run(
-      "saving exercise",
-      supabase.from("exercise_modalities").insert(
-        payload.modalities.map((variant) =>
-          exerciseModalityToRow({ exerciseId, ...variant }),
-        ),
-      ),
-    );
-  }
 
   revalidateAll();
 }

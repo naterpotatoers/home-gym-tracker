@@ -1,5 +1,7 @@
 import type {
   Client,
+  ConditioningLog,
+  ConditioningTarget,
   Assignment,
   Exercise,
   ExerciseModality,
@@ -51,7 +53,45 @@ export type RoutineExerciseRow = {
   target_rir: number | null;
   superset_group: string | null;
   notes: string;
+} & ConditioningTargetColumns;
+
+// Conditioning columns are optional: absent until
+// supabase/migrations/2026-11-17-conditioning.sql runs. Writes include them
+// only for conditioning rows, so strength writes keep working against an
+// un-migrated table; reads treat a missing column as null.
+type ConditioningTargetColumns = {
+  interval_scheme?: string | null;
+  target_watts?: number | null;
+  target_rpm?: number | null;
 };
+
+type ConditioningLogColumns = ConditioningTargetColumns & {
+  avg_watts?: number | null;
+  max_watts?: number | null;
+  avg_rpm?: number | null;
+  calories?: number | null;
+};
+
+function rowToTarget(r: ConditioningTargetColumns): ConditioningTarget {
+  return {
+    intervalScheme: r.interval_scheme ?? null,
+    targetWatts: r.target_watts ?? null,
+    targetRpm: r.target_rpm ?? null,
+  };
+}
+
+function targetToRow(t: ConditioningTarget): Required<ConditioningTargetColumns> {
+  return {
+    interval_scheme: t.intervalScheme,
+    target_watts: t.targetWatts,
+    target_rpm: t.targetRpm,
+  };
+}
+
+/** Null when every field is empty — a strength row, or a piece not entered yet. */
+function orNull<T extends object>(value: T): T | null {
+  return Object.values(value).some((v) => v !== null) ? value : null;
+}
 
 export type ProgramRow = {
   id: string;
@@ -108,7 +148,7 @@ export type SetLogRow = {
   is_warmup: boolean;
   completed: boolean;
   notes: string;
-};
+} & ConditioningLogColumns;
 
 export type ClientRow = {
   id: string;
@@ -259,6 +299,7 @@ export function rowToRoutineExercise(r: RoutineExerciseRow): RoutineExercise {
     targetRir: r.target_rir,
     supersetGroup: r.superset_group,
     notes: r.notes,
+    conditioning: orNull(rowToTarget(r)),
   };
 }
 
@@ -278,6 +319,7 @@ export function routineExerciseToRow(e: RoutineExercise): RoutineExerciseRow {
     target_rir: e.targetRir,
     superset_group: e.supersetGroup,
     notes: e.notes,
+    ...(e.conditioning ? targetToRow(e.conditioning) : {}),
   };
 }
 
@@ -378,6 +420,13 @@ export function rowToSetLog(r: SetLogRow): SetLog {
     isWarmup: r.is_warmup,
     completed: r.completed,
     notes: r.notes,
+    conditioning: orNull<ConditioningLog>({
+      ...rowToTarget(r),
+      avgWatts: r.avg_watts ?? null,
+      maxWatts: r.max_watts ?? null,
+      avgRpm: r.avg_rpm ?? null,
+      calories: r.calories ?? null,
+    }),
   };
 }
 
@@ -402,6 +451,15 @@ export function setLogToRow(s: SetLog): SetLogRow {
     is_warmup: s.isWarmup,
     completed: s.completed,
     notes: s.notes,
+    ...(s.conditioning
+      ? {
+          ...targetToRow(s.conditioning),
+          avg_watts: s.conditioning.avgWatts,
+          max_watts: s.conditioning.maxWatts,
+          avg_rpm: s.conditioning.avgRpm,
+          calories: s.conditioning.calories,
+        }
+      : {}),
   };
 }
 

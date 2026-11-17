@@ -160,6 +160,8 @@ export const exercises: readonly Exercise[] = [
   { id: "lizard_pose", name: "Lizard Pose (Hips)", pattern: "mobility", metricType: "time", isCompound: false },
   { id: "triangle_pose", name: "Triangle Pose (Hamstrings/Side)", pattern: "mobility", metricType: "time", isCompound: false },
   { id: "pancake_stretch", name: "Seated Straddle (Pancake)", pattern: "mobility", metricType: "time", isCompound: false },
+  // ---- conditioning ---- (no muscle scores: it never feeds the heat map)
+  { id: "echo_bike", name: "Echo Bike", aliases: ["Assault Bike", "Air Bike", "Fan Bike"], pattern: "conditioning", metricType: "time", isCompound: true },
 ];
 
 /**
@@ -706,6 +708,7 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("lizard_pose", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
   em("triangle_pose", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
   em("pancake_stretch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("echo_bike", "cardio", { isDefault: true, requiredEquipment: ["echo_bike"], notes: "Arms and legs together. Targets are watts or RPM from the console." }),
 ];
 
 // ---------------------------------------------------------------------------

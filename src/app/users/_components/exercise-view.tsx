@@ -6,7 +6,8 @@ import type { GymData } from "@/lib/gym-data";
 import type { ChartPoint } from "@/lib/meters";
 import { shortDayLabel } from "@/lib/periods";
 import { e1rmTrend, exerciseHistory, type ExerciseHistoryPoint } from "@/lib/progress";
-import { compactSet, hipBandLadder } from "@/lib/queries";
+import { hipBandLadder } from "@/lib/queries";
+import { compactSet } from "@/lib/session-labels";
 import type { ClientId, ExerciseId, ModalityId } from "@/lib/types";
 import { lbs } from "@/lib/format";
 
@@ -72,7 +73,7 @@ export function LiftHistory({
                 key={set.id}
                 className="rounded bg-current/10 px-1.5 py-0.5 font-mono text-xs"
               >
-                {compactSet(data, set)}
+                {compactSet(set)}
               </span>
             ))}
             {best?.sessionId === p.sessionId && (
@@ -118,7 +119,7 @@ export function LiftHistory({
           ) : (
             points.length > 0 && (
               <div className="mt-3">
-                <ProgressChart key={client} points={points} trend={null} />
+                <ProgressChart key={client} points={points} />
               </div>
             )
           )}

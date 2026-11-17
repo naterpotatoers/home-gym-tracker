@@ -1,6 +1,6 @@
 import type { GymData } from "./gym-data";
 import { addDaysIso, DAY_LABELS, hmmss, isoDow, mmss, mondayOf, shortDayLabel } from "./periods";
-import type { ClientId, Run, RunKind } from "./types";
+import type { ClientId, Run, RunKind, RunSource } from "./types";
 
 export const RUN_KIND_LABELS: Record<RunKind, string> = {
   easy: "Easy",
@@ -9,7 +9,19 @@ export const RUN_KIND_LABELS: Record<RunKind, string> = {
   race: "Race",
 };
 
-export const METERS_PER_MILE = 1609.344;
+export const RUN_KINDS = Object.keys(RUN_KIND_LABELS) as RunKind[];
+
+export const RUN_SOURCE_LABELS: Record<RunSource, string> = {
+  manual: "Manual",
+  strava: "Strava",
+  garmin: "Garmin",
+};
+
+export function isRunKind(value: string): value is RunKind {
+  return value in RUN_KIND_LABELS;
+}
+
+const METERS_PER_MILE = 1609.344;
 
 /** Seconds per mile, or null for a run with no distance. */
 export function paceSecondsPerMile(run: Pick<Run, "distanceMiles" | "durationSeconds">): number | null {
@@ -41,15 +53,22 @@ export type RunWeek = {
   seconds: number;
 };
 
+/** The runs in the Monday-week starting `weekStart` — the one week filter. */
+function inWeek(runs: readonly Run[], weekStart: string): Run[] {
+  const weekEnd = addDaysIso(weekStart, 7);
+  return runs.filter((r) => r.date >= weekStart && r.date < weekEnd);
+}
+
+const totalMiles = (runs: readonly Run[]) => runs.reduce((sum, r) => sum + r.distanceMiles, 0);
+
 /** The Monday–Sunday week containing `todayIso`, newest run first. */
 export function runWeek(data: GymData, clientId: ClientId, todayIso: string): RunWeek {
   const weekStart = mondayOf(todayIso);
-  const weekEnd = addDaysIso(weekStart, 7);
-  const runs = runsFor(data, clientId).filter((r) => r.date >= weekStart && r.date < weekEnd);
+  const runs = inWeek(runsFor(data, clientId), weekStart);
   return {
     weekStart,
     runs,
-    miles: runs.reduce((sum, r) => sum + r.distanceMiles, 0),
+    miles: totalMiles(runs),
     seconds: runs.reduce((sum, r) => sum + r.durationSeconds, 0),
   };
 }
@@ -63,13 +82,10 @@ export function weeklyMiles(
   weeks = 6,
 ): { weekStart: string; miles: number }[] {
   const current = mondayOf(todayIso);
+  const mine = runsFor(data, clientId);
   return Array.from({ length: weeks }, (_, i) => {
     const weekStart = addDaysIso(current, -7 * (weeks - 1 - i));
-    const weekEnd = addDaysIso(weekStart, 7);
-    const miles = data.runs
-      .filter((r) => r.clientId === clientId && r.date >= weekStart && r.date < weekEnd)
-      .reduce((sum, r) => sum + r.distanceMiles, 0);
-    return { weekStart, miles };
+    return { weekStart, miles: totalMiles(inWeek(mine, weekStart)) };
   });
 }
 
@@ -85,7 +101,7 @@ export type RunView = {
   pace: string;
   heartRate: number | null;
   name: string;
-  fromStrava: boolean;
+  source: RunSource;
 };
 
 export type RunnerSummary = {
@@ -96,8 +112,8 @@ export type RunnerSummary = {
   weekly: { label: string; miles: number }[];
   /** This week's runs, or the latest few when this week has none. */
   recent: RunView[];
-  /** This person's runs sync from Strava. */
-  strava: boolean;
+  /** The import sources syncing this person's runs (empty = manual only). */
+  syncSources: RunSource[];
 };
 
 /** Everything the Running section shows for one person. */
@@ -105,7 +121,7 @@ export function runnerSummary(
   data: GymData,
   clientId: ClientId,
   todayIso: string,
-  strava: boolean,
+  syncSources: RunSource[],
   recentLimit = 5,
 ): RunnerSummary {
   const week = runWeek(data, clientId, todayIso);
@@ -129,9 +145,9 @@ export function runnerSummary(
       pace: paceLabel(r),
       heartRate: r.avgHeartRate,
       name: r.name,
-      fromStrava: r.source === "strava",
+      source: r.source,
     })),
-    strava,
+    syncSources,
   };
 }
 
@@ -158,16 +174,91 @@ export type StravaActivity = {
 /** The subset of a Garmin Connect activity-list item this app reads. */
 export type GarminActivity = {
   activityId: number;
-  activityName: string;
+  activityName?: string;
   /** "YYYY-MM-DD HH:mm:ss" — the athlete's local wall clock. */
   startTimeLocal: string;
-  activityType: { typeKey: string };
+  activityType?: { typeKey?: string };
   distance?: number; // meters
   duration?: number; // seconds
   movingDuration?: number; // seconds
   elevationGain?: number; // meters
   averageHR?: number;
 };
+
+/** A Garmin activity worth importing as a run: any running type (road,
+ *  trail, treadmill, track — Garmin's typeKeys all contain "running") with
+ *  the distance and time a run row requires. Field names are read
+ *  defensively — the list endpoint's schema isn't published. */
+export function isGarminRun(a: GarminActivity): boolean {
+  return (
+    !!a.activityType?.typeKey?.includes("running") &&
+    (a.distance ?? 0) > 0 &&
+    (a.movingDuration ?? a.duration ?? 0) > 0 &&
+    typeof a.startTimeLocal === "string"
+  );
+}
+
+/** Garmin activity → Run fields. Garmin has no run-type tag, so imports are
+ *  "easy" until re-tagged. */
+export function runFromGarmin(a: GarminActivity, clientId: ClientId): Omit<Run, "id"> {
+  return {
+    clientId,
+    date: a.startTimeLocal.slice(0, 10),
+    distanceMiles: Math.round(((a.distance ?? 0) / METERS_PER_MILE) * 100) / 100,
+    durationSeconds: Math.round(a.movingDuration ?? a.duration ?? 0),
+    kind: "easy",
+    avgHeartRate: a.averageHR ? Math.round(a.averageHR) : null,
+    elevationGainFt: a.elevationGain !== undefined ? Math.round(a.elevationGain * 3.28084) : null,
+    name: a.activityName ?? "",
+    source: "garmin",
+    externalId: `garmin:${a.activityId}`,
+    notes: "",
+  };
+}
+
+/** The same physical run seen through two sources (a Garmin watch that also
+ *  pushes to Strava): same day, distance within 2% (or 0.05 mi), moving time
+ *  within 90 s. */
+export function isSameRun(
+  a: Pick<Run, "date" | "distanceMiles" | "durationSeconds">,
+  b: Pick<Run, "date" | "distanceMiles" | "durationSeconds">,
+): boolean {
+  const milesTolerance = Math.max(0.05, 0.02 * Math.max(a.distanceMiles, b.distanceMiles));
+  return (
+    a.date === b.date &&
+    Math.abs(a.distanceMiles - b.distanceMiles) <= milesTolerance &&
+    Math.abs(a.durationSeconds - b.durationSeconds) <= 90
+  );
+}
+
+export type RunSyncPlan = {
+  /** Never seen: insert. */
+  fresh: Omit<Run, "id">[];
+  /** Already imported from this source: refresh, keyed by existing row id. */
+  known: { id: string; run: Omit<Run, "id"> }[];
+  /** Already logged from another source (or by hand) — skipped. */
+  duplicates: number;
+};
+
+/**
+ * Split a sync batch: rows already imported (by external id) refresh; rows
+ * matching a run from any OTHER source are skipped so one run never counts
+ * twice; the rest are new.
+ */
+export function planRunSync(
+  incoming: readonly Omit<Run, "id">[],
+  idByExternal: ReadonlyMap<string, string>,
+  others: readonly Pick<Run, "date" | "distanceMiles" | "durationSeconds" | "source">[],
+): RunSyncPlan {
+  const plan: RunSyncPlan = { fresh: [], known: [], duplicates: 0 };
+  for (const run of incoming) {
+    const id = run.externalId ? idByExternal.get(run.externalId) : undefined;
+    if (id) plan.known.push({ id, run });
+    else if (others.some((o) => o.source !== run.source && isSameRun(o, run))) plan.duplicates++;
+    else plan.fresh.push(run);
+  }
+  return plan;
+}
 
 /** Strava activity → Run fields (everything but the row id). */
 export function runFromActivity(a: StravaActivity, clientId: ClientId): Omit<Run, "id"> {

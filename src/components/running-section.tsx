@@ -1,17 +1,19 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { PlusIcon } from "@/components/icons";
 import { Button, ErrorText, Field, Input, Select } from "@/components/ui";
-import { deleteRun, logRun, syncStrava } from "@/lib/actions/runs";
-import type { RunnerSummary } from "@/lib/running";
+import { deleteRun, logRun, syncGarmin, syncStrava } from "@/lib/actions/runs";
+import { plural } from "@/lib/format";
+import { RUN_KIND_LABELS, RUN_KINDS, RUN_SOURCE_LABELS, type RunnerSummary } from "@/lib/running";
+import { useFormAction } from "@/components/use-form-action";
 
 /**
  * One person's running, on their Clients › Progress tab: this week's runs
- * and mileage, six weeks of weekly miles, recent runs, a Strava sync (the
- * Strava athlete only — auto on open, at most every 30 minutes) and a manual
- * log. Styled as a page Section to sit among Lifts / Recent workouts.
+ * and mileage, six weeks of weekly miles, recent runs, a Strava/Garmin sync
+ * (that source's athlete only — auto on open, at most every 30 minutes) and
+ * a manual log. Imported runs show their source and can't be deleted here. Styled as a page Section to sit among Lifts / Recent workouts.
  */
 export function RunningSection({ runner, today }: { runner: RunnerSummary; today: string }) {
   const [logging, setLogging] = useState(false);
@@ -22,7 +24,9 @@ export function RunningSection({ runner, today }: { runner: RunnerSummary; today
       <div className="mb-3 flex flex-wrap items-end justify-between gap-2 border-b border-border pb-1">
         <h2 className="text-lg font-semibold">Running</h2>
         <div className="flex items-center gap-1">
-          {runner.strava && <StravaSync />}
+          {runner.syncSources.map((source) =>
+            source === "manual" ? null : <SourceSync key={source} source={source} />,
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -43,8 +47,7 @@ export function RunningSection({ runner, today }: { runner: RunnerSummary; today
       ) : (
         <>
           <p className="text-sm">
-            This week: <span className="font-mono">{runner.weekRuns}</span>{" "}
-            {runner.weekRuns === 1 ? "run" : "runs"} ·{" "}
+            This week: <span className="font-mono">{plural(runner.weekRuns, "run")}</span> ·{" "}
             <span className="font-mono">{runner.weekMiles}</span>
           </p>
           <WeeklyMiles weeks={runner.weekly} />
@@ -67,7 +70,12 @@ export function RunningSection({ runner, today }: { runner: RunnerSummary; today
                     <span className="font-mono text-xs text-muted">♥ {run.heartRate}</span>
                   )}
                   {run.name && <span className="truncate text-xs text-muted">{run.name}</span>}
-                  {!run.fromStrava && (
+                  {run.source !== "manual" && (
+                    <span className="text-[10px] uppercase tracking-wide text-muted">
+                      {RUN_SOURCE_LABELS[run.source]}
+                    </span>
+                  )}
+                  {run.source === "manual" && (
                     <ConfirmDeleteButton
                       action={deleteRun.bind(null, run.id)}
                       confirmText={`Delete the ${run.miles} run on ${run.dayLabel}?`}
@@ -107,53 +115,54 @@ function WeeklyMiles({ weeks }: { weeks: RunnerSummary["weekly"] }) {
   );
 }
 
-const SYNC_KEY = "strava-last-sync";
 const AUTO_SYNC_MS = 30 * 60 * 1000;
+const SYNC = { strava: syncStrava, garmin: syncGarmin } as const;
 
 /** Sync button; also syncs once on open when the last sync is >30 min old. */
-function StravaSync() {
+function SourceSync({ source }: { source: keyof typeof SYNC }) {
+  const syncKey = `${source}-last-sync`;
   const [pending, start] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const ran = useRef(false);
 
   const sync = (auto: boolean) =>
     start(async () => {
-      const result = await syncStrava();
+      const result = await SYNC[source]();
       if ("error" in result) {
         setMessage(result.error);
         return;
       }
       try {
-        localStorage.setItem(SYNC_KEY, String(Date.now()));
+        localStorage.setItem(syncKey, String(Date.now()));
       } catch {
         // storage blocked — auto-sync just runs again next time
       }
       if (!auto || result.imported > 0) {
-        setMessage(
-          result.imported > 0
-            ? `Imported ${result.imported} run${result.imported === 1 ? "" : "s"}.`
-            : "Up to date.",
-        );
+        setMessage(result.imported > 0 ? `Imported ${plural(result.imported, "run")}.` : "Up to date.");
       }
     });
 
-  useEffect(() => {
-    if (ran.current) return;
-    ran.current = true;
+  // An Effect Event: reads the latest props without making them deps.
+  const autoSync = useEffectEvent(() => {
     let last = 0;
     try {
-      last = Number(localStorage.getItem(SYNC_KEY) ?? 0);
+      last = Number(localStorage.getItem(syncKey) ?? 0);
     } catch {
       // storage blocked — treat as never synced
     }
     if (Date.now() - last > AUTO_SYNC_MS) sync(true);
+  });
+  useEffect(() => {
+    if (ran.current) return; // StrictMode double-mount
+    ran.current = true;
+    autoSync();
   }, []);
 
   return (
     <span className="flex items-center gap-2">
       {message && <span className="text-xs text-muted">{message}</span>}
       <Button size="sm" variant="ghost" disabled={pending} onClick={() => sync(false)}>
-        {pending ? "Syncing…" : "Sync Strava"}
+        {pending ? "Syncing…" : `Sync ${RUN_SOURCE_LABELS[source]}`}
       </Button>
     </span>
   );
@@ -168,22 +177,10 @@ function LogRunForm({
   today: string;
   onDone: () => void;
 }) {
-  const [error, dispatch, pending] = useActionState(
-    async (_prev: string | null, formData: FormData) => {
-      const result = await logRun(formData);
-      if (result) return result.error;
-      onDone();
-      return null;
-    },
-    null,
-  );
+  const { error, pending, onSubmit } = useFormAction(logRun, { onSuccess: onDone });
   return (
     <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        const formData = new FormData(e.currentTarget);
-        startTransition(() => dispatch(formData));
-      }}
+      onSubmit={onSubmit}
       className="mb-3 grid grid-cols-2 gap-3 rounded-xl border border-border bg-surface p-3 sm:grid-cols-[11rem_6rem_7rem_9rem]"
     >
       <input type="hidden" name="clientId" value={clientId} />
@@ -198,10 +195,11 @@ function LogRunForm({
       </Field>
       <Field label="Type">
         <Select name="kind" defaultValue="easy">
-          <option value="easy">Easy</option>
-          <option value="long">Long</option>
-          <option value="workout">Workout</option>
-          <option value="race">Race</option>
+          {RUN_KINDS.map((kind) => (
+            <option key={kind} value={kind}>
+              {RUN_KIND_LABELS[kind]}
+            </option>
+          ))}
         </Select>
       </Field>
       <div className="col-span-full flex items-center gap-3">

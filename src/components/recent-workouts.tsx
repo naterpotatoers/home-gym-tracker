@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { EyeIcon } from "@/components/icons";
 import { ModalityChip } from "@/components/modality-chip";
-import { Caret, Chip, Note, recapSetClass, Section, summaryClass } from "@/components/ui";
+import { Caret, Chip, Note, Section, summaryClass } from "@/components/ui";
 import type { GymData } from "@/lib/gym-data";
 import { sessionTopLifts } from "@/lib/progress";
-import { blocksFor, describeSet, sessionsFor } from "@/lib/queries";
+import { blocksFor, sessionsFor } from "@/lib/queries";
 import type { ClientId } from "@/lib/types";
 import { completedCount } from "@/lib/session-labels";
+import { plural } from "@/lib/format";
+import { shortDayLabel, localTodayIso } from "@/lib/periods";
+import { SetRecap } from "@/components/set-recap";
 
 /**
  * One person's completed sessions as an in-place accordion list — shared by
@@ -26,6 +29,7 @@ export function RecentWorkouts({
   showTotal?: boolean;
 }) {
   const completed = sessionsFor(data, client).filter((s) => s.status === "completed");
+  const today = localTodayIso();
   const recent = completed.slice(0, limit);
 
   return (
@@ -41,7 +45,7 @@ export function RecentWorkouts({
                 <details className="group">
                   <summary className={summaryClass("rounded-md px-1 py-1.5")}>
                     <Caret />
-                    <span className="font-mono text-xs text-muted">{session.date}</span>
+                    <span className="w-24 shrink-0 text-xs text-muted">{shortDayLabel(session.date, today)}</span>
                     <span className="font-semibold">
                       {data.routineById.get(session.routineId ?? "")?.name ?? "Session"}
                     </span>
@@ -63,10 +67,10 @@ export function RecentWorkouts({
                       page's unfinished-sessions block. */}
                   <div className="mb-2 ml-5 mt-1 rounded-lg bg-background px-4 py-3">
                     <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-                      {blocksFor(data, session.id).map((block, i) => {
+                      {blocksFor(data, session.id).map((block) => {
                         const done = completedCount(block.sets);
                         return (
-                          <div key={i} className="min-w-0">
+                          <div key={block.key} className="min-w-0">
                             <h4 className="flex items-center gap-1.5 text-xs font-semibold">
                               <span className="truncate">
                                 {data.exerciseById.get(block.exerciseId)?.name ?? block.exerciseId}
@@ -76,19 +80,9 @@ export function RecentWorkouts({
                                 {done}/{block.sets.length}
                               </span>
                             </h4>
-                            <ul className="mt-1 space-y-0.5">
-                              {block.sets.map((set) => (
-                                <li key={set.id} className="flex gap-2 font-mono text-xs">
-                                  <span className="w-4 shrink-0 text-right text-muted">
-                                    {set.setNumber}.
-                                  </span>
-                                  <span className={recapSetClass(set.completed)}>
-                                    {describeSet(data, set)}
-                                    {!set.completed && " · skipped"}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
+                            <div className="mt-1">
+                              <SetRecap data={data} sets={block.sets} />
+                            </div>
                           </div>
                         );
                       })}
@@ -110,7 +104,7 @@ export function RecentWorkouts({
       )}
       {showTotal ? (
         <Note>
-          {completed.length} completed session{completed.length === 1 ? "" : "s"} total —
+          {plural(completed.length, "completed session")} total —
           tap a row for its sets.
         </Note>
       ) : (

@@ -1,10 +1,9 @@
 "use client";
 
-import { unstable_rethrow } from "next/navigation";
 import { useState } from "react";
 import { TrashIcon } from "@/components/icons";
 import { Button, ErrorText, IconButton } from "@/components/ui";
-import { errorMessage } from "@/lib/format";
+import { runAction } from "@/components/run-action";
 
 /** Confirm-guarded trash button — weigh-in rows, planned-session discards,
  *  person/program deletes. Call sites pass a bound server action; a `label`
@@ -32,11 +31,7 @@ export function ConfirmDeleteButton({
     setBusy(true);
     setError(null);
     try {
-      await action();
-    } catch (e) {
-      // Some actions redirect on success — let that through.
-      unstable_rethrow(e);
-      setError(errorMessage(e, "Delete failed."));
+      await runAction(action, setError, "Delete failed.");
     } finally {
       setBusy(false);
     }

@@ -8,6 +8,7 @@ import {
   chipClass,
   ErrorText,
   Field,
+  FOCUS_RING,
   Input,
   NumberInput,
   Select,
@@ -19,10 +20,12 @@ import { nameKey } from "@/lib/names";
 import {
   dayTotals,
   fractionLabel,
-  searchFoods,
+  macroLabel,
   type RecentFood,
+  searchFoods,
 } from "@/lib/nutrition";
 import type { ClientId, Food, FoodCategoryId, FoodLog } from "@/lib/types";
+import { shortDayLabel } from "@/lib/periods";
 
 /**
  * The Log tab's nutrition section (its day comes from the tab's shared
@@ -152,7 +155,7 @@ export function NutritionLog({
                 <button
                   type="button"
                   onClick={() => setSelected({ food, fraction: 0.5 })}
-                  className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-current/5"
+                  className={`flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-current/5 ${FOCUS_RING} focus-visible:ring-inset`}
                 >
                   {food.name}
                   <span className="ml-auto text-xs text-muted">
@@ -166,7 +169,7 @@ export function NutritionLog({
                 <button
                   type="button"
                   onClick={() => setCreating(true)}
-                  className="flex min-h-11 w-full items-center px-3 text-left text-sm font-semibold text-accent-text hover:bg-current/5"
+                  className={`flex min-h-11 w-full items-center px-3 text-left text-sm font-semibold text-accent-text hover:bg-current/5 ${FOCUS_RING} focus-visible:ring-inset`}
                 >
                   + Add “{search.trim()}” as a new food
                 </button>
@@ -275,7 +278,7 @@ export function NutritionLog({
       {/* The day so far */}
       <div>
         <h3 className="mb-1.5 text-[11px] uppercase tracking-wide text-muted">
-          {date === today ? "Today" : date}
+          {date === today ? "Today" : shortDayLabel(date, today)}
         </h3>
         {dayLogs.length === 0 ? (
           <p className="text-sm text-muted">Nothing logged yet.</p>
@@ -292,7 +295,7 @@ export function NutritionLog({
                     {Math.round(l.kcal)} kcal
                   </span>
                   <span className="shrink-0 font-mono text-xs text-muted">
-                    {Math.round(l.proteinG)}P/{Math.round(l.carbsG)}C/{Math.round(l.fatG)}F
+                    {macroLabel(l, { compact: true })}
                   </span>
                   <ConfirmDeleteButton
                     action={() => deleteFoodLog(l.id)}
@@ -306,8 +309,7 @@ export function NutritionLog({
             <p className="mt-2 border-t border-border-strong pt-2 font-mono text-sm">
               <span className="font-semibold">{Math.round(totals.kcal)} kcal</span>
               <span className="text-muted"> · </span>
-              {Math.round(totals.proteinG)}P / {Math.round(totals.carbsG)}C /{" "}
-              {Math.round(totals.fatG)}F
+              {macroLabel(totals)}
             </p>
           </>
         )}

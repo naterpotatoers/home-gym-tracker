@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
 import { blocksFor } from "./queries";
-import { cascadePatch, cascadeTargets, renumber, toBlocks } from "./set-blocks";
+import { cascadePatch, cascadeTargets, completeAsBodyweight, renumber, toBlocks } from "./set-blocks";
 import type { SetLog } from "./types";
 
 function stub(overrides: Partial<SetLog>): SetLog {
@@ -25,6 +25,7 @@ function stub(overrides: Partial<SetLog>): SetLog {
     isWarmup: false,
     completed: false,
     notes: "",
+    conditioning: null,
     ...overrides,
   };
 }
@@ -149,5 +150,35 @@ describe("cascadeTargets", () => {
     expect(cascadeTargets(sets, "s1", { completed: true })).toEqual([]);
     expect(cascadeTargets(sets, "s1", { notes: "felt easy", rir: 2 })).toEqual([]);
     expect(cascadePatch({ reps: 5, notes: "x", completed: true })).toEqual({ reps: 5 });
+  });
+});
+
+describe("completeAsBodyweight", () => {
+  const yes = () => true;
+  const db = (id: string, weightLbs: number | null, completed = false) =>
+    stub({ id, exerciseId: "calf_raise", modalityId: "dumbbell", weightLbs, completed });
+
+  it("a 0 lb dumbbell set logs as bodyweight, with the block's other 0 lb sets", () => {
+    const sets = [db("a", 0), db("b", 0), db("c", 0), stub({ id: "d" })];
+    const out = completeAsBodyweight(sets, "a", yes)!;
+    expect(out.slice(0, 3).map((s) => [s.modalityId, s.weightLbs, s.completed])).toEqual([
+      ["bodyweight", null, true],
+      ["bodyweight", null, false],
+      ["bodyweight", null, false],
+    ]);
+    expect(out[3]).toBe(sets[3]);
+    expect(toBlocks(out)).toHaveLength(2); // still one calf-raise block
+  });
+
+  it("leaves real weights alone", () => {
+    const out = completeAsBodyweight([db("a", 0), db("b", 25)], "a", yes)!;
+    expect(out[1]).toMatchObject({ modalityId: "dumbbell", weightLbs: 25 });
+  });
+
+  it("doesn't apply: real weight, blank weight, bands, or no bodyweight variant", () => {
+    expect(completeAsBodyweight([db("a", 10)], "a", yes)).toBeNull();
+    expect(completeAsBodyweight([db("a", null)], "a", yes)).toBeNull();
+    expect(completeAsBodyweight([stub({ id: "a", modalityId: "band", weightLbs: 0 })], "a", yes)).toBeNull();
+    expect(completeAsBodyweight([db("a", 0)], "a", () => false)).toBeNull();
   });
 });

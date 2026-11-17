@@ -16,21 +16,20 @@ truncate table set_logs, sessions, assignments;
 -- truncate table program_days, programs, routine_exercises, routines;
 
 -- ---------------------------------------------------------------------------
--- 3. OPTIONAL: also wipe weigh-ins. CAUTION — the app currently has no UI to
---    add weigh-ins back, and bodyweight drives bodyweight-exercise e1RMs,
---    BW+added prefills, and the ×BW comparison column. Keeping the latest
---    row per person is recommended; wipe only if you'll reinsert manually:
---    insert into weigh_ins (id, client_id, date, bodyweight_lbs)
---    values ('wi_nate_fresh', 'nate', '2026-08-03', 185);
+-- 3. OPTIONAL: also wipe weigh-ins. Bodyweight drives bodyweight-exercise
+--    e1RMs, BW+added prefills, and dumbbell-weighted pull-up loads, so log a
+--    fresh weigh-in per person afterwards (People › Tracking).
 -- ---------------------------------------------------------------------------
 -- truncate table weigh_ins;
 
 -- ---------------------------------------------------------------------------
 -- 4. OPTIONAL: also wipe people. Skip this — you just set them up with
---    colors at /users. (Wiping makes the app fall back to the read-only
---    seed roster until you add people back at /users.)
+--    colors at /users. The table still exists afterwards, so the app shows
+--    an EMPTY roster (no seed fallback — that only happens while the table is
+--    missing) until you add people back at /users. Everything with a
+--    client_id references clients, so their history goes with them:
 -- ---------------------------------------------------------------------------
--- truncate table clients;
+-- truncate table clients, runs, weigh_ins, food_logs, set_logs, sessions, assignments;
 
 -- ---------------------------------------------------------------------------
 -- 5. OPTIONAL: also wipe the exercise catalog. Because the tables still

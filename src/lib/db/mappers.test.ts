@@ -9,7 +9,7 @@ import {
 import { foods } from "../data/foods";
 import { assignments, programDays, programs, routines } from "../data/programs";
 import { sessions, setLogs } from "../data/sessions";
-import type { FoodLog } from "../types";
+import type { FoodLog, Run } from "../types";
 import {
   assignmentToRow,
   clientToRow,
@@ -29,6 +29,8 @@ import {
   rowToExerciseMuscleScore,
   rowToFood,
   rowToFoodLog,
+  rowToRun,
+  runToRow,
   rowToProgram,
   rowToProgramDay,
   rowToRoutine,
@@ -90,6 +92,23 @@ describe("mapper round-trips (row ↔ type symmetry)", () => {
     }
   });
 
+  it("conditioning: round-trips, and stays off strength rows (un-migrated DBs)", () => {
+    const strength = setLogs[0];
+    expect(Object.keys(setLogToRow(strength))).not.toContain("avg_watts");
+    const bike = {
+      ...strength,
+      exerciseId: "echo_bike",
+      modalityId: "cardio" as const,
+      conditioning: { intervalScheme: "8x20/10", targetWatts: null, targetRpm: 55, avgWatts: 120, maxWatts: 300, avgRpm: 58, calories: 30 },
+    };
+    expect(rowToSetLog(setLogToRow(bike))).toEqual(bike);
+    // A bike set with nothing entered reads back as null — same thing.
+    const blank = { ...bike, conditioning: { intervalScheme: null, targetWatts: null, targetRpm: null, avgWatts: null, maxWatts: null, avgRpm: null, calories: null } };
+    expect(rowToSetLog(setLogToRow(blank)).conditioning).toBeNull();
+    const rx = { ...careRoutineExercises[0], conditioning: { intervalScheme: null, targetWatts: 150, targetRpm: null } };
+    expect(rowToRoutineExercise(routineExerciseToRow(rx))).toEqual(rx);
+  });
+
   it("clients and weigh-ins", () => {
     for (const c of clients) expect(rowToClient(clientToRow(c))).toEqual(c);
     for (const w of weighIns) expect(rowToWeighIn(weighInToRow(w))).toEqual(w);
@@ -130,5 +149,25 @@ describe("mapper round-trips (row ↔ type symmetry)", () => {
   it("nutrition", () => {
     for (const f of foods) expect(rowToFood(foodToRow(f))).toEqual(f);
     expect(rowToFoodLog(foodLogToRow(foodLogFixture))).toEqual(foodLogFixture);
+  });
+
+  it("runs (every source)", () => {
+    for (const source of ["manual", "strava", "garmin"] as const) {
+      const run: Run = {
+        id: `run_${source}`,
+        clientId: "nate",
+        date: "2026-11-14",
+        distanceMiles: 5.02,
+        durationSeconds: 2820,
+        kind: "long",
+        avgHeartRate: source === "manual" ? null : 151,
+        elevationGainFt: source === "manual" ? null : 164,
+        name: "Morning Run",
+        source,
+        externalId: source === "manual" ? null : `${source}:1`,
+        notes: "felt good",
+      };
+      expect(rowToRun(runToRow(run))).toEqual(run);
+    }
   });
 });

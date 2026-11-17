@@ -6,7 +6,7 @@ import { TrashIcon } from "@/components/icons";
 import { Select, StepperInput } from "@/components/ui";
 import { bands } from "@/lib/data/equipment";
 import { describePlates, formatPlates, weightStep } from "@/lib/loading";
-import { bandLabel } from "@/lib/queries";
+import { loadLabel } from "@/lib/session-labels";
 import type { BandId, BandRole, MetricType, SetLog } from "@/lib/types";
 
 /**
@@ -296,13 +296,15 @@ function Captioned({ caption, children }: { caption: string; children: React.Rea
 /** The compact row's text — load as entered (dumbbells per hand, bands by
  *  color, hip bands never in pounds) × the metric. */
 function summary(set: SetLog, timed: boolean, distance: boolean): string {
-  let load = "";
-  if (set.modalityId === "band") load = set.bandId ? `${bandLabel(set)} band` : "band?";
-  else if (set.modalityId === "bodyweight") {
-    load = set.addedWeightLbs ? `BW+${set.addedWeightLbs}` : "BW";
-  } else {
-    load = set.weightLbs === null ? "— lb" : `${set.weightLbs} lb${set.modalityId === "dumbbell" ? " ea" : ""}`;
-  }
+  const entered = loadLabel(set, { verbose: true });
+  const load =
+    entered === null
+      ? set.modalityId === "band"
+        ? "band?"
+        : "— lb"
+      : set.modalityId === "dumbbell"
+        ? `${entered} ea`
+        : entered;
   const amount = timed
     ? `${set.durationSeconds ?? "—"}s`
     : distance

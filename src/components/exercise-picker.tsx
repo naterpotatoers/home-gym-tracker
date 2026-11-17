@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ModalityChip } from "@/components/modality-chip";
 import { Button, Input } from "@/components/ui";
-import { PATTERN_LABELS, PATTERN_ORDER } from "@/lib/exercise-catalog";
+import { useEscape } from "@/components/use-escape";
+import { groupBy, PATTERN_LABELS, PATTERN_ORDER, variantKey } from "@/lib/exercise-catalog";
 import type { Variant } from "@/lib/queries";
 import type { SwapSuggestion } from "@/lib/similar";
 import type { MovementPattern } from "@/lib/types";
@@ -44,21 +45,12 @@ export function ExercisePicker({
     () => typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches,
   );
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   const recent = useMemo(() => {
     if (!recentKeys || recentKeys.length === 0 || search.trim()) return [];
     const byKey = new Map(
-      variants.map((v) => [
-        `${v.exerciseModality.exerciseId}|${v.exerciseModality.modalityId}`,
-        v,
-      ]),
+      variants.map((v) => [variantKey(v.exerciseModality.exerciseId, v.exerciseModality.modalityId), v]),
     );
     return recentKeys.map((key) => byKey.get(key)).filter((v): v is Variant => !!v);
   }, [recentKeys, variants, search]);
@@ -74,13 +66,7 @@ export function ExercisePicker({
         )
       : variants;
 
-    const byPattern = new Map<MovementPattern, Variant[]>();
-    for (const variant of filtered) {
-      const pattern = variant.pattern;
-      const existing = byPattern.get(pattern);
-      if (existing) existing.push(variant);
-      else byPattern.set(pattern, [variant]);
-    }
+    const byPattern = groupBy(filtered, (v) => v.pattern);
     const order = emphasizePattern
       ? [emphasizePattern, ...PATTERN_ORDER.filter((p) => p !== emphasizePattern)]
       : PATTERN_ORDER;
@@ -97,6 +83,9 @@ export function ExercisePicker({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Pick an exercise"
         className="h-dvh w-full overflow-y-auto bg-surface p-4 sm:h-auto sm:max-h-[80vh] sm:max-w-lg sm:rounded-xl sm:border sm:border-border sm:shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >

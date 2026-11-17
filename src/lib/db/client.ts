@@ -10,9 +10,11 @@ import { createClient } from "@supabase/supabase-js";
  * every page that awaits the snapshot request-time dynamic — correct now that
  * the data mutates.
  */
+/** Deliberately NOT `NEXT_PUBLIC_`-prefixed: the key never inlines into a
+ *  browser bundle, even by an accidental client-side reference. */
 export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_PUBLISHABLE_KEY!,
   {
     auth: { persistSession: false },
     global: {

@@ -4,15 +4,22 @@ import { useState } from "react";
 import { PlusIcon, SwapIcon, TrashIcon } from "@/components/icons";
 import { ModalityChip } from "@/components/modality-chip";
 import { OverflowMenu } from "@/components/overflow-menu";
+import { ConditioningSetRow } from "@/components/conditioning-set-row";
 import { SetRow } from "@/components/set-row";
 import { Button } from "@/components/ui";
 import type { SessionFlow, SetEditor } from "@/components/use-session-flow";
-import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
+import { exerciseLookup, variantKey, type ExerciseCatalog } from "@/lib/exercise-catalog";
+import { pieceLabel } from "@/lib/conditioning";
 import { mmss, shortDayLabel } from "@/lib/periods";
 import type { VariantSessionSummary } from "@/lib/progress";
-import { completedCount, rxLabel, upcomingFoldIndex } from "@/lib/session-labels";
+import {
+  completedCount,
+  prescriptionFor,
+  rxLabel,
+  upcomingFoldIndex,
+} from "@/lib/session-labels";
 import type { Block } from "@/lib/set-blocks";
-import type { RoutineExercise } from "@/lib/types";
+import type { RoutineExercise, SetLog } from "@/lib/types";
 
 /** The "rest m:ss" / "ready" status pair — same chips on the solo runner's
  *  header and each group-board card. */
@@ -64,7 +71,7 @@ export function SessionBlockList({
 }) {
   const { current, currentBlock, shownKey, supersets } = flow;
   const { exerciseById, modalitiesByExercise } = exerciseLookup(catalog);
-  const keyOf = (b: Block) => `${b.exerciseId}|${b.modalityId}`;
+  const keyOf = (b: Block) => variantKey(b.exerciseId, b.modalityId);
   // A tapped row stays open until the cursor moves (a LOG advances
   // it); then the new current set is the active one again.
   const [picked, setPicked] = useState<{ cursor: string | undefined; id: string } | null>(null);
@@ -88,6 +95,7 @@ export function SessionBlockList({
       <ul className="@container space-y-1.5">
         {shownBlocks.map((block, index) => {
           const exercise = exerciseById.get(block.exerciseId);
+          const isBike = exercise?.pattern === "conditioning";
           const blockBandRoles =
             modalitiesByExercise
               .get(block.exerciseId)
@@ -96,9 +104,7 @@ export function SessionBlockList({
           const blockDone = done === block.sets.length;
           const isCurrent = block === currentBlock;
           const isExpanded = block.key === shownKey;
-          const rx = prescriptions.find(
-            (p) => p.exerciseId === block.exerciseId && p.modalityId === block.modalityId,
-          );
+          const rx = prescriptionFor(prescriptions, block);
           // Adjacent blocks sharing a superset label render visually joined —
           // matching performOrder, which only interleaves adjacent runs.
           const label = supersets.get(keyOf(block));
@@ -194,35 +200,49 @@ export function SessionBlockList({
                   ]}
                 />
               </div>
-              {rx && <p className="mt-0.5 text-xs text-muted">{rxLabel(rx)}</p>}
+              {/* A bike row's target is only the starting default — each person's
+                  own target is on their piece below, so it isn't repeated here. */}
+              {rx && (
+                <p className="mt-0.5 text-xs text-muted">
+                  {isBike
+                    ? `${pieceLabel(rx.conditioning?.intervalScheme ?? null, rx.durationSeconds)} · rest ${rx.restSeconds}s`
+                    : rxLabel(rx)}
+                </p>
+              )}
 
               <LastTime sessions={history[keyOf(block)] ?? []} />
 
               {/* Editable sets */}
               <div className="mt-1.5">
-                {block.sets.map((set) => (
-                  <SetRow
-                    key={set.id}
-                    set={set}
-                    dense={dense}
-                    metricType={exercise?.metricType ?? "reps"}
-                    bandRoles={blockBandRoles}
-                    onChange={(changes) => editor.patchSet(set.id, changes)}
-                    onLog={({ relog }) =>
+                {block.sets.map((set) => {
+                  const rowProps = {
+                    set,
+                    dense,
+                    onChange: (changes: Partial<SetLog>) => editor.patchSet(set.id, changes),
+                    onLog: ({ relog }: { relog: boolean }) =>
                       relog
                         ? flow.logSet(set.id, { rest: false })
                         : set.id === current?.id
                           ? flow.logCurrent()
-                          : flow.logSet(set.id)
-                    }
-                    onRemove={() => flow.removeSetKeepingCursor(set.id)}
-                    active={set.id === activeSetId}
-                    onActivate={() => setPicked({ cursor: current?.id, id: set.id })}
-                    logDisabled={editor.busy}
-                  />
-                ))}
+                          : flow.logSet(set.id),
+                    onRemove: () => flow.removeSetKeepingCursor(set.id),
+                    active: set.id === activeSetId,
+                    onActivate: () => setPicked({ cursor: current?.id, id: set.id }),
+                    logDisabled: editor.busy,
+                  };
+                  return isBike ? (
+                    <ConditioningSetRow key={set.id} {...rowProps} />
+                  ) : (
+                    <SetRow
+                      key={set.id}
+                      {...rowProps}
+                      metricType={exercise?.metricType ?? "reps"}
+                      bandRoles={blockBandRoles}
+                    />
+                  );
+                })}
                 <Button size="sm" variant="ghost" onClick={() => editor.addSet(block)}>
-                  <PlusIcon size={14} /> Add set
+                  <PlusIcon size={14} /> {isBike ? "Add piece" : "Add set"}
                 </Button>
               </div>
             </li>
@@ -300,7 +320,7 @@ function LastTime({ sessions }: { sessions: VariantSessionSummary[] }) {
       </div>
       {showEarlier &&
         earlier.map((s) => (
-          <div key={s.date} className="flex flex-wrap items-center gap-1">
+          <div key={s.sessionId} className="flex flex-wrap items-center gap-1">
             <span className="mr-0.5 text-xs text-muted">{shortDayLabel(s.date)}</span>
             {chips(s)}
           </div>

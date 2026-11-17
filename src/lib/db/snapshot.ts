@@ -10,6 +10,7 @@ import {
 import { seedSnapshot } from "../data/seed-snapshot";
 import { buildGymData, type GymData } from "../gym-data";
 import { supabase } from "./client";
+import { isMissingTable } from "./guards";
 import { fetchAllPages } from "./paging";
 import {
   rowToAssignment,
@@ -29,7 +30,7 @@ import {
   rowToWeighIn,
 } from "./mappers";
 
-/** PostgREST's code for "table does not exist" — the migration hasn't run. */
+/** A table that doesn't exist yet — its migration hasn't run. */
 class TablesMissingError extends Error {}
 
 /** For tables with their own fallback tier: missing table → null, so the
@@ -46,12 +47,16 @@ async function fetchAll(table: string, orderBy: readonly string[]) {
     let query = supabase.from(table).select("*");
     for (const column of orderBy) query = query.order(column);
     const { data, error } = await query.range(from, to);
-    if (error?.code === "PGRST205") {
-      throw new TablesMissingError(`table ${table} missing`);
-    }
+    if (isMissingTable(error)) throw new TablesMissingError(`table ${table} missing`);
     if (error) throw new Error(`loading ${table}: ${error.message}`);
     return data;
   });
+}
+
+/** Map a fallback-tier table's rows, or serve `fallback` while the table is
+ *  missing (null from nullIfMissing). */
+function mapOr<R, T>(rows: R[] | null, map: (row: R) => T, fallback: readonly T[]): readonly T[] {
+  return rows === null ? fallback : rows.map(map);
 }
 
 /**
@@ -84,8 +89,9 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       modalityRows,
       runRows,
     ] = await Promise.all([
-      // Clients get their own fallback: null means migration 002 hasn't run
-      // yet, and the TS seed roster serves read-only.
+      // Clients get their own fallback: null means the clients table doesn't
+      // exist yet (schema.sql not applied), and the TS seed roster serves
+      // read-only.
       fetchAll("clients", ["first_name", "id"]).catch(nullIfMissing),
       fetchAll("routines", ["id"]),
       fetchAll("routine_exercises", ["routine_id", "sort_order"]),
@@ -117,7 +123,7 @@ export const loadGymData = cache(async (): Promise<GymData> => {
     return buildGymData({
       source: "database",
       clientsSource: clientRows === null ? "seed" : "database",
-      clients: clientRows === null ? seedClients : clientRows.map(rowToClient),
+      clients: mapOr(clientRows, rowToClient, seedClients),
       routines: routines.map(rowToRoutine),
       routineExercises: routineExercises.map(rowToRoutineExercise),
       programs: programs.map(rowToProgram),
@@ -127,20 +133,22 @@ export const loadGymData = cache(async (): Promise<GymData> => {
       setLogs: setLogs.map(rowToSetLog),
       weighIns: weighIns.map(rowToWeighIn),
       nutritionSource: foodRows === null || foodLogRows === null ? "missing" : "database",
-      foods: foodRows === null ? [] : foodRows.map(rowToFood),
-      foodLogs: foodLogRows === null ? [] : foodLogRows.map(rowToFoodLog),
+      foods: mapOr(foodRows, rowToFood, []),
+      foodLogs: mapOr(foodLogRows, rowToFoodLog, []),
       runsSource: runRows === null ? "missing" : "database",
-      runs: runRows === null ? [] : runRows.map(rowToRun),
+      runs: mapOr(runRows, rowToRun, []),
       exercisesSource: exercisesMissing ? "seed" : "database",
-      exercises: exercisesMissing
-        ? seedExercises
-        : exerciseRows.map(rowToExercise),
-      exerciseMuscleScores: exercisesMissing
-        ? seedExerciseMuscleScores
-        : scoreRows.map(rowToExerciseMuscleScore),
-      exerciseModalities: exercisesMissing
-        ? seedExerciseModalities
-        : modalityRows.map(rowToExerciseModality),
+      exercises: mapOr(exercisesMissing ? null : exerciseRows, rowToExercise, seedExercises),
+      exerciseMuscleScores: mapOr(
+        exercisesMissing ? null : scoreRows,
+        rowToExerciseMuscleScore,
+        seedExerciseMuscleScores,
+      ),
+      exerciseModalities: mapOr(
+        exercisesMissing ? null : modalityRows,
+        rowToExerciseModality,
+        seedExerciseModalities,
+      ),
     });
   } catch (error) {
     // Bootstrap fallback ONLY for "the migration hasn't run yet": the app

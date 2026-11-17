@@ -3,7 +3,11 @@ import { buildGymData } from "./gym-data";
 import { seedSnapshot } from "./data/seed-snapshot";
 import { hmmss, parseDuration } from "./periods";
 import {
+  isGarminRun,
+  isSameRun,
   kindFromStrava,
+  planRunSync,
+  runFromGarmin,
   paceLabel,
   runFromActivity,
   runnerSummary,
@@ -75,17 +79,17 @@ describe("weekly tallies", () => {
   });
 
   it("summarizes this week's runs by weekday", () => {
-    const summary = runnerSummary(data, "nate", "2026-11-08", true);
+    const summary = runnerSummary(data, "nate", "2026-11-08", ["strava"]);
     expect(summary.weekRuns).toBe(3);
     expect(summary.weekMiles).toBe("16.5 mi");
     expect(summary.weekly).toHaveLength(6);
     expect(summary.recent.map((r) => r.dayLabel)).toEqual(["Sat", "Thu", "Tue"]);
-    expect(summary.recent[0]).toMatchObject({ kindLabel: "Long", miles: "7.0 mi", fromStrava: false });
-    expect(summary.strava).toBe(true);
+    expect(summary.recent[0]).toMatchObject({ kindLabel: "Long", miles: "7.0 mi", source: "manual" });
+    expect(summary.syncSources).toEqual(["strava"]);
   });
 
   it("falls back to the latest runs, by date, in a week without any", () => {
-    const summary = runnerSummary(data, "nate", "2026-11-12", false, 2);
+    const summary = runnerSummary(data, "nate", "2026-11-12", [], 2);
     expect(summary.weekRuns).toBe(0);
     expect(summary.recent.map((r) => r.id)).toEqual(["c", "b"]);
     expect(summary.recent[0].dayLabel).not.toBe("Sat");
@@ -126,5 +130,84 @@ describe("runFromActivity", () => {
       externalId: "strava:12345",
       source: "strava",
     });
+  });
+});
+
+describe("Garmin import", () => {
+  const activity = {
+    activityId: 123,
+    activityName: "Morning Run",
+    startTimeLocal: "2026-11-14 07:05:00",
+    activityType: { typeKey: "trail_running" },
+    distance: 8046.72,
+    duration: 2900,
+    movingDuration: 2820.4,
+    elevationGain: 50,
+    averageHR: 151.6,
+  };
+
+  it("keeps running types with distance and time; drops the rest", () => {
+    expect(isGarminRun(activity)).toBe(true);
+    expect(isGarminRun({ ...activity, activityType: { typeKey: "treadmill_running" } })).toBe(true);
+    expect(isGarminRun({ ...activity, activityType: { typeKey: "cycling" } })).toBe(false);
+    expect(isGarminRun({ ...activity, distance: 0 })).toBe(false);
+    expect(isGarminRun({ ...activity, activityType: undefined })).toBe(false);
+  });
+
+  it("maps to a run: local date, moving time, miles, garmin external id", () => {
+    expect(runFromGarmin(activity, "nate")).toMatchObject({
+      date: "2026-11-14",
+      distanceMiles: 5,
+      durationSeconds: 2820,
+      avgHeartRate: 152,
+      elevationGainFt: 164,
+      source: "garmin",
+      externalId: "garmin:123",
+      kind: "easy",
+    });
+    expect(runFromGarmin({ ...activity, movingDuration: undefined }, "nate").durationSeconds).toBe(2900);
+  });
+});
+
+describe("cross-source dedupe", () => {
+  const base = { date: "2026-11-14", distanceMiles: 5, durationSeconds: 2820 };
+
+  it("isSameRun tolerates watch-vs-app rounding only", () => {
+    expect(isSameRun(base, { ...base, distanceMiles: 5.08, durationSeconds: 2870 })).toBe(true);
+    expect(isSameRun(base, { ...base, distanceMiles: 5.2 })).toBe(false);
+    expect(isSameRun(base, { ...base, durationSeconds: 2950 })).toBe(false);
+    expect(isSameRun(base, { ...base, date: "2026-11-15" })).toBe(false);
+  });
+
+  it("planRunSync: refresh known, skip other-source twins, insert the rest", () => {
+    const run = (externalId: string, over = {}) => ({
+      clientId: "nate",
+      kind: "easy" as const,
+      avgHeartRate: null,
+      elevationGainFt: null,
+      name: "",
+      source: "garmin" as const,
+      externalId,
+      notes: "",
+      ...base,
+      ...over,
+    });
+    const plan = planRunSync(
+      [run("garmin:1"), run("garmin:2"), run("garmin:3", { date: "2026-11-15" })],
+      new Map([["garmin:1", "run_a"]]),
+      [{ ...base, source: "strava" }],
+    );
+    expect(plan.known.map((k) => k.id)).toEqual(["run_a"]);
+    expect(plan.duplicates).toBe(1);
+    expect(plan.fresh.map((r) => r.externalId)).toEqual(["garmin:3"]);
+  });
+
+  it("never treats a same-source run as a twin", () => {
+    const plan = planRunSync(
+      [{ ...base, clientId: "nate", kind: "easy", avgHeartRate: null, elevationGainFt: null, name: "", source: "garmin", externalId: "garmin:9", notes: "" }],
+      new Map(),
+      [{ ...base, source: "garmin" }],
+    );
+    expect(plan.fresh).toHaveLength(1);
   });
 });

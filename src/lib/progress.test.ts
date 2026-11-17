@@ -7,7 +7,6 @@ import {
   liftOverview,
   primaryMuscle,
   recentVariantHistory,
-  trendSegment,
   type ExerciseHistoryPoint,
 } from "./progress";
 
@@ -68,19 +67,6 @@ describe("e1rmTrend guards", () => {
     const trend = e1rmTrend(history)!;
     expect(trend.slopePerWeek).toBeLessThan(0);
     expect(trend.projected8wkLbs).toBe(0);
-  });
-
-  it("trendSegment endpoints match the fit and projections", () => {
-    const history = [0, 7, 14, 28].map((d) =>
-      point(`2026-06-${String(d + 1).padStart(2, "0")}`, 200 + d),
-    );
-    const trend = e1rmTrend(history)!;
-    const seg = trendSegment(trend);
-    expect(seg.fromDate).toBe(trend.windowTo);
-    expect(seg.fromY).toBeCloseTo(trend.fittedLastLbs, 6);
-    expect(seg.toY).toBeCloseTo(trend.projected8wkLbs, 6);
-    // +56 days in UTC
-    expect(seg.toDate).toBe("2026-08-24");
   });
 });
 

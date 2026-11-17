@@ -10,22 +10,8 @@ import { startGroupFromForm } from "@/lib/actions/group";
 import { restartAssignment, updateAssignmentStatus } from "@/lib/actions/programs";
 import { errorMessage } from "@/lib/format";
 import { discardSession } from "@/lib/actions/workout";
-
-/** One person on the launcher — plain data only (it crosses the server →
- *  client boundary). Option values are what startGroupFromForm parses:
- *  `resume:<sessionId>` or `<routineId>|<assignmentId-or-empty>`. */
-export type LauncherRow = {
-  clientId: string;
-  firstName: string;
-  color: string | null;
-  /** `group` becomes an <optgroup>; options arrive already in group order. */
-  options: { value: string; label: string; group: string }[];
-  defaultPlan: string;
-  defaultChecked: boolean;
-  unfinished: { id: string; name: string; date: string }[];
-  /** The active program has run its length — prompt instead of serving it. */
-  finishedProgram: { assignmentId: string; programName: string } | null;
-};
+import { type LauncherRow, parsePlanValue } from "@/lib/launcher";
+import { shortDayLabel } from "@/lib/periods";
 
 /** Consecutive runs of options sharing a group label, in order. */
 function grouped(options: LauncherRow["options"]) {
@@ -65,7 +51,7 @@ export function WorkoutLauncher({ rows }: { rows: LauncherRow[] }) {
     selected.length === 0
       ? "Pick who's training"
       : selected.length === 1
-        ? `${plans[selected[0].clientId]?.startsWith("resume:") ? "Resume" : "Start"} ${selected[0].firstName}'s workout`
+        ? `${parsePlanValue(plans[selected[0].clientId] ?? "")?.kind === "resume" ? "Resume" : "Start"} ${selected[0].firstName}'s workout`
         : `Start group workout (${selected.length})`;
 
   return (
@@ -129,12 +115,12 @@ export function WorkoutLauncher({ rows }: { rows: LauncherRow[] }) {
               {row.unfinished.map((s) => (
                 <div key={s.id} className="mt-1 flex items-center gap-2 text-xs text-muted">
                   <span className="truncate">
-                    Unfinished: {s.name} <span className="font-mono">({s.date})</span>
+                    Unfinished: {s.name} ({shortDayLabel(s.date)})
                   </span>
                   <ConfirmDeleteButton
                     action={discardSession.bind(null, s.id)}
-                    confirmText={`Discard ${s.name} (${s.date})? Any sets already logged in it are deleted.`}
-                    ariaLabel={`Discard ${s.name} (${s.date})`}
+                    confirmText={`Discard ${s.name} (${shortDayLabel(s.date)})? Any sets already logged in it are deleted.`}
+                    ariaLabel={`Discard ${s.name} (${shortDayLabel(s.date)})`}
                     className="ml-auto text-danger-text"
                   />
                 </div>

@@ -1,28 +1,13 @@
 import Link from "next/link";
 import { ArrowLeftIcon, PlusIcon } from "@/components/icons";
-import {
-  buttonClass,
-  Card,
-  Caret,
-  chipClass,
-  Note,
-  PageShell,
-  summaryClass,
-} from "@/components/ui";
-import {
-  importSeedExercises,
-  resyncSeedCatalogScores,
-} from "@/lib/actions/exercises";
+import { backLinkClass, buttonClass, Card, Caret, Note, PageShell, summaryClass } from "@/components/ui";
+import { importSeedExercises, resyncSeedCatalogScores } from "@/lib/actions/exercises";
 import { exercises as seedExercises } from "@/lib/data/exercises";
 import { modalityById } from "@/lib/data/modalities";
 import { MUSCLE_GROUP_COLORS } from "@/lib/data/muscles";
 import { loadGymData } from "@/lib/db/snapshot";
 import { primaryMuscle } from "@/lib/progress";
-import {
-  catalogSlice,
-  PATTERN_LABELS,
-  PATTERN_ORDER,
-} from "@/lib/exercise-catalog";
+import { catalogSlice, PATTERN_LABELS, PATTERN_ORDER } from "@/lib/exercise-catalog";
 import { AddExerciseForm } from "./_components/add-exercise-form";
 import { ExerciseEditor } from "./_components/exercise-editor";
 import { ExerciseTable, type ExerciseTableRow } from "./_components/exercise-table";
@@ -129,7 +114,7 @@ export default async function ExercisesPage({
   const backLink = (
     <GuardedLink
       href="/exercises"
-      className={chipClass(false, "min-h-9 pointer-coarse:min-h-11 px-2.5 text-xs")}
+      className={backLinkClass}
     >
       <ArrowLeftIcon size={14} /> Library
     </GuardedLink>

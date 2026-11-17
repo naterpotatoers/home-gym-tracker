@@ -3,33 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { GroupPersonCard } from "@/components/group-person-card";
-import { ArrowLeftIcon } from "@/components/icons";
-import { chipClass, ColorDot } from "@/components/ui";
+import { BackLink, chipClass, ColorDot } from "@/components/ui";
 import { useSessionClock } from "@/components/use-session-clock";
 import { useWakeLock } from "@/components/use-wake-lock";
 import type { ExerciseCatalog } from "@/lib/exercise-catalog";
-import type { VariantSessionSummary } from "@/lib/progress";
+import type { LivePerson } from "@/lib/live-session";
 import type { Variant } from "@/lib/queries";
-import type { RoutineExercise, Session, SetLog } from "@/lib/types";
-import type { FinisherOption } from "@/lib/care";
 
-export type BoardPerson = {
-  session: Session;
-  initialSets: SetLog[];
-  prescriptions: RoutineExercise[];
-  clientName: string;
-  routineName: string;
-  /** Preset swatch hex from the person's profile — tints their card. */
-  color: string | null;
-  /** This person's recently trained variants, for the picker's Recent group. */
-  recentKeys?: string[];
-  /** Last sessions per variant, for each block's "Last" line. */
-  history?: Record<string, VariantSessionSummary[]>;
-  /** The session was already completed when the page rendered. */
-  finished: boolean;
-  /** "Continue your workout?" add-ons, suggested first. */
-  finishers: FinisherOption[];
-};
+export type BoardPerson = LivePerson;
 
 /** What a card reports up for the portrait person tabs. */
 export type CardStatus = {
@@ -99,9 +80,7 @@ export function GroupBoard({
     // Focus mode: hides the app nav while the board is up (globals.css).
     <div data-focus-mode>
       <div className="mb-3 flex items-center gap-3">
-        <Link href="/" className={chipClass(false, "min-h-9 pointer-coarse:min-h-11 px-2.5 text-xs")}>
-          <ArrowLeftIcon size={14} /> Exit
-        </Link>
+        <BackLink href="/">Exit</BackLink>
         <h1 className="text-lg font-bold tracking-tight">Group board</h1>
         <span className="font-mono text-xs text-muted">{elapsedMinutes} min</span>
         {allDone && (

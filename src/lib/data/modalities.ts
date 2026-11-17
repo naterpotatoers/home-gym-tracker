@@ -21,6 +21,7 @@ export const MODALITY_COLORS: Record<import("../types").ModalityId, string> = {
   bodyweight: "#14b8a6",
   band: "#f97316",
   machine: "#06b6d4",
+  cardio: "#ec4899",
 };
 
 export const modalities: readonly Modality[] = [
@@ -69,6 +70,15 @@ export const modalities: readonly Modality[] = [
       { muscleId: "abs", delta: -2 },
       { muscleId: "forearms", delta: -1 },
     ],
+  },
+  {
+    id: "cardio",
+    name: "Cardio machine",
+    owned: true,
+    // Bike/rower work: measured in watts and RPM, never pounds, and it adds
+    // nothing to the muscle map (conditioning exercises carry no scores).
+    seedLoadFactor: null,
+    muscleModifiers: [],
   },
 ];
 

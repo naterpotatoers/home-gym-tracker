@@ -55,7 +55,8 @@ export type ModalityId =
   | "dumbbell"
   | "bodyweight"
   | "band"
-  | "machine";
+  | "machine"
+  | "cardio";
 
 export type EquipmentId =
   | "rack"
@@ -71,7 +72,8 @@ export type EquipmentId =
   | "bench_decline"
   | "monster_bands"
   | "hip_bands"
-  | "floor";
+  | "floor"
+  | "echo_bike";
 
 export type BandId =
   | "band_orange"
@@ -96,7 +98,8 @@ export type ClientId = string;
 // ---------------------------------------------------------------------------
 
 /** Broad movement classification. `isolation` covers single-joint accessory
- *  work; `mobility` is deliberately excluded from all volume math. */
+ *  work; `mobility` and `conditioning` (bike/cardio pieces) are deliberately
+ *  excluded from all volume math. */
 export type MovementPattern =
   | "squat"
   | "hinge"
@@ -108,7 +111,8 @@ export type MovementPattern =
   | "carry"
   | "core"
   | "isolation"
-  | "mobility";
+  | "mobility"
+  | "conditioning";
 
 /** What the reps column means for this exercise. */
 export type MetricType = "reps" | "time" | "distance";
@@ -337,6 +341,10 @@ export type RunKind = "easy" | "long" | "workout" | "race";
 
 /** One run. Kept apart from sessions/set_logs: distance × time with a pace,
  *  never sets, reps or load, and never counted as lifting volume. */
+/** Where a run came from. Imports are read-only in the app (their source
+ *  owns them); only manual runs can be deleted. */
+export type RunSource = "manual" | "strava" | "garmin";
+
 export type Run = {
   id: string;
   clientId: ClientId;
@@ -349,8 +357,8 @@ export type Run = {
   avgHeartRate: number | null;
   elevationGainFt: number | null;
   name: string;
-  source: "manual" | "strava";
-  /** "strava:<activity id>" for imports — the re-sync dedupe key. */
+  source: RunSource;
+  /** "strava:<id>" / "garmin:<id>" for imports — the re-sync dedupe key. */
   externalId: string | null;
   notes: string;
 };
@@ -466,6 +474,26 @@ export type SetLog = {
   isWarmup: boolean;
   completed: boolean;
   notes: string;
+  /** Conditioning pieces only (Echo Bike): the target and the console's
+   *  readout. Null on strength sets — and on a conditioning set with nothing
+   *  entered yet, so read it through `conditioningOf`. */
+  conditioning: ConditioningLog | null;
+};
+
+/** "<rounds>x<work s>/<rest s>" ("8x20/10"); null = a steady piece timed by
+ *  durationSeconds. */
+export type ConditioningTarget = {
+  intervalScheme: string | null;
+  targetWatts: number | null;
+  targetRpm: number | null;
+};
+
+/** What the console shows after STOP (distance lives in SetLog.distanceFeet). */
+export type ConditioningLog = ConditioningTarget & {
+  avgWatts: number | null;
+  maxWatts: number | null;
+  avgRpm: number | null;
+  calories: number | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -498,6 +526,9 @@ export type RoutineExercise = {
   /** Shared label pairs exercises into a superset. */
   supersetGroup: string | null;
   notes: string;
+  /** Conditioning rows only: the interval scheme and default target (each
+   *  person's own target rolls forward from their last piece). */
+  conditioning: ConditioningTarget | null;
 };
 
 export type Program = {

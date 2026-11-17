@@ -5,6 +5,7 @@ import { useState } from "react";
 import { SortableTable, type SortableRow } from "@/components/sortable-table";
 import { ColorDot, Input, Select } from "@/components/ui";
 import { nameKey } from "@/lib/names";
+import { plural } from "@/lib/format";
 
 /** One catalog row — plain data, built on the server. */
 export type ExerciseTableRow = {
@@ -99,7 +100,7 @@ export function ExerciseTable({
           ))}
         </Select>
         <span className="text-xs text-muted">
-          {shown.length} {shown.length === 1 ? "exercise" : "exercises"}
+          {plural(shown.length, "exercise")}
         </span>
       </div>
 

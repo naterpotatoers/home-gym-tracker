@@ -51,6 +51,12 @@ export function exerciseLookup(catalog: ExerciseCatalog): ExerciseLookup {
   return lookup;
 }
 
+/** The one spelling of an exercise × modality variant as a string key —
+ *  picker keys, superset maps, history lookups. */
+export function variantKey(exerciseId: string, modalityId: string): string {
+  return `${exerciseId}|${modalityId}`;
+}
+
 export function groupBy<T, K>(rows: readonly T[], key: (row: T) => K): Map<K, T[]> {
   const out = new Map<K, T[]>();
   for (const row of rows) {
@@ -77,9 +83,16 @@ export const PATTERN_LABELS: Record<MovementPattern, string> = {
   core: "Core",
   isolation: "Isolation",
   mobility: "Mobility",
+  conditioning: "Conditioning",
 };
 
 export const PATTERN_ORDER = Object.keys(PATTERN_LABELS) as MovementPattern[];
+
+/** False for stretches (`mobility`) and bike/cardio pieces (`conditioning`):
+ *  no muscle scores, no pounds, never in volume, e1RM or the heat map. */
+export function isStrengthPattern(pattern: MovementPattern | undefined): boolean {
+  return pattern !== "mobility" && pattern !== "conditioning";
+}
 
 /** Display labels for metric types — same compile-error guarantee. */
 export const METRIC_LABELS: Record<MetricType, string> = {

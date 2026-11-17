@@ -119,22 +119,6 @@ export function describePlates(breakdown: PlateBreakdown): string {
   return `${breakdown.perSideLbs.join(" + ")} per side`;
 }
 
-/**
- * Smallest possible increase from a given weight — 2.5 lb on either bar with
- * the change plates. Worth surfacing next to a prescription, since fixed
- * dumbbells step 10 lb total and the barbell now steps 2.5 lb.
- */
-export function smallestIncrement(barId: BarId = "ohio_bar"): number | null {
-  const weights = loadableWeights(barId);
-  if (weights.length < 2) return null;
-  let min = Infinity;
-  for (let i = 1; i < weights.length; i++) {
-    min = Math.min(min, weights[i] - weights[i - 1]);
-  }
-  return min;
-}
-
-
 /** The ± stepper increment for a set's weight field (per implement for
  *  dumbbells, added load for bodyweight). Null where weight isn't a number
  *  the lifter nudges — bands pick a band instead. */

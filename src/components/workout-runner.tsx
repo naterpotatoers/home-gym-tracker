@@ -1,33 +1,25 @@
 "use client";
 
-import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { useState } from "react";
-import { ContinuePrompt, useFinisherAddOns } from "@/components/continue-prompt";
-import { ExercisePicker } from "@/components/exercise-picker";
-import { ArrowLeftIcon, CheckIcon, TrashIcon } from "@/components/icons";
+import { useFinisherAddOns } from "@/components/continue-prompt";
+import { CheckIcon, TrashIcon } from "@/components/icons";
 import { FinishPanel, type FinishPayload } from "@/components/finish-panel";
 import { RestReadyChips, SessionBlockList } from "@/components/session-block-list";
-import { Button, chipClass, ErrorText, NumberInput } from "@/components/ui";
+import { BackLink, Button, ErrorText, NumberInput } from "@/components/ui";
 import { useSessionClock } from "@/components/use-session-clock";
 import { useSessionFlow } from "@/components/use-session-flow";
 import { useSetEditor } from "@/components/use-set-editor";
 import { useWakeLock } from "@/components/use-wake-lock";
 import { discardSession, finishSession } from "@/lib/actions/workout";
 import type { FinisherOption } from "@/lib/care";
-import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
-import { swapSuggestions } from "@/lib/similar";
+import type { ExerciseCatalog } from "@/lib/exercise-catalog";
 import type { VariantSessionSummary } from "@/lib/progress";
 import type { Variant } from "@/lib/queries";
 import type { RoutineExercise, Session, SetLog } from "@/lib/types";
 import { errorMessage } from "@/lib/format";
 import { completedCount } from "@/lib/session-labels";
-
-import type { Block } from "@/lib/set-blocks";
-
-// The Block itself, not its index — a sync landing while the picker is open
-// rebuilds `blocks`, and a stale index would swap the wrong exercise.
-type PickerTarget = { mode: "add" } | { mode: "replace"; block: Block };
+import { useSessionActions } from "@/components/use-session-actions";
 
 /** For actions that redirect on success: when `e` is Next's redirect signal,
  *  run `onSuccess` and rethrow it; otherwise return so the caller reports. */
@@ -70,16 +62,23 @@ export function WorkoutRunner({
   /** "Continue your workout?" add-ons, suggested first. */
   finishers?: FinisherOption[];
 }) {
-  const editor = useSetEditor(session, initialSets);
+  const editor = useSetEditor(session, initialSets, catalog);
   const clock = useSessionClock(session.id);
   const addOns = useFinisherAddOns(finishers, prescriptions);
   const flow = useSessionFlow(editor, addOns.allPrescriptions, clock.now);
   useWakeLock();
-  const [picker, setPicker] = useState<PickerTarget | null>(null);
   /** "End early" opened the check-in before every set was logged. */
   const [endingEarly, setEndingEarly] = useState(false);
   const [finishBusy, setFinishBusy] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const actions = useSessionActions({
+    editor,
+    flow,
+    addOns,
+    variants,
+    catalog,
+    recentKeys,
+    onBackToLogging: () => setEndingEarly(false),
+  });
   /** Manual minutes correction; undefined = trust the clock, null = the
    *  field was cleared (saves no duration). */
   const [durationOverride, setDurationOverride] = useState<number | null | undefined>(
@@ -111,20 +110,6 @@ export function WorkoutRunner({
     }
   }
 
-  /** "Continue your workout?" → a finisher: append it to this session; the
-   *  check-in closes itself once there are sets to log again. */
-  async function continueWith(option: FinisherOption) {
-    setAdding(true);
-    try {
-      const newSets = await editor.addRoutine(option.prescriptions, variants);
-      addOns.markAdded(option);
-      flow.onExerciseAdded(newSets);
-      setEndingEarly(false);
-    } finally {
-      setAdding(false);
-    }
-  }
-
   async function handleDiscard() {
     if (!confirm("Discard this session? All logged sets are deleted.")) return;
     try {
@@ -139,9 +124,7 @@ export function WorkoutRunner({
     // Focus mode: hides the app nav while the runner is up (globals.css).
     <div data-focus-mode>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Link href="/" className={chipClass(false, "min-h-9 pointer-coarse:min-h-11 px-2.5 text-xs")}>
-          <ArrowLeftIcon size={14} /> Exit
-        </Link>
+        <BackLink href="/">Exit</BackLink>
         <h1 className="text-2xl font-bold tracking-tight">
           {clientName} <span className="font-normal text-muted">· {routineName}</span>
         </h1>
@@ -163,8 +146,8 @@ export function WorkoutRunner({
           prescriptions={addOns.allPrescriptions}
           catalog={catalog}
           history={history}
-          onReplace={(block) => setPicker({ mode: "replace", block })}
-          onAdd={() => setPicker({ mode: "add" })}
+          onReplace={actions.openReplace}
+          onAdd={actions.openAdd}
         />
       </div>
 
@@ -177,15 +160,7 @@ export function WorkoutRunner({
               busy={finishBusy}
               error={editor.error}
               onFinish={handleFinish}
-              continueSlot={
-                <ContinuePrompt
-                  options={addOns.remaining}
-                  disabled={editor.busy}
-                  pending={adding}
-                  onRoutine={continueWith}
-                  onExercise={() => setPicker({ mode: "add" })}
-                />
-              }
+              continueSlot={actions.continuePrompt}
               durationSlot={
                 <label className="flex items-center gap-1 text-sm">
                   <NumberInput
@@ -211,32 +186,7 @@ export function WorkoutRunner({
         )}
       </div>
 
-      {picker !== null && (
-        <ExercisePicker
-          inSession
-          variants={variants}
-          recentKeys={recentKeys}
-          onSelect={async (variant) => {
-            const target = picker;
-            setPicker(null);
-            if (target.mode === "add") {
-              flow.onExerciseAdded(await editor.addExercise(variant));
-              setEndingEarly(false); // added from the check-in: back to logging
-            } else {
-              editor.swapExercise(target.block, variant);
-            }
-          }}
-          onClose={() => setPicker(null)}
-          suggestions={
-            picker.mode === "replace" ? swapSuggestions(catalog, variants, picker.block) : undefined
-          }
-          emphasizePattern={
-            picker.mode === "replace"
-              ? exerciseLookup(catalog).exerciseById.get(picker.block.exerciseId)?.pattern
-              : undefined
-          }
-        />
-      )}
+      {actions.pickerElement}
     </div>
   );
 }

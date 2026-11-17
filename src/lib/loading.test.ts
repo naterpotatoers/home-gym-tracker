@@ -4,16 +4,14 @@ import {
   formatPlates,
   loadableWeights,
   nearestLoadableWeight,
-  smallestIncrement,
   weightStep,
 } from "./loading";
 
 describe("loadableWeights", () => {
-  it("starts at the empty bar and steps without gaps larger than the smallest increment claims", () => {
+  it("starts at the empty bar and steps in 2.5 lb increments with no gaps", () => {
     const weights = loadableWeights("ohio_bar");
     expect(weights[0]).toBe(45);
-    const inc = smallestIncrement("ohio_bar");
-    expect(inc).toBe(2.5);
+    const inc = 2.5;
     // The advertised "no gaps" claim: every consecutive gap equals the increment.
     for (let i = 1; i < weights.length; i++) {
       expect(weights[i] - weights[i - 1]).toBe(inc);

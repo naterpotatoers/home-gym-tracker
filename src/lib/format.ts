@@ -5,6 +5,12 @@ export function lbs(value: number): string {
   return `${Math.round(value).toLocaleString()} lb`;
 }
 
+/** "1 week" / "3 weeks" — count plus the word, pluralized with -s unless an
+ *  irregular plural is given. */
+export function plural(count: number, word: string, pluralWord = `${word}s`): string {
+  return `${count} ${count === 1 ? word : pluralWord}`;
+}
+
 /** Em-dash for missing values, formatter for present ones. */
 export function dash(
   value: number | null | undefined,

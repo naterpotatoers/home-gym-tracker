@@ -17,12 +17,19 @@ an honest data model that never fakes a number it doesn't have.
 - **Group board** (`/workout/group`) — several people training at once,
   staggered across equipment, all logged from one shared device. One tap logs
   a set as prefilled; rest countdowns show whose turn it is.
-- **People** (`/users`) — per-person hub: profile, weigh-ins, recent
-  workouts, e1RM progress charts, cross-client PR comparisons, "what weight
-  fits 8–10 reps," and the reverse, with plate-loadable suggestions.
-- **Running** (Clients › Progress) — runs synced from Strava (Garmin → Strava → here) or
-  logged by hand: this week's runs and miles, six weeks of mileage, pace and
+- **People** (`/users`) — per-person hub: profile, weigh-ins, nutrition,
+  recent workouts, per-lift e1RM progress charts and trends, and PR call-outs
+  on each session recap.
+- **Running** (Clients › Progress) — runs synced from Strava and/or Garmin
+  (a run seen through both is kept once) or logged by hand: this week's runs and miles, six weeks of mileage, pace and
   heart rate. Runs live in their own table and never count as lifting volume.
+- **Conditioning** (Echo Bike) — put bike pieces anywhere in a routine (warm-up
+  or finisher; the console's 20/10 and 10/20 presets, or steady minutes) with a
+  target in watts and/or RPM. Each person's target carries over from their last
+  piece and goes up a notch after they hit it twice in a row; after STOP you
+  type in the console's avg/max watts, RPM, calories and distance. Shown on
+  Clients › Progress, never in lifting volume or the heat map. (A dumbbell or
+  barbell set logged at 0 lb is saved as bodyweight.)
 - **Muscle heat map** (`/metrics/heatmap`) — front/back body figures colored
   by per-muscle training intensity; compare day/week/program periods on one
   shared scale. Band-only work is hatched (rank-based, no fake pounds).
@@ -36,14 +43,23 @@ npm install
 Create `.env.local`:
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=<your project url>
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<your publishable key>
+SUPABASE_URL=<your project url>
+SUPABASE_PUBLISHABLE_KEY=<your publishable key>
 ```
+
+Server-only on purpose (no `NEXT_PUBLIC_` prefix): every read and write goes
+through the server, so the key never ships in a browser bundle. Set the same
+two names in your Vercel project's environment variables.
 
 **Database (one time):** run `supabase/schema.sql` in the Supabase SQL
 editor (the publishable key can't create tables), then start the app and add
 people at `/users`. Until then the app runs read-only off the TypeScript seed
 and shows a banner.
+
+**Database updates:** an existing database catches up by running the files in
+`supabase/migrations/` it hasn't seen yet, oldest first. Each is safe to run
+twice. A write that needs a newer migration fails with a message naming the
+file.
 
 ### Strava sync (optional)
 
@@ -78,6 +94,28 @@ Your Account) and run
 command is a dry run; add `--write` to insert. It imports runs only, skipping
 hikes, walks and rides. Each run is keyed on the same `strava:<id>` as the
 sync, so re-running the import, or a later sync, never creates duplicates.
+
+### Garmin sync (optional)
+
+Runs can also come straight from Garmin Connect via Garmin's free Personal
+API (your own data only). A run that also reached Strava is recognized (same
+day, distance within 2%, time within 90 s) and kept once.
+
+1. Run `supabase/migrations/2026-11-16-hardening.sql` (it allows Garmin as a
+   run source).
+2. Create a key at <https://connect.garmin.com/app/settings/personalApiToken>.
+   It is shown once and expires after the 30/90/180/365 days you pick; Garmin
+   emails a week before it does.
+3. Add to `.env.local` (and Vercel):
+   ```
+   GARMIN_API_KEY=<the key>
+   GARMIN_ATHLETE=<the gym client id the runs belong to, e.g. nate>
+   ```
+
+The athlete's Progress tab gets a **Sync Garmin** button (also auto-syncs on
+open, at most every 30 minutes). Garmin activities carry no easy/long/race
+tag, so imports arrive as easy runs. When the key expires, the sync says so; make a new one and
+replace `GARMIN_API_KEY`.
 
 ```bash
 npm run dev    # http://localhost:3000

@@ -1,40 +1,10 @@
 "use client";
 
-import { startTransition, useActionState, useRef } from "react";
 import { PlusIcon, SaveIcon } from "@/components/icons";
 import { Button, ErrorText, Input } from "@/components/ui";
-import type { FormResult } from "@/lib/form-result";
+import { type FormAction, useFormAction } from "@/components/use-form-action";
 import type { Client } from "@/lib/types";
 import { ProfileFields } from "./profile-fields";
-
-type FormAction = (formData: FormData) => Promise<FormResult>;
-
-/**
- * useActionState over a FormResult action, dispatched from onSubmit rather
- * than `<form action>`: React auto-resets a form after every action-prop
- * submission, which would wipe the user's input on a validation error. Here
- * the form resets only on success (and only when asked). `pending` disables
- * the submit button, so a double tap can't log the same weigh-in twice.
- * Thrown errors (incl. redirects) propagate as before.
- */
-function useFormAction(action: FormAction, resetOnSuccess: boolean) {
-  const formRef = useRef<HTMLFormElement>(null);
-  const [error, dispatch, pending] = useActionState(
-    async (_prev: string | null, formData: FormData) => {
-      const result = await action(formData);
-      if (result) return result.error;
-      if (resetOnSuccess) formRef.current?.reset();
-      return null;
-    },
-    null,
-  );
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    startTransition(() => dispatch(formData));
-  };
-  return { formRef, error, pending, onSubmit };
-}
 
 /** Add-person and edit-profile form. `extra` sits at the end of the button
  *  row (the edit view's delete button). */
@@ -49,7 +19,7 @@ export function ProfileForm({
   submitLabel: string;
   extra?: React.ReactNode;
 }) {
-  const { formRef, error, pending, onSubmit } = useFormAction(action, false);
+  const { formRef, error, pending, onSubmit } = useFormAction(action);
   return (
     <form ref={formRef} onSubmit={onSubmit} className="space-y-3">
       <ProfileFields client={client} />
@@ -77,7 +47,7 @@ export function WeighInForm({
   /** Entries already on this date, for the "already logged" hint. */
   logged: number[];
 }) {
-  const { formRef, error, pending, onSubmit } = useFormAction(action, true);
+  const { formRef, error, pending, onSubmit } = useFormAction(action, { resetOnSuccess: true });
   return (
     <form ref={formRef} onSubmit={onSubmit} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="date" value={date} />

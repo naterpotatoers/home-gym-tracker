@@ -1,9 +1,10 @@
 import { muscleById } from "./data/muscles";
-import { exerciseLookup } from "./exercise-catalog";
+import { exerciseLookup, groupBy, isStrengthPattern, variantKey } from "./exercise-catalog";
 import type { GymData } from "./gym-data";
-import { bestE1rm, e1rm, setLoad } from "./modality";
-import { addDaysIso, utcDay } from "./periods";
-import { blocksFor, compactSet, workingSets } from "./queries";
+import { bestE1rm, e1rm, setLoad, workingSets } from "./modality";
+import { utcDay } from "./periods";
+import { blocksFor } from "./queries";
+import { compactSet } from "./session-labels";
 import type { ClientId, ExerciseId, ModalityId, Muscle, MuscleGroupId, SetLog } from "./types";
 
 /**
@@ -37,15 +38,12 @@ export function exerciseHistory(
   exerciseId: ExerciseId,
   modalityId: ModalityId,
 ): ExerciseHistoryPoint[] {
-  const bySession = new Map<string, typeof sets>();
-  const sets = workingSets(data, clientId, exerciseId, modalityId);
-  for (const set of sets) {
-    const session = data.sessionById.get(set.sessionId);
-    if (!session || session.status !== "completed") continue;
-    const existing = bySession.get(set.sessionId);
-    if (existing) existing.push(set);
-    else bySession.set(set.sessionId, [set]);
-  }
+  const bySession = groupBy(
+    workingSets(data, clientId, exerciseId, modalityId).filter(
+      (set) => data.sessionById.get(set.sessionId)?.status === "completed",
+    ),
+    (set) => set.sessionId,
+  );
 
   const points: ExerciseHistoryPoint[] = [];
   for (const [sessionId, sessionSets] of bySession) {
@@ -93,7 +91,7 @@ export function liftFrequency(data: GymData, clientId: ClientId): LiftFrequency[
   for (const set of workingSets(data, clientId)) {
     const session = data.sessionById.get(set.sessionId);
     if (!session || session.status !== "completed") continue;
-    const key = `${set.exerciseId}|${set.modalityId}`;
+    const key = variantKey(set.exerciseId, set.modalityId);
     let entry = byVariant.get(key);
     if (!entry) {
       entry = {
@@ -200,19 +198,6 @@ export function e1rmTrend(
   };
 }
 
-/** Fitted values at the window's last date and +8 weeks — the chart's dashed
- *  projection segment, guaranteed consistent with the tiles. */
-export function trendSegment(
-  trend: E1rmTrend,
-): { fromDate: string; fromY: number; toDate: string; toY: number } {
-  return {
-    fromDate: trend.windowTo,
-    fromY: trend.fittedLastLbs,
-    toDate: addDaysIso(trend.windowTo, 56),
-    toY: trend.projected8wkLbs,
-  };
-}
-
 /** The muscle an exercise most directly trains — its highest-scored muscle
  *  (its groupId is the lift's color). Null for mobility work (no scores on
  *  purpose). */
@@ -232,13 +217,13 @@ export type LiftOverviewRow = LiftFrequency & {
 
 /** The unified lift list: frequency + best + 90-day trend + primary muscle
  *  group, ready for the Progress overview's sort/filter controls. Mobility
- *  work is filtered OUT here (dozens of stretches would pad the table with
+ *  and conditioning work are filtered OUT here (dozens of stretches would pad the table with
  *  "—" rows); `liftFrequency` itself keeps it — frequency stays honest, and any
  *  future consumer wanting a mobility-free list must filter like this. */
 export function liftOverview(data: GymData, clientId: ClientId): LiftOverviewRow[] {
   const { exerciseById } = exerciseLookup(data);
   return liftFrequency(data, clientId)
-    .filter((row) => exerciseById.get(row.exerciseId)?.pattern !== "mobility")
+    .filter((row) => isStrengthPattern(exerciseById.get(row.exerciseId)?.pattern))
     .map((row) => {
     const history = exerciseHistory(data, clientId, row.exerciseId, row.modalityId);
     const trend = row.bestE1rmLbs === null ? null : e1rmTrend(history);
@@ -277,7 +262,7 @@ export function sessionTopLifts(
 }
 
 /** One past session of a variant, as the live session's "Last time" line. */
-export type VariantSessionSummary = { date: string; sets: string[] };
+export type VariantSessionSummary = { sessionId: string; date: string; sets: string[] };
 
 /**
  * Every variant the client has completed, mapped ("exerciseId|modalityId") to
@@ -292,28 +277,25 @@ export function recentVariantHistory(
   excludeSessionId: string,
   perVariant = 3,
 ): Record<string, VariantSessionSummary[]> {
-  const byVariant = new Map<string, Map<string, SetLog[]>>();
-  for (const set of workingSets(data, clientId)) {
-    if (set.sessionId === excludeSessionId) continue;
-    if (data.sessionById.get(set.sessionId)?.status !== "completed") continue;
-    const key = `${set.exerciseId}|${set.modalityId}`;
-    let sessions = byVariant.get(key);
-    if (!sessions) byVariant.set(key, (sessions = new Map()));
-    const sets = sessions.get(set.sessionId);
-    if (sets) sets.push(set);
-    else sessions.set(set.sessionId, [set]);
-  }
+  const byVariant = groupBy(
+    workingSets(data, clientId).filter(
+      (set) =>
+        set.sessionId !== excludeSessionId &&
+        data.sessionById.get(set.sessionId)?.status === "completed",
+    ),
+    (set) => variantKey(set.exerciseId, set.modalityId),
+  );
 
   const out: Record<string, VariantSessionSummary[]> = {};
-  for (const [key, sessions] of byVariant) {
-    out[key] = [...sessions]
-      .map(([sessionId, sets]) => ({ sessionId, date: data.sessionById.get(sessionId)!.date, sets }))
+  for (const [key, variantSets] of byVariant) {
+    out[key] = [...groupBy(variantSets, (set) => set.sessionId)]
+      .map(([sessionId, sets]) => ({
+        sessionId,
+        date: data.sessionById.get(sessionId)!.date,
+        sets: [...sets].sort((a, b) => a.position - b.position).map(compactSet),
+      }))
       .sort((a, b) => b.date.localeCompare(a.date) || b.sessionId.localeCompare(a.sessionId))
-      .slice(0, perVariant)
-      .map(({ date, sets }) => ({
-        date,
-        sets: [...sets].sort((a, b) => a.position - b.position).map((set) => compactSet(data, set)),
-      }));
+      .slice(0, perVariant);
   }
   return out;
 }

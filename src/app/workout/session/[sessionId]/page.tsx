@@ -1,33 +1,14 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeftIcon } from "@/components/icons";
 import { WorkoutRunner } from "@/components/workout-runner";
-import {
-  Chip,
-  chipClass,
-  clientBorderStyle,
-  ColorDot,
-  PageShell,
-  recapSetClass,
-  Stat,
-} from "@/components/ui";
+import { BackLink, Chip, clientBorderStyle, ColorDot, PageShell, Stat } from "@/components/ui";
 import { ModalityChip } from "@/components/modality-chip";
-import { finisherOptions } from "@/lib/care";
+import { livePerson } from "@/lib/live-session";
 import { catalogSlice } from "@/lib/exercise-catalog";
 import { localDayLabel } from "@/lib/periods";
-import { recentVariantHistory } from "@/lib/progress";
 import { loadGymData } from "@/lib/db/snapshot";
-import { bestE1rm } from "@/lib/modality";
-import {
-  availableVariants,
-  blocksFor,
-  describeSet,
-  priorBestE1rm,
-  recentVariantKeys,
-  sessionVolumeLbs,
-} from "@/lib/queries";
+import { availableVariants, sessionRecap } from "@/lib/queries";
 import { lbs } from "@/lib/format";
-import { completedCount } from "@/lib/session-labels";
+import { SetRecap } from "@/components/set-recap";
 
 export default async function SessionPage({
   params,
@@ -47,22 +28,15 @@ export default async function SessionPage({
 
   // Completed or skipped: read-only recap.
   if (session.status !== "planned") {
-    const blocks = blocksFor(data, session.id);
-    const completedSets = blocks
-      .flatMap((b) => b.sets)
-      .filter((s) => s.completed && !s.isWarmup);
-    const volumeLbs = sessionVolumeLbs(data, session.id);
+    const { blocks, workingSets, volumeLbs } = sessionRecap(data, session.id);
 
     return (
       <PageShell>
         {/* Reading width, left edge still lined up with the nav. */}
         <div className="max-w-3xl">
-          <Link
-            href={board ? `/workout/group/board?s=${encodeURIComponent(board)}` : "/"}
-            className={chipClass(false, "min-h-9 pointer-coarse:min-h-11 px-2.5 text-xs")}
-          >
-            <ArrowLeftIcon size={14} /> {board ? "Back to the board" : "Back to workout"}
-          </Link>
+          <BackLink href={board ? `/workout/group/board?s=${encodeURIComponent(board)}` : "/"}>
+            {board ? "Back to the board" : "Back to workout"}
+          </BackLink>
 
           {/* Who / when / how it went */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -87,7 +61,7 @@ export default async function SessionPage({
           )}
 
           <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-2 rounded-xl border border-border bg-surface px-4 py-3">
-            <Stat label="Working sets" value={String(completedSets.length)} />
+            <Stat label="Working sets" value={String(workingSets)} />
             <Stat
               label="Volume"
               value={volumeLbs > 0 ? lbs(volumeLbs) : "—"}
@@ -103,26 +77,7 @@ export default async function SessionPage({
 
 
           <div className="mt-6 space-y-3">
-            {blocks.map((block) => {
-              const sessionBest = bestE1rm(
-                data,
-                block.sets.filter((s) => s.completed && !s.isWarmup),
-              );
-              const prior =
-                session.status === "completed"
-                  ? priorBestE1rm(
-                      data,
-                      session.clientId,
-                      block.exerciseId,
-                      block.modalityId,
-                      session.id,
-                      session.date,
-                    )
-                  : null;
-              const isPr =
-                sessionBest !== null && prior !== null && sessionBest > prior;
-              const done = completedCount(block.sets);
-              return (
+            {blocks.map((block) => (
                 <div
                   key={block.key}
                   className="rounded-xl border border-border bg-surface p-3"
@@ -136,29 +91,20 @@ export default async function SessionPage({
                     {block.sets[0].bandRole === "assistance" && (
                       <span className="text-xs text-muted">assisted</span>
                     )}
-                    {isPr && (
+                    {block.pr && (
                       <span className="rounded bg-success/15 px-1.5 py-0.5 text-xs font-semibold text-success-text">
-                        PR · e1RM {lbs(sessionBest)} (prev {lbs(prior)})
+                        PR · e1RM {lbs(block.pr.bestLbs)} (prev {lbs(block.pr.priorLbs)})
                       </span>
                     )}
                     <span className="ml-auto font-mono text-xs text-muted">
-                      {done}/{block.sets.length} sets
+                      {block.done}/{block.sets.length} sets
                     </span>
                   </div>
-                  <ul className="mt-2 space-y-0.5">
-                    {block.sets.map((set) => (
-                      <li
-                        key={set.id}
-                        className={`font-mono text-xs ${recapSetClass(set.completed)}`}
-                      >
-                        {set.setNumber}. {describeSet(data, set)}
-                        {!set.completed && " · skipped"}
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="mt-2">
+                    <SetRecap data={data} sets={block.sets} />
+                  </div>
                 </div>
-              );
-            })}
+            ))}
           </div>
         </div>
       </PageShell>
@@ -166,24 +112,10 @@ export default async function SessionPage({
   }
 
   // Planned: the live runner.
-  const prescriptions = session.routineId
-    ? (data.exercisesByRoutine.get(session.routineId) ?? [])
-    : [];
-
+  const person = livePerson(data, session);
   return (
     <PageShell>
-      <WorkoutRunner
-        session={session}
-        initialSets={data.setsBySession.get(session.id) ?? []}
-        prescriptions={prescriptions}
-        variants={availableVariants(data)}
-        catalog={catalogSlice(data)}
-        clientName={client?.firstName ?? session.clientId}
-        routineName={data.routineById.get(session.routineId ?? "")?.name ?? "Session"}
-        recentKeys={recentVariantKeys(data, session.clientId)}
-        history={recentVariantHistory(data, session.clientId, session.id)}
-        finishers={finisherOptions(data, session.id)}
-      />
+      <WorkoutRunner {...person} variants={availableVariants(data)} catalog={catalogSlice(data)} />
     </PageShell>
   );
 }

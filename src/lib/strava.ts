@@ -39,10 +39,10 @@ export function stravaAthlete(): string | null {
 // this server instance's lifetime (the env var stays the bootstrap value).
 let tokenCache: { accessToken: string; expiresAt: number; refreshToken: string } | null = null;
 
-async function accessToken(config: StravaConfig): Promise<string> {
+async function accessToken(config: StravaConfig, http: typeof fetch): Promise<string> {
   const now = Date.now() / 1000;
   if (tokenCache && tokenCache.expiresAt - 60 > now) return tokenCache.accessToken;
-  const res = await fetch("https://www.strava.com/oauth/token", {
+  const res = await http("https://www.strava.com/oauth/token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -75,16 +75,18 @@ async function accessToken(config: StravaConfig): Promise<string> {
 
 const RUN_SPORTS = new Set(["Run", "TrailRun", "VirtualRun"]);
 
-/** Every run activity started after `afterEpoch` (seconds). */
+/** Every run activity started after `afterEpoch` (seconds). `http` is
+ *  injectable so tests can stand in for Strava. */
 export async function fetchRunActivities(
   config: StravaConfig,
   afterEpoch: number,
+  http: typeof fetch = fetch,
 ): Promise<StravaActivity[]> {
-  const token = await accessToken(config);
+  const token = await accessToken(config, http);
   const out: StravaActivity[] = [];
   for (let page = 1; page <= 10; page++) {
     const url = `https://www.strava.com/api/v3/athlete/activities?after=${Math.floor(afterEpoch)}&per_page=100&page=${page}`;
-    const res = await fetch(url, {
+    const res = await http(url, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });

@@ -1,13 +1,12 @@
 "use client";
 
-import { unstable_rethrow } from "next/navigation";
 import { useState } from "react";
 import { PlusIcon } from "@/components/icons";
 import { Button, ErrorText, Note } from "@/components/ui";
 import { createExercise } from "@/lib/actions/exercises";
 import { nameKey } from "@/lib/names";
-import { errorMessage } from "@/lib/format";
 import { AddExerciseFields } from "./add-exercise-fields";
+import { runAction } from "@/components/run-action";
 
 /** A name/alias roster of the current catalog — all the form needs for its
  *  "similar exercises" hint; never the full exercise objects. */
@@ -48,13 +47,15 @@ export function AddExerciseForm({ existing }: { existing: ExerciseNameEntry[] })
     event.preventDefault();
     setError(null);
     setBusy(true);
-    try {
-      await createExercise(new FormData(event.currentTarget));
-    } catch (e) {
-      unstable_rethrow(e);
-      setBusy(false);
-      setError(errorMessage(e, "Couldn't add the exercise."));
-    }
+    const formData = new FormData(event.currentTarget);
+    await runAction(
+      () => createExercise(formData),
+      (message) => {
+        setBusy(false);
+        setError(message);
+      },
+      "Couldn't add the exercise.",
+    );
   }
 
   return (

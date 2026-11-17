@@ -6,8 +6,8 @@ import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { PlusIcon, SaveIcon, TrashIcon } from "@/components/icons";
 import {
   Button,
-  Caret,
   Card,
+  Caret,
   Checkbox,
   ErrorText,
   Field,
@@ -17,12 +17,9 @@ import {
   NumberInput,
   Select,
   summaryClass,
+  toggleChipClass,
 } from "@/components/ui";
-import {
-  deleteExercise,
-  saveExercise,
-  type ExercisePayload,
-} from "@/lib/actions/exercises";
+import { deleteExercise, saveExercise } from "@/lib/actions/exercises";
 import { equipment } from "@/lib/data/equipment";
 import { modalities } from "@/lib/data/modalities";
 import { muscleById, muscles } from "@/lib/data/muscles";
@@ -33,6 +30,7 @@ import {
   METRIC_LABELS,
   METRIC_ORDER,
   PATTERN_LABELS,
+  isStrengthPattern,
   PATTERN_ORDER,
   roleForScore,
   SCORE_ROLES,
@@ -40,8 +38,9 @@ import {
   type ExerciseCatalog,
   type ScoreRole,
 } from "@/lib/exercise-catalog";
-import { nameKey, normalizeName } from "@/lib/names";
-import { BAND_ROLES, UNILATERAL_MODES } from "@/lib/validate";
+import { newId } from "@/lib/ids";
+import { parseAliases } from "@/lib/names";
+import { BAND_ROLES, UNILATERAL_MODES, type ExercisePayload } from "@/lib/validate";
 import { errorMessage } from "@/lib/format";
 import type { HeatValue } from "@/lib/heat";
 import type {
@@ -55,15 +54,28 @@ import type {
 } from "@/lib/types";
 import { useUnsavedGuard } from "./unsaved-guard";
 
-type ScoreRow = { muscleId: MuscleId; role: ScoreRole };
-type VariantRow = Omit<ExerciseModality, "exerciseId">;
+/** Rows carry a client-only `rowKey`: the muscle/modality select edits the
+ *  row's own id, so keying by it would remount the row mid-edit (focus lost,
+ *  "Advanced" collapsed). Stripped before snapshot and save. */
+type ScoreRow = { rowKey: string; muscleId: MuscleId; role: ScoreRole };
+type VariantRow = Omit<ExerciseModality, "exerciseId"> & { rowKey: string };
+
+function withoutKey<T extends { rowKey: string }>({ rowKey, ...row }: T): Omit<T, "rowKey"> {
+  void rowKey;
+  return row;
+}
 
 function toScoreRows(scores: readonly ExerciseMuscleScore[]): ScoreRow[] {
-  return scores.map((s) => ({ muscleId: s.muscleId, role: roleForScore(s.score) }));
+  return scores.map((s) => ({
+    rowKey: newId("row"),
+    muscleId: s.muscleId,
+    role: roleForScore(s.score),
+  }));
 }
 
 function toVariantRows(rows: readonly ExerciseModality[]): VariantRow[] {
   return rows.map((row) => ({
+    rowKey: newId("row"),
     modalityId: row.modalityId,
     isDefault: row.isDefault,
     bandRoles: row.bandRoles,
@@ -115,8 +127,8 @@ export function ExerciseEditor({
   const [pattern, setPattern] = useState<MovementPattern>(exercise.pattern);
   const [metricType, setMetricType] = useState<MetricType>(exercise.metricType);
   const [isCompound, setIsCompound] = useState(exercise.isCompound);
-  const [scores, setScores] = useState<ScoreRow[]>(toScoreRows(initialScores));
-  const [variants, setVariants] = useState<VariantRow[]>(
+  const [scores, setScores] = useState<ScoreRow[]>(() => toScoreRows(initialScores));
+  const [variants, setVariants] = useState<VariantRow[]>(() =>
     toVariantRows(initialModalities),
   );
   const [referenceId, setReferenceId] = useState("");
@@ -131,8 +143,8 @@ export function ExerciseEditor({
     pattern,
     metricType,
     isCompound,
-    scores,
-    variants,
+    scores: scores.map(withoutKey),
+    variants: variants.map(withoutKey),
   });
   const [savedSnapshot, setSavedSnapshot] = useState(snapshot);
   const dirty = !readOnly && snapshot !== savedSnapshot;
@@ -217,7 +229,11 @@ export function ExerciseEditor({
     if (!next) return;
     setScores((prev) => [
       ...prev,
-      { muscleId: next.id, role: prev.length === 0 ? "primary" : "supporting" },
+      {
+        rowKey: newId("row"),
+        muscleId: next.id,
+        role: prev.length === 0 ? "primary" : "supporting",
+      },
     ]);
   }
 
@@ -227,6 +243,7 @@ export function ExerciseEditor({
     setVariants((prev) => [
       ...prev,
       {
+        rowKey: newId("row"),
         modalityId: next.id,
         isDefault: prev.length === 0,
         bandRoles: [],
@@ -245,18 +262,9 @@ export function ExerciseEditor({
     setError(null);
     setSaveState("saving");
     try {
-      const seenAliases = new Set<string>();
-      const aliases: string[] = [];
-      for (const raw of aliasText.split(",")) {
-        const alias = normalizeName(raw);
-        const key = nameKey(alias);
-        if (!alias || seenAliases.has(key)) continue;
-        seenAliases.add(key);
-        aliases.push(alias);
-      }
       const payload: ExercisePayload = {
         name,
-        aliases,
+        aliases: parseAliases(aliasText),
         pattern,
         metricType,
         isCompound,
@@ -264,7 +272,7 @@ export function ExerciseEditor({
           muscleId: s.muscleId,
           score: scoreForRole(s.role),
         })),
-        modalities: variants,
+        modalities: variants.map(withoutKey),
       };
       await saveExercise(exercise.id, payload);
       setSavedSnapshot(snapshot);
@@ -351,16 +359,17 @@ export function ExerciseEditor({
           (7) — works hard every rep; Supporting (4) — assists; Stabilizer (2)
           — holds position.
         </Note>
-        {pattern === "mobility" && (
+        {!isStrengthPattern(pattern) && (
           <Note>
-            Mobility work carries no muscle scores on purpose — it&apos;s
-            excluded from volume math entirely.
+            {pattern === "mobility" ? "Mobility" : "Conditioning"} work carries
+            no muscle scores on purpose — it&apos;s excluded from volume math
+            entirely.
           </Note>
         )}
         {/* Two columns of muscle rows on iPad landscape and up. */}
         <ul className="mt-2 grid gap-2 lg:grid-cols-2 lg:gap-x-6">
           {scores.map((row, index) => (
-            <li key={row.muscleId} className="flex items-center gap-2">
+            <li key={row.rowKey} className="flex items-center gap-2">
               <Select
                 size="sm"
                 value={row.muscleId}
@@ -480,7 +489,7 @@ export function ExerciseEditor({
         <div className="mt-2 space-y-3">
           {variants.map((variant, index) => (
             <div
-              key={variant.modalityId}
+              key={variant.rowKey}
               className="rounded-xl border border-border bg-background p-3"
             >
               <div className="flex flex-wrap items-center gap-3">
@@ -560,11 +569,10 @@ export function ExerciseEditor({
                           })
                         }
                         aria-pressed={on}
-                        className={`min-h-9 pointer-coarse:min-h-11 cursor-pointer rounded-full border px-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-default ${
-                          on
-                            ? "border-accent bg-accent-soft font-semibold text-accent-text"
-                            : "border-border text-muted hover:bg-current/5"
-                        }`}
+                        className={toggleChipClass(
+                          on,
+                          "min-h-9 pointer-coarse:min-h-11 rounded-full px-2.5 text-xs",
+                        )}
                       >
                         {item.name}
                       </button>

@@ -13,3 +13,19 @@ export function normalizeName(raw: string): string {
 export function nameKey(raw: string): string {
   return normalizeName(raw).toLowerCase();
 }
+
+/** Comma-separated alias text → clean, de-duplicated aliases (first spelling
+ *  wins). Shared by the /exercises editor and its save action so the two
+ *  agree on what was typed. */
+export function parseAliases(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of text.split(",")) {
+    const alias = normalizeName(raw);
+    const key = nameKey(alias);
+    if (!alias || seen.has(key)) continue;
+    seen.add(key);
+    out.push(alias);
+  }
+  return out;
+}

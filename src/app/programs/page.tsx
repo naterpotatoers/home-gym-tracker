@@ -6,6 +6,7 @@ import { createRoutine, importCareRoutines } from "@/lib/actions/routines";
 import { careRoutines } from "@/lib/data/care-routines";
 import { loadGymData } from "@/lib/db/snapshot";
 import { DAY_LABELS } from "@/lib/periods";
+import { plural } from "@/lib/format";
 
 /** One list per section: a single bordered card, one link row per item —
  *  everything on one line at md+, the summary drops below on phones. */
@@ -61,7 +62,7 @@ export default async function PlanPage() {
                 <Link href={`/programs/${program.id}`} className={rowClass}>
                   <span className="shrink-0 font-semibold">{program.name}</span>
                   <span className="shrink-0 text-xs text-muted">
-                    {program.weeks} {program.weeks === 1 ? "week" : "weeks"}
+                    {plural(program.weeks, "week")}
                   </span>
                   {assigned.map((a) => (
                     <Chip key={a.id}>
@@ -111,8 +112,7 @@ export default async function PlanPage() {
                 <Link href={`/routines/${routine.id}`} className={rowClass}>
                   <span className="shrink-0 font-semibold">{routine.name}</span>
                   <span className="shrink-0 text-xs text-muted">
-                    {prescriptions.length}{" "}
-                    {prescriptions.length === 1 ? "exercise" : "exercises"}
+                    {plural(prescriptions.length, "exercise")}
                   </span>
                   <span className={summaryClass}>{names || "No exercises yet"}</span>
                 </Link>

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ChartPoint, TrendSegment } from "@/lib/meters";
+import { niceYScale } from "@/lib/chart-scale";
+import type { ChartPoint } from "@/lib/meters";
+import { shortDayLabel, utcDay } from "@/lib/periods";
 
 /** The SVG is drawn in rendered pixels (viewBox width = measured width), so
  *  12px axis text is 12px on a phone too and the hit bands' size is real.
@@ -13,26 +15,22 @@ const R = 14;
 const T = 10;
 const B = 24;
 
-function ms(date: string): number {
-  return new Date(`${date}T00:00:00Z`).getTime();
-}
-
 /**
  * Hand-rolled SVG strength-progress line: time-scaled x (a three-month layoff
  * must read as a gap, so never index-scaled), non-zero-based y (zero-basing
- * flattens progress), dashed projection past the last session. Tap anywhere
+ * flattens progress). Tap anywhere
  * in a session's full-height x-band (midpoint to midpoint, so the whole plot
  * is hittable and every band is ≥44px tall) to pin its numbers — same
  * pattern as the body heatmap. Tokens only, no hex.
  */
 export function ProgressChart({
   points,
-  trend,
   label = "Estimated one-rep max over time",
+  unit = "lb",
 }: {
   points: ChartPoint[];
-  trend: TrendSegment | null;
   label?: string;
+  unit?: string;
 }) {
   const [pinned, setPinned] = useState<number | null>(null);
   const [W, setW] = useState(DEFAULT_W);
@@ -52,33 +50,13 @@ export function ProgressChart({
   // past the end.
   const active = pinned !== null && pinned < points.length ? pinned : null;
 
-  const xMin = ms(points[0].date);
-  const xMax = Math.max(
-    ms(points[points.length - 1].date),
-    trend ? ms(trend.toDate) : -Infinity,
-  );
-  const xSpan = Math.max(1, xMax - xMin);
+  const xMin = utcDay(points[0].date);
+  const xSpan = Math.max(1, utcDay(points[points.length - 1].date) - xMin);
+  const y = niceYScale(points.map((p) => p.y));
 
-  const yValues = [
-    ...points.map((p) => p.y),
-    ...(trend ? [trend.fromY, trend.toY] : []),
-  ];
-  const NICE_STEPS = [5, 10, 25, 50, 100];
-  const rawStep = (Math.max(...yValues) - Math.min(...yValues)) / 4 || 5;
-  const step =
-    NICE_STEPS.find((s) => s >= rawStep) ?? Math.ceil(rawStep / 100) * 100;
-  let yMin = Math.floor(Math.min(...yValues) / step) * step;
-  let yMax = Math.ceil(Math.max(...yValues) / step) * step;
-  if (yMin === yMax) {
-    yMin -= step;
-    yMax += step;
-  }
-
-  const X = (date: string) => L + ((ms(date) - xMin) / xSpan) * (W - L - R);
-  const Y = (v: number) => T + (1 - (v - yMin) / (yMax - yMin)) * (H - T - B);
-
-  const gridValues: number[] = [];
-  for (let v = yMin; v <= yMax; v += step) gridValues.push(v);
+  const X = (date: string) => L + ((utcDay(date) - xMin) / xSpan) * (W - L - R);
+  const Y = (v: number) => T + (1 - (v - y.min) / (y.max - y.min)) * (H - T - B);
+  const gridValues = y.grid;
 
   // Hit bands: each session owns the x-span from the midpoint with its left
   // neighbor to the midpoint with its right one, full plot height.
@@ -89,23 +67,10 @@ export function ProgressChart({
     return { x: left, width: Math.max(0, right - left) };
   });
 
-  // x labels: first and last session, plus the projection end.
-  const xLabels: { date: string; label: string }[] = [
-    { date: points[0].date, label: points[0].date.slice(5) },
-  ];
-  if (points.length > 1) {
-    const last = points[points.length - 1].date;
-    xLabels.push({ date: last, label: last.slice(5) });
-  }
-  if (trend) xLabels.push({ date: trend.toDate, label: "+8wk" });
-
-  const mid =
-    trend === null
-      ? null
-      : {
-          x: (X(trend.fromDate) + X(trend.toDate)) / 2,
-          y: (Y(trend.fromY) + Y(trend.toY)) / 2,
-        };
+  // x labels: first and last session.
+  const xLabels = [points[0].date, ...(points.length > 1 ? [points[points.length - 1].date] : [])].map(
+    (date) => ({ date, label: shortDayLabel(date) }),
+  );
 
   return (
     <div ref={boxRef}>
@@ -113,7 +78,7 @@ export function ProgressChart({
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full select-none"
         role="img"
-        aria-label={`${label}, in lb`}
+        aria-label={`${label}, in ${unit}`}
       >
         {gridValues.map((v) => (
           <g key={v}>
@@ -148,29 +113,6 @@ export function ProgressChart({
             {label}
           </text>
         ))}
-
-        {trend && (
-          <g className="stroke-accent" opacity={0.6}>
-            <line
-              x1={X(trend.fromDate)}
-              y1={Y(trend.fromY)}
-              x2={X(trend.toDate)}
-              y2={Y(trend.toY)}
-              strokeWidth={2}
-              strokeDasharray="5 5"
-            />
-            {mid && (
-              <circle cx={mid.x} cy={mid.y} r={3.5} className="fill-surface" strokeWidth={1.5} />
-            )}
-            <circle
-              cx={X(trend.toDate)}
-              cy={Y(trend.toY)}
-              r={3.5}
-              className="fill-surface"
-              strokeWidth={1.5}
-            />
-          </g>
-        )}
 
         {points.length > 1 && (
           <polyline
@@ -217,7 +159,8 @@ export function ProgressChart({
             tabIndex={0}
             aria-label={p.detail}
             aria-pressed={i === active}
-            className="cursor-pointer fill-transparent outline-none hover:fill-current/5 focus-visible:fill-accent/15"
+            // SVG can't draw a box-shadow ring — the focus mark is a fill + stroke.
+            className="cursor-pointer fill-transparent outline-none hover:fill-current/5 focus-visible:fill-accent/15 focus-visible:stroke-accent focus-visible:stroke-2"
             onClick={() => setPinned((prev) => (prev === i ? null : i))}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -236,9 +179,7 @@ export function ProgressChart({
           <span className="text-muted">
             {points.length === 1
               ? "one point logged — the line appears with the second"
-              : trend === null
-                ? "tap the chart for a session's numbers"
-                : "tap the chart for a session's numbers · dashed = 8-week projection"}
+              : "tap the chart for a session's numbers"}
           </span>
         )}
       </p>

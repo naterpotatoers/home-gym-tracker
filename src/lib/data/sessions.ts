@@ -370,6 +370,7 @@ function base(
     isWarmup: false,
     completed: true,
     notes: "",
+    conditioning: null,
     ...o,
   };
 }

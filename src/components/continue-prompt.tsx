@@ -30,7 +30,8 @@ export function ContinuePrompt({
   onExercise: () => void;
 }) {
   const suggested = options.filter((o) => o.suggested);
-  const rest = options.filter((o) => !o.suggested);
+  const rest = options.filter((o) => !o.suggested && o.kind === "care");
+  const conditioning = options.filter((o) => !o.suggested && o.kind === "conditioning");
 
   return (
     <label className="flex flex-col gap-1.5">
@@ -64,6 +65,15 @@ export function ContinuePrompt({
         {rest.length > 0 && (
           <optgroup label="Care & mobility">
             {rest.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {conditioning.length > 0 && (
+          <optgroup label="Conditioning">
+            {conditioning.map((o) => (
               <option key={o.id} value={o.id}>
                 {o.name}
               </option>

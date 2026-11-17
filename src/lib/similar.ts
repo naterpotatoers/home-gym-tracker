@@ -1,5 +1,5 @@
 import { muscleById } from "./data/muscles";
-import { exerciseLookup, roleForScore, type ExerciseCatalog } from "./exercise-catalog";
+import { exerciseLookup, isStrengthPattern, roleForScore, type ExerciseCatalog } from "./exercise-catalog";
 import { effectiveScores } from "./modality";
 import type { Variant } from "./queries";
 import type { ExerciseId, ModalityId, MuscleId } from "./types";
@@ -29,7 +29,9 @@ const SHARED_PRIMARY_BONUS = 0.1;
 /** Below this a "similar" exercise isn't worth suggesting. */
 const MIN_SIMILARITY = 0.35;
 
-function cosine(a: ReadonlyMap<MuscleId, number>, b: ReadonlyMap<MuscleId, number>): number {
+/** Cosine similarity of two muscle-score vectors — 0 when either is empty.
+ *  Shared by swap suggestions and the care-finisher ranking. */
+export function cosine(a: ReadonlyMap<MuscleId, number>, b: ReadonlyMap<MuscleId, number>): number {
   let dot = 0;
   let na = 0;
   let nb = 0;
@@ -80,7 +82,8 @@ export function swapSuggestions(
 
   const sourceScores = effectiveScores(catalog, from.exerciseId, from.modalityId);
   const sourcePrimaries = primaries(sourceScores);
-  const isMobility = source.pattern === "mobility";
+  // Stretches and bike pieces swap only within their own pattern.
+  const nonStrength = !isStrengthPattern(source.pattern);
 
   // Best variant per other exercise — the default modality represents it,
   // falling back to whichever available variant scores highest.
@@ -88,15 +91,17 @@ export function swapSuggestions(
   for (const variant of variants) {
     const { exerciseId, modalityId, isDefault } = variant.exerciseModality;
     if (exerciseId === from.exerciseId) continue;
-    // Mobility swaps for mobility only; strength never swaps into a stretch.
-    if ((variant.pattern === "mobility") !== isMobility) continue;
+    // Strength never swaps into a stretch or a bike piece, nor they into it.
+    if (nonStrength ? variant.pattern !== source.pattern : !isStrengthPattern(variant.pattern)) {
+      continue;
+    }
 
     let score: number;
     let reason: string;
-    if (isMobility) {
-      // Stretches carry no muscle scores — same pattern is all we have.
+    if (nonStrength) {
+      // No muscle scores to compare — same pattern is all we have.
       score = 0.5;
-      reason = "mobility";
+      reason = source.pattern;
     } else {
       const scores = effectiveScores(catalog, exerciseId, modalityId);
       score = cosine(sourceScores, scores);

@@ -11,8 +11,8 @@
 // sync uses — so re-running (or syncing later) never duplicates; rows that
 // already exist are left untouched. Never deletes anything.
 //
-// Needs NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in
-// .env.local (or the env); NEXT_PUBLIC_GYM_TZ if the gym isn't in Los Angeles.
+// Needs SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env.local (or the
+// env); NEXT_PUBLIC_GYM_TZ if the gym isn't in Los Angeles.
 
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -37,9 +37,9 @@ if (!csvPath || !clientId) {
   process.exit(1);
 }
 
-const { NEXT_PUBLIC_SUPABASE_URL: url, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: key } = process.env;
+const { SUPABASE_URL: url, SUPABASE_PUBLISHABLE_KEY: key } = process.env;
 if (!url || !key) {
-  console.error("Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in .env.local.");
+  console.error("Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env.local.");
   process.exit(1);
 }
 const db = createClient(url, key);
@@ -158,8 +158,20 @@ if (!client.data) {
   process.exit(1);
 }
 
-const existing = await db.from("runs").select("external_id, date, source").eq("client_id", clientId);
-if (existing.error) throw new Error(`reading runs: ${existing.error.message}`);
+// Paged: PostgREST caps a response at 1000 rows, and a truncated read would
+// make already-imported runs look new.
+const existing = { data: [] };
+for (let from = 0; ; from += 1000) {
+  const page = await db
+    .from("runs")
+    .select("external_id, date, source")
+    .eq("client_id", clientId)
+    .order("id")
+    .range(from, from + 999);
+  if (page.error) throw new Error(`reading runs: ${page.error.message}`);
+  existing.data.push(...page.data);
+  if (page.data.length < 1000) break;
+}
 const known = new Set(existing.data.map((r) => r.external_id).filter(Boolean));
 const fresh = runs.filter((r) => !known.has(r.external_id));
 const freshDates = new Set(fresh.map((r) => r.date));
@@ -201,7 +213,11 @@ if (!write) {
   process.exit(0);
 }
 for (let i = 0; i < fresh.length; i += 100) {
-  const { error } = await db.from("runs").insert(fresh.slice(i, i + 100));
+  // ignoreDuplicates: a run synced between the read above and this write is
+  // skipped by its external_id instead of failing the whole batch.
+  const { error } = await db
+    .from("runs")
+    .upsert(fresh.slice(i, i + 100), { onConflict: "external_id", ignoreDuplicates: true });
   if (error) throw new Error(`inserting runs ${i}–${i + 99}: ${error.message}`);
 }
 console.log(`\nInserted ${fresh.length} runs.`);

@@ -1,6 +1,6 @@
 "use client";
 
-import { fractionLabel, scaledMacros } from "@/lib/nutrition";
+import { fractionLabel, macroLabel, scaledMacros } from "@/lib/nutrition";
 import type { Food } from "@/lib/types";
 
 /**
@@ -65,8 +65,7 @@ export function PlateSlider({
       <p className="font-mono text-sm">
         <span className="font-semibold">{fractionLabel(fraction)}</span>
         <span className="text-muted"> · ~{Math.round(macros.kcal)} kcal · </span>
-        {Math.round(macros.proteinG)}P / {Math.round(macros.carbsG)}C /{" "}
-        {Math.round(macros.fatG)}F
+        {macroLabel(macros)}
       </p>
     </div>
   );

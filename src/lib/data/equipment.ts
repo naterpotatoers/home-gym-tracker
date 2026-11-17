@@ -23,6 +23,7 @@ export const equipment: readonly Equipment[] = [
   { id: "monster_bands", name: "Rogue Monster Loop Bands", owned: true },
   { id: "hip_bands", name: "Rogue Hip Bands", owned: true },
   { id: "floor", name: "Floor / Mat", owned: true },
+  { id: "echo_bike", name: "Rogue Echo Bike", owned: true },
 ];
 
 export const bars: readonly Bar[] = [

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
+import { buildGymData } from "./gym-data";
 import { plannedSessionFromRoutine, programWeekStatus, smartPrefill } from "./planning";
 import type { RoutineExercise, Session } from "./types";
 
@@ -22,6 +23,7 @@ function rx(overrides: Partial<RoutineExercise>): RoutineExercise {
     targetRir: 2,
     supersetGroup: null,
     notes: "",
+    conditioning: null,
     ...overrides,
   };
 }
@@ -96,10 +98,10 @@ describe("plannedSessionFromRoutine", () => {
     expect(sets.every((s) => !s.completed && !s.isWarmup)).toBe(true);
   });
 
-  it("throws on an empty routine", () => {
+  it("throws on an unknown routine", () => {
     expect(() =>
       plannedSessionFromRoutine(data, "nate", "r_does_not_exist", null, TODAY),
-    ).toThrow("Routine has no exercises.");
+    ).toThrow("That routine no longer exists.");
   });
 });
 
@@ -151,5 +153,34 @@ describe("programWeekStatus", () => {
 
   it("is null without an active assignment", () => {
     expect(programWeekStatus({ ...data, assignments: [] }, "nate", TODAY)).toBeNull();
+  });
+});
+
+describe("plannedSessionFromRoutine — conditioning rows", () => {
+  it("one piece per set with the row's target, no reps or load", () => {
+    const routine = { id: "r_echo", name: "Echo 20/10", notes: "" };
+    const row = rx({
+      routineId: "r_echo",
+      exerciseId: "echo_bike",
+      modalityId: "cardio",
+      sets: 1,
+      repMin: null,
+      repMax: null,
+      targetRir: null,
+      conditioning: { intervalScheme: "8x20/10", targetWatts: 200, targetRpm: null },
+    });
+    const withEcho = buildGymData({
+      ...data,
+      routines: [...data.routines, routine],
+      routineExercises: [...data.routineExercises, row],
+    });
+    const { sets } = plannedSessionFromRoutine(withEcho, "nate", "r_echo", null, TODAY);
+    expect(sets).toHaveLength(1);
+    expect(sets[0]).toMatchObject({
+      reps: null,
+      weightLbs: null,
+      durationSeconds: 240,
+      conditioning: { intervalScheme: "8x20/10", targetWatts: 200, targetRpm: null, avgWatts: null },
+    });
   });
 });

@@ -9,7 +9,7 @@ import { scaledMacros } from "../nutrition";
 import type { Food } from "../types";
 import { isFoodCategoryId, isIsoDate } from "../validate";
 import { revalidateAll, run, runOrDuplicate } from "./_helpers";
-import { assertClientId } from "./clients";
+import { assertClientId } from "../db/guards";
 
 export type CreateFoodInput = {
   name: string;

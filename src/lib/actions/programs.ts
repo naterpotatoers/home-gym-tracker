@@ -2,17 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { supabase } from "../db/client";
-import {
-  assignmentToRow,
-  programDayToRow,
-  programToRow,
-} from "../db/mappers";
+import { programDayToRow, programToRow, rowToProgram, rowToProgramDay } from "../db/mappers";
 import { newId, slugId } from "../ids";
 import { localTodayIso } from "../periods";
 import type { Assignment } from "../types";
 import { isIsoDate, MAX_PROGRAM_WEEKS } from "../validate";
-import { assertNoRefs, revalidateAll, run, runMatched } from "./_helpers";
-import { assertClientId } from "./clients";
+import { assertNoRefs, revalidateAll, rpc, run, runMatched } from "./_helpers";
+import { assertClientId } from "../db/guards";
 
 export async function createProgram(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
@@ -25,20 +21,6 @@ export async function createProgram(formData: FormData): Promise<void> {
   );
   revalidateAll();
   redirect(`/programs/${id}`);
-}
-
-/** The program_days row shape, shared by every week-structure rewrite. */
-function programDayRow(
-  programId: string,
-  week: number,
-  d: { day_of_week: number; routine_id: string },
-) {
-  return {
-    program_id: programId,
-    week,
-    day_of_week: d.day_of_week,
-    routine_id: d.routine_id,
-  };
 }
 
 /** Copy a program and its full week/day schedule — starting a new block is
@@ -56,24 +38,21 @@ export async function duplicateProgram(programId: string): Promise<void> {
   ]);
 
   const name = `${program.name} (copy)`;
-  const newProgramId = slugId("p", name);
-  await run(
-    "duplicating program",
-    supabase
-      .from("programs")
-      .insert({ id: newProgramId, name, weeks: program.weeks, notes: program.notes }),
-  );
+  const copy = { ...rowToProgram(program), id: slugId("p", name), name };
+  await run("duplicating program", supabase.from("programs").insert(programToRow(copy)));
   if (days && days.length > 0) {
+    // A failure here leaves an empty copy, never a damaged original — the
+    // user can delete it and retry.
     await run(
       "duplicating program",
       supabase
         .from("program_days")
-        .insert(days.map((d) => ({ ...d, program_id: newProgramId }))),
+        .insert(days.map((d) => programDayToRow({ ...rowToProgramDay(d), programId: copy.id }))),
     );
   }
 
   revalidateAll();
-  redirect(`/programs/${newProgramId}`);
+  redirect(`/programs/${copy.id}`);
 }
 
 export async function updateProgramInfo(
@@ -92,50 +71,24 @@ export async function updateProgramInfo(
   revalidateAll();
 }
 
-/** Current week count plus that week's day rows — the shared read for the
- *  week-structure actions below. */
-async function weekState(programId: string, week?: number) {
-  const [program, days] = await Promise.all([
-    run(
-      "reading program",
-      supabase.from("programs").select("weeks").eq("id", programId).single(),
-    ),
-    run(
-      "reading program days",
-      supabase.from("program_days").select("*").eq("program_id", programId),
-    ),
-  ]);
-  const all = days ?? [];
-  return {
-    // .single() errors (and run throws) when the row is missing.
-    weeks: program!.weeks as number,
-    all,
-    ofWeek: week === undefined ? [] : all.filter((d) => d.week === week),
-  };
+/** The program's week count — throws when the program doesn't exist
+ *  (.single() errors on zero rows). */
+async function programWeeks(programId: string): Promise<number> {
+  const program = await run(
+    "reading program",
+    supabase.from("programs").select("weeks").eq("id", programId).single(),
+  );
+  return program!.weeks as number;
 }
 
-/** Append a week at the end — empty, or a copy of `copyFromWeek`'s layout. */
-export async function addWeek(
-  programId: string,
-  copyFromWeek?: number,
-): Promise<void> {
-  const state = await weekState(programId, copyFromWeek);
-  if (state.weeks >= MAX_PROGRAM_WEEKS) throw new Error(`Programs cap at ${MAX_PROGRAM_WEEKS} weeks.`);
-  if (copyFromWeek !== undefined) assertWeek(copyFromWeek, state.weeks);
-  const newWeek = state.weeks + 1;
-
-  await run(
-    "adding week",
-    supabase.from("programs").update({ weeks: newWeek }).eq("id", programId),
-  );
-  if (state.ofWeek.length > 0) {
-    await run(
-      "adding week",
-      supabase
-        .from("program_days")
-        .insert(state.ofWeek.map((d) => programDayRow(programId, newWeek, d))),
-    );
-  }
+/** Append a week at the end — empty, or a copy of `copyFromWeek`'s layout.
+ *  One transaction: the week count and the copied days move together. */
+export async function addWeek(programId: string, copyFromWeek?: number): Promise<void> {
+  await rpc("adding week", "add_program_week", {
+    p_program: programId,
+    p_copy_from: copyFromWeek ?? null,
+    p_max: MAX_PROGRAM_WEEKS,
+  });
   revalidateAll();
 }
 
@@ -153,32 +106,12 @@ function assertDayOfWeek(dayOfWeek: number): void {
   }
 }
 
-/** PostgREST's code for "function not found" — the migration hasn't run. */
-const MISSING_FUNCTION = "PGRST202";
-
-/** Week shifts run as one Postgres function (supabase/schema.sql) so a failure
- *  can't leave the schedule half-deleted — the composite PK forbids in-place
- *  shifts, and two client-side statements would not be atomic. */
-async function rpcWeekShift(
-  label: string,
-  fn: "remove_program_week" | "duplicate_program_week",
-  args: Record<string, unknown>,
-): Promise<void> {
-  const { error } = await supabase.rpc(fn, args);
-  if (error?.code === MISSING_FUNCTION) {
-    throw new Error(
-      `${label}: database function ${fn} is missing — run supabase/migrations/2026-10-24-audit-fixes.sql in the Supabase SQL editor.`,
-    );
-  }
-  if (error) throw new Error(`${label}: ${error.message}`);
-}
-
 /** Insert a copy of `week` directly after it, shifting later weeks down. */
 export async function duplicateWeek(programId: string, week: number): Promise<void> {
-  const state = await weekState(programId);
-  if (state.weeks >= MAX_PROGRAM_WEEKS) throw new Error(`Programs cap at ${MAX_PROGRAM_WEEKS} weeks.`);
-  assertWeek(week, state.weeks);
-  await rpcWeekShift("duplicating week", "duplicate_program_week", {
+  const weeks = await programWeeks(programId);
+  if (weeks >= MAX_PROGRAM_WEEKS) throw new Error(`Programs cap at ${MAX_PROGRAM_WEEKS} weeks.`);
+  assertWeek(week, weeks);
+  await rpc("duplicating week", "duplicate_program_week", {
     p_program: programId,
     p_week: week,
     p_max: MAX_PROGRAM_WEEKS,
@@ -188,10 +121,10 @@ export async function duplicateWeek(programId: string, week: number): Promise<vo
 
 /** Delete a week and close the gap; later weeks shift up. */
 export async function removeWeek(programId: string, week: number): Promise<void> {
-  const state = await weekState(programId);
-  if (state.weeks <= 1) throw new Error("A program keeps at least one week.");
-  assertWeek(week, state.weeks);
-  await rpcWeekShift("removing week", "remove_program_week", {
+  const weeks = await programWeeks(programId);
+  if (weeks <= 1) throw new Error("A program keeps at least one week.");
+  assertWeek(week, weeks);
+  await rpc("removing week", "remove_program_week", {
     p_program: programId,
     p_week: week,
   });
@@ -204,9 +137,17 @@ export async function setProgramDay(
   dayOfWeek: number,
   routineId: string,
 ): Promise<void> {
-  const { weeks } = await weekState(programId);
+  const weeks = await programWeeks(programId);
   assertWeek(week, weeks);
   assertDayOfWeek(dayOfWeek);
+  // routine_id has an FK, but a forged id should read as a message, not a
+  // constraint violation.
+  await run(
+    "scheduling day",
+    supabase.from("routines").select("id").eq("id", routineId).single(),
+  ).catch(() => {
+    throw new Error("That routine no longer exists.");
+  });
   await run(
     "scheduling day",
     supabase
@@ -221,7 +162,7 @@ export async function clearProgramDay(
   week: number,
   dayOfWeek: number,
 ): Promise<void> {
-  const { weeks } = await weekState(programId);
+  const weeks = await programWeeks(programId);
   assertWeek(week, weeks);
   assertDayOfWeek(dayOfWeek);
   await run(
@@ -249,8 +190,7 @@ export async function deleteProgram(programId: string): Promise<void> {
 }
 
 /** Assign a program. One active program per person: their other active
- *  assignments are marked completed once the new one exists (insert first,
- *  so a failed insert never strands them with none). */
+ *  assignments complete in the same transaction as the insert. */
 export async function createAssignment(formData: FormData): Promise<void> {
   const programId = String(formData.get("programId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
@@ -275,23 +215,13 @@ export async function restartAssignment(assignmentId: string): Promise<void> {
 async function assign(programId: string, clientId: string, startDate: string): Promise<void> {
   await assertClientId(clientId);
   if (!isIsoDate(startDate)) throw new Error("Pick a start date.");
-  await weekState(programId); // throws when the program doesn't exist
-  const id = newId("a");
-  await run(
-    "assigning program",
-    supabase.from("assignments").insert(
-      assignmentToRow({ id, programId, clientId, startDate, status: "active" }),
-    ),
-  );
-  await run(
-    "assigning program",
-    supabase
-      .from("assignments")
-      .update({ status: "completed" })
-      .eq("client_id", clientId)
-      .eq("status", "active")
-      .neq("id", id),
-  );
+  await programWeeks(programId); // throws when the program doesn't exist
+  await rpc("assigning program", "assign_program", {
+    p_id: newId("a"),
+    p_program: programId,
+    p_client: clientId,
+    p_start: startDate,
+  });
   revalidateAll();
 }
 
@@ -306,26 +236,10 @@ export async function updateAssignmentStatus(
   if (!ASSIGNMENT_STATUSES.includes(status as Assignment["status"])) {
     throw new Error(`bad status ${status}`);
   }
-  const row = await run(
-    "updating assignment",
-    supabase.from("assignments").select("client_id").eq("id", assignmentId).single(),
-  );
-  await runMatched(
-    "updating assignment",
-    supabase.from("assignments").update({ status }).eq("id", assignmentId).select("id"),
-  );
-  if (status === "active") {
-    await run(
-      "updating assignment",
-      supabase
-        .from("assignments")
-        .update({ status: "completed" })
-        // .single() threw above if the assignment is missing.
-        .eq("client_id", row!.client_id)
-        .eq("status", "active")
-        .neq("id", assignmentId),
-    );
-  }
+  await rpc("updating assignment", "set_assignment_status", {
+    p_id: assignmentId,
+    p_status: status,
+  });
   revalidateAll();
 }
 

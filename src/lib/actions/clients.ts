@@ -1,78 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { CLIENT_COLORS, clients as seedClients } from "../data/clients";
 import { supabase } from "../db/client";
 import type { ClientRow } from "../db/mappers";
 import { slugId } from "../ids";
 import { localTodayIso } from "../periods";
-import { isExperienceLevel, isGoal, isIsoDate } from "../validate";
+import { parseProfile } from "../validate";
 import type { FormResult } from "../form-result";
 import { assertNoRefs, revalidateAll, run, runMatched } from "./_helpers";
-
-const COLORS = new Set<string>(CLIENT_COLORS.map((c) => c.hex));
-
-/** Client ids used to be a compile-time union; now they're rows, so actions
- *  that take one verify it exists before writing. Falls back to the TS seed
- *  roster while the clients table doesn't exist (PGRST205), mirroring
- *  assertExerciseIds and the read-side fallback. */
-export async function assertClientId(id: string): Promise<void> {
-  const { data, error } = await supabase
-    .from("clients")
-    .select("id")
-    .eq("id", id)
-    .maybeSingle();
-  if (error?.code === "PGRST205") {
-    if (!seedClients.some((c) => c.id === id)) throw new Error(`bad client id ${id}`);
-    return;
-  }
-  if (error) throw new Error(`checking client: ${error.message}`);
-  if (!data) throw new Error(`bad client id ${id}`);
-}
-
-/** The editable profile columns, typed against ClientRow so the snake_case
- *  keys can't drift from the mapper/schema. */
-type ProfileRow = Pick<
-  ClientRow,
-  | "first_name"
-  | "date_of_birth"
-  | "height_inches"
-  | "experience_level"
-  | "goal"
-  | "color"
-  | "notes"
->;
-
-/** Validate the profile form. Returns a user-facing message instead of
- *  throwing — the forms show it inline via useActionState. */
-function parseProfile(formData: FormData): ProfileRow | { error: string } {
-  const firstName = String(formData.get("firstName") ?? "").trim();
-  const dateOfBirth = String(formData.get("dateOfBirth") ?? "");
-  const heightInches = Number(formData.get("heightInches") ?? 0);
-  const experienceLevel = String(formData.get("experienceLevel") ?? "");
-  const goal = String(formData.get("goal") ?? "");
-  const color = String(formData.get("color") ?? "");
-  const notes = String(formData.get("notes") ?? "").trim();
-
-  if (!firstName) return { error: "A client needs a name." };
-  if (!isIsoDate(dateOfBirth)) return { error: "Pick a date of birth." };
-  if (!Number.isFinite(heightInches) || heightInches < 24 || heightInches > 96) {
-    return { error: "Height must be between 24 and 96 inches." };
-  }
-  if (!isExperienceLevel(experienceLevel)) return { error: "Pick an experience level." };
-  if (!isGoal(goal)) return { error: "Pick a goal." };
-  if (color !== "" && !COLORS.has(color)) return { error: "Pick one of the preset colors." };
-
-  return {
-    first_name: firstName,
-    date_of_birth: dateOfBirth,
-    height_inches: heightInches,
-    experience_level: experienceLevel,
-    goal,
-    color: color || null,
-    notes,
-  };
-}
 
 /** Add a person, then land on their Progress tab. */
 export async function createClient(formData: FormData): Promise<FormResult> {
@@ -95,7 +30,13 @@ export async function updateClient(
   clientId: string,
   formData: FormData,
 ): Promise<FormResult> {
-  const profile = parseProfile(formData);
+  // The color the person already has stays valid even if it's no longer a
+  // preset — re-saving a profile must never be what wipes it.
+  const current = await run(
+    "loading client",
+    supabase.from("clients").select("color").eq("id", clientId).maybeSingle(),
+  );
+  const profile = parseProfile(formData, (current as { color: string | null } | null)?.color);
   if ("error" in profile) return profile;
   await runMatched(
     "updating client",
@@ -132,6 +73,13 @@ export async function deleteClient(clientId: string): Promise<void> {
     "client_id",
     clientId,
     "This client has food log entries — delete those first.",
+    { optionalTable: true },
+  );
+  await assertNoRefs(
+    "runs",
+    "client_id",
+    clientId,
+    "This client has runs — delete those first.",
     { optionalTable: true },
   );
   await run("deleting client", supabase.from("clients").delete().eq("id", clientId));

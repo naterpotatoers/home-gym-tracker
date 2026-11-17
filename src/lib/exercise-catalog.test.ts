@@ -7,6 +7,7 @@ import {
 import {
   exerciseLookup,
   findNameCollision,
+  isStrengthPattern,
   MAX_ALIASES,
   MAX_PRIMARY_MUSCLES,
   MAX_SCORED_MUSCLES,
@@ -20,16 +21,16 @@ const { exerciseById, scoresByExercise, modalitiesByExercise } =
   exerciseLookup(catalog);
 
 describe("seed catalog integrity", () => {
-  it("every non-mobility exercise has at least one muscle score", () => {
+  it("every strength exercise has at least one muscle score", () => {
     const unscored = exercises
-      .filter((e) => e.pattern !== "mobility")
+      .filter((e) => isStrengthPattern(e.pattern))
       .filter((e) => (scoresByExercise.get(e.id) ?? []).length === 0);
     expect(unscored.map((e) => e.id)).toEqual([]);
   });
 
-  it("mobility exercises carry no scores (excluded from volume on purpose)", () => {
+  it("mobility and conditioning exercises carry no scores (excluded from volume on purpose)", () => {
     const scored = exercises
-      .filter((e) => e.pattern === "mobility")
+      .filter((e) => !isStrengthPattern(e.pattern))
       .filter((e) => (scoresByExercise.get(e.id) ?? []).length > 0);
     expect(scored.map((e) => e.id)).toEqual([]);
   });

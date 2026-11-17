@@ -13,10 +13,18 @@ export function useWakeLock() {
   useEffect(() => {
     if (!("wakeLock" in navigator)) return;
     let lock: WakeLockSentinel | null = null;
+    // A request still in flight at unmount resolves after cleanup ran —
+    // release that late lock instead of keeping the screen on forever.
+    let cancelled = false;
 
     async function acquire() {
       try {
-        lock = await navigator.wakeLock.request("screen");
+        const next = await navigator.wakeLock.request("screen");
+        if (cancelled) {
+          next.release().catch(() => {});
+          return;
+        }
+        lock = next;
       } catch {
         // Denied (battery saver, hidden tab) — nothing useful to do.
       }
@@ -28,6 +36,7 @@ export function useWakeLock() {
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      cancelled = true;
       document.removeEventListener("visibilitychange", onVisibility);
       lock?.release().catch(() => {});
     };

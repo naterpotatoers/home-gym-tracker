@@ -3,6 +3,7 @@ import { BodyHeatmap } from "@/components/body-heatmap";
 import { ArrowLeftIcon } from "@/components/icons";
 import { LiftList, type LiftListRow } from "@/components/lift-list";
 import { RecentWorkouts } from "@/components/recent-workouts";
+import { ConditioningSection } from "@/components/conditioning-section";
 import { RunningSection } from "@/components/running-section";
 import { Caret, chipClass, Note, Section, summaryClass } from "@/components/ui";
 import { MUSCLE_GROUP_COLORS, muscleGroups } from "@/lib/data/muscles";
@@ -15,11 +16,13 @@ import { liftOverview } from "@/lib/progress";
 import { progressHref, type ProgressParams } from "@/lib/progress-url";
 import { muscleVolume } from "@/lib/queries";
 import { relativeDayLabel } from "@/lib/periods";
+import { conditioningSummaries } from "@/lib/conditioning";
 import { runnerSummary } from "@/lib/running";
 import { isModalityId } from "@/lib/validate";
 import type { ClientId } from "@/lib/types";
 import { LiftHistory } from "./exercise-view";
 import { dash, lbs } from "@/lib/format";
+import { RunSource } from "@/lib/types";
 
 export function Overview({
   data,
@@ -27,16 +30,16 @@ export function Overview({
   params,
   personName,
   today,
-  stravaAthlete = false,
+  runSyncSources = [],
 }: {
   data: GymData;
   client: ClientId;
   params: ProgressParams;
   personName: string;
   today: string;
-  /** This person's runs sync from Strava (strava.ts is server-only, so the
-   *  page decides). */
-  stravaAthlete?: boolean;
+  /** Import sources syncing this person's runs (strava.ts/garmin.ts are
+   *  server-only, so the page decides). */
+  runSyncSources?: RunSource[];
 }) {
   const lifts = liftOverview(data, client);
   // exercise/modality URL params name the selected lift. Without one, md+
@@ -118,8 +121,10 @@ export function Overview({
           Supabase SQL editor, then reload.
         </p>
       ) : (
-        <RunningSection runner={runnerSummary(data, client, today, stravaAthlete)} today={today} />
+        <RunningSection runner={runnerSummary(data, client, today, runSyncSources)} today={today} />
       )}
+
+      <ConditioningSection summaries={conditioningSummaries(data, client)} today={today} />
 
       <Section
         title="Muscle work"

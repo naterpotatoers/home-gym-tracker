@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   advanceCursor,
+  compactSet,
+  DEFAULT_REST_SECONDS,
+  restAfterLog,
+  loadLabel,
   nextIncomplete,
   performOrder,
   resolveCursor,
@@ -193,5 +197,100 @@ describe("upcomingFoldIndex", () => {
   it("never folds away a manually opened block", () => {
     expect(upcomingFoldIndex(plain, 0, 4)).toBe(5);
     expect(upcomingFoldIndex(plain, 0, 6)).toBeNull();
+  });
+});
+
+describe("compactSet", () => {
+  const base: SetLog = {
+    id: "x",
+    sessionId: "s",
+    exerciseId: "squat",
+    modalityId: "barbell",
+    position: 1,
+    setNumber: 1,
+    unilateralMode: "bilateral",
+    side: null,
+    reps: 10,
+    weightLbs: 135,
+    addedWeightLbs: null,
+    bandId: null,
+    bandRole: null,
+    durationSeconds: null,
+    distanceFeet: null,
+    rir: 2,
+    isWarmup: false,
+    completed: true,
+    notes: "",
+    conditioning: null,
+  };
+  const label = (patch: Partial<SetLog>) => compactSet({ ...base, ...patch });
+
+  it("plates and dumbbells read weight as entered × reps", () => {
+    expect(label({})).toBe("135×10");
+    expect(label({ modalityId: "dumbbell", weightLbs: 50 })).toBe("50×10");
+    expect(label({ rir: 0 })).toBe("135×10 F");
+    expect(label({ unilateralMode: "single_side", weightLbs: 40 })).toBe("40×10/side");
+  });
+
+  it("bodyweight shows BW and any added load", () => {
+    expect(label({ modalityId: "bodyweight", weightLbs: null })).toBe("BW×10");
+    expect(label({ modalityId: "bodyweight", weightLbs: null, addedWeightLbs: 25, reps: 8 })).toBe(
+      "BW+25×8",
+    );
+    expect(
+      label({ modalityId: "bodyweight", weightLbs: null, reps: null, durationSeconds: 30 }),
+    ).toBe("BW×30s");
+  });
+
+  it("bands read by color; hip bands never get pounds", () => {
+    expect(
+      label({ modalityId: "band", weightLbs: null, bandId: "band_blue", bandRole: "resistance", reps: 12 }),
+    ).toBe("blue×12");
+    expect(
+      label({ modalityId: "band", weightLbs: null, bandId: "band_blue", bandRole: "assistance", reps: 6 }),
+    ).toBe("−blue×6");
+    const hip = label({
+      modalityId: "band",
+      exerciseId: "lateral_walk",
+      weightLbs: null,
+      bandId: "hip_band_medium",
+      bandRole: "resistance",
+      reps: 15,
+    });
+    expect(hip).toBe("medium band×15");
+    expect(hip).not.toMatch(/lb|\d+×/);
+  });
+
+  it("verbose loadLabel adds units, keeps hip bands unit-free, null when unentered", () => {
+    const verbose = (patch: Partial<SetLog>) => loadLabel({ ...base, ...patch }, { verbose: true });
+    expect(verbose({})).toBe("135 lb");
+    expect(verbose({ weightLbs: null })).toBeNull();
+    expect(verbose({ modalityId: "bodyweight", weightLbs: null, addedWeightLbs: 45 })).toBe("BW+45 lb");
+    expect(verbose({ modalityId: "band", bandId: "band_blue", bandRole: "assistance" })).toBe(
+      "−blue band assist",
+    );
+    expect(verbose({ modalityId: "band", bandId: "hip_band_medium", bandRole: "resistance" })).toBe(
+      "medium band",
+    );
+  });
+});
+
+describe("restAfterLog", () => {
+  const rx = (exerciseId: string, restSeconds: number, supersetGroup: string | null = null) =>
+    ({ exerciseId, modalityId: "barbell", restSeconds, supersetGroup }) as RoutineExercise;
+  const v = (exerciseId: string) => ({ exerciseId, modalityId: "barbell" as const });
+  const prescriptions = [rx("squat", 120, "A"), rx("row", 60, "A"), rx("curl", 45)];
+  const groups = supersetGroups(prescriptions);
+
+  it("no rest when handing off to the superset partner", () => {
+    expect(restAfterLog(v("squat"), v("row"), prescriptions, groups)).toBeNull();
+  });
+  it("the prescription's rest when the round returns to the same exercise or leaves the pair", () => {
+    expect(restAfterLog(v("squat"), v("squat"), prescriptions, groups)).toBe(120);
+    expect(restAfterLog(v("row"), v("curl"), prescriptions, groups)).toBe(60);
+    expect(restAfterLog(v("curl"), undefined, prescriptions, groups)).toBe(45);
+  });
+  it("the default rest for an exercise added mid-session", () => {
+    expect(restAfterLog(v("lunge"), undefined, prescriptions, groups)).toBe(DEFAULT_REST_SECONDS);
   });
 });

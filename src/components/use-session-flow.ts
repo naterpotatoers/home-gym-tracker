@@ -6,15 +6,13 @@ import {
   advanceCursor,
   performOrder,
   resolveCursor,
+  restAfterLog,
   supersetGroups,
 } from "@/lib/session-labels";
 import type { Block } from "@/lib/set-blocks";
 import type { RoutineExercise, SetLog } from "@/lib/types";
 
 export type SetEditor = ReturnType<typeof useSetEditor>;
-
-/** Rest after a set with no prescription (an exercise added mid-session). */
-const DEFAULT_REST_SECONDS = 90;
 
 /**
  * The live-session flow state shared by the solo runner and each group-board
@@ -23,7 +21,9 @@ const DEFAULT_REST_SECONDS = 90;
  * the React state around it.
  *
  * `now` is a ticking timestamp provided by the caller's clock — nothing here
- * calls Date.now() during render.
+ * calls Date.now() during render. Rest deadlines are anchored with Date.now()
+ * at LOG time (an event, not render): the 1 s tick can lag by up to a second,
+ * and is 0 before its first tick, which would read as a rest already over.
  */
 export function useSessionFlow(
   editor: SetEditor,
@@ -59,28 +59,20 @@ export function useSessionFlow(
   const resting = restSecondsLeft !== null && restSecondsLeft > 0;
   const ready = restSecondsLeft !== null && restSecondsLeft <= 0;
 
+  /** Start (or clear) the rest timer: `seconds` from right now. */
+  function startRest(seconds: number | null) {
+    setRestUntil(seconds === null ? null : Date.now() + seconds * 1000);
+  }
+
   function logCurrent() {
     if (!current) return;
-    const rx = prescriptions.find(
-      (p) => p.exerciseId === current.exerciseId && p.modalityId === current.modalityId,
-    );
     // advanceCursor looks strictly after `current`, so computing it before the
     // patch lands is safe. With nothing ahead the cursor parks on the logged
     // set itself, which self-recovers if more sets get appended later.
     const nextId = advanceCursor(ordered, current.id);
-    // No rest inside a superset pair — the "rest" is the partner exercise.
-    // The prescription's rest applies once the round hands back to a new
-    // exercise (or the pair is done).
     const next = nextId !== null ? ordered.find((s) => s.id === nextId) : undefined;
-    const currentKey = `${current.exerciseId}|${current.modalityId}`;
-    const label = supersets.get(currentKey);
-    const pairedNext =
-      next !== undefined &&
-      label !== undefined &&
-      `${next.exerciseId}|${next.modalityId}` !== currentKey &&
-      supersets.get(`${next.exerciseId}|${next.modalityId}`) === label;
-    editor.patchSet(current.id, { completed: true });
-    setRestUntil(pairedNext ? null : now + (rx?.restSeconds ?? DEFAULT_REST_SECONDS) * 1000);
+    editor.completeSet(current.id);
+    startRest(restAfterLog(current, next, prescriptions, supersets));
     setCursorId(nextId ?? current.id);
     setExpandedKey(null); // follow the flow to the next block
   }
@@ -92,7 +84,7 @@ export function useSessionFlow(
    *  no rest restart, no cursor move. */
   function logSet(setId: string, { rest = true }: { rest?: boolean } = {}) {
     if (!rest) {
-      editor.patchSet(setId, { completed: true });
+      editor.completeSet(setId);
       return;
     }
     if (current && setId === current.id) {
@@ -101,11 +93,8 @@ export function useSessionFlow(
     }
     const set = editor.sets.find((s) => s.id === setId);
     if (!set) return;
-    const rx = prescriptions.find(
-      (p) => p.exerciseId === set.exerciseId && p.modalityId === set.modalityId,
-    );
-    editor.patchSet(setId, { completed: true });
-    setRestUntil(now + (rx?.restSeconds ?? DEFAULT_REST_SECONDS) * 1000);
+    editor.completeSet(setId);
+    startRest(restAfterLog(set, undefined, prescriptions, supersets));
   }
 
   function tapBlock(block: Block) {

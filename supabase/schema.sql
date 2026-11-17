@@ -37,7 +37,16 @@ create table routine_exercises (
   target_rir int,
   superset_group text,
   notes text not null default '',
-  primary key (routine_id, sort_order)
+  -- Conditioning rows (Echo Bike): "<rounds>x<work s>/<rest s>" or null for a
+  -- steady piece timed by duration_seconds, plus the default target.
+  interval_scheme text,
+  target_watts int,
+  target_rpm int,
+  primary key (routine_id, sort_order),
+  constraint routine_exercises_conditioning_check check (
+    (interval_scheme is null or interval_scheme ~ '^\d{1,2}x\d{1,3}/\d{1,3}$')
+    and (target_watts is null or target_watts between 1 and 2000)
+    and (target_rpm is null or target_rpm between 1 and 250))
 );
 
 create table programs (
@@ -103,7 +112,24 @@ create table set_logs (
   rir int,
   is_warmup boolean not null default false,
   completed boolean not null default false,
-  notes text not null default ''
+  notes text not null default '',
+  -- Conditioning pieces: what the person aimed at (feeds their next target)
+  -- and what the console read after STOP. Distance reuses distance_feet.
+  interval_scheme text,
+  target_watts int,
+  target_rpm int,
+  avg_watts int,
+  max_watts int,
+  avg_rpm int,
+  calories int,
+  constraint set_logs_conditioning_check check (
+    (interval_scheme is null or interval_scheme ~ '^\d{1,2}x\d{1,3}/\d{1,3}$')
+    and (target_watts is null or target_watts between 1 and 2000)
+    and (target_rpm is null or target_rpm between 1 and 250)
+    and (avg_watts is null or avg_watts between 0 and 3000)
+    and (max_watts is null or max_watts between 0 and 3000)
+    and (avg_rpm is null or avg_rpm between 0 and 300)
+    and (calories is null or calories between 0 and 5000))
 );
 
 create table weigh_ins (
@@ -127,15 +153,15 @@ create table if not exists runs (
   avg_heart_rate int,
   elevation_gain_ft int,
   name text not null default '',
-  source text not null default 'manual' check (source in ('manual', 'strava')),
+  source text not null default 'manual' check (source in ('manual', 'strava', 'garmin')),
   external_id text unique,
   notes text not null default ''
 );
 create index if not exists runs_client_idx on runs (client_id, date);
 
 -- Clients live in the database (not TS reference data) so people can be added
--- and edited at /users, each with a card color. Ids stay readable text slugs;
--- other tables keep referencing client_id as plain text.
+-- and edited at /users, each with a card color. Ids stay readable text slugs.
+-- The client_id FKs are added after every table exists (see "Integrity").
 create table clients (
   id text primary key,
   first_name text not null,
@@ -160,7 +186,7 @@ create table exercises (
   name text not null,
   pattern text not null check (pattern in
     ('squat', 'hinge', 'lunge', 'push_h', 'push_v', 'pull_h', 'pull_v',
-     'carry', 'core', 'isolation', 'mobility')),
+     'carry', 'core', 'isolation', 'mobility', 'conditioning')),
   metric_type text not null check (metric_type in ('reps', 'time', 'distance')),
   is_compound boolean not null default false,
   -- Alternative names ("Overhead Press" for Shoulder Press) — searched by the
@@ -238,6 +264,44 @@ create unique index exercises_name_idx on exercises (lower(name));
 create unique index exercise_modalities_default_idx
   on exercise_modalities (exercise_id) where is_default;
 
+-- Integrity the app relies on (mirrors supabase/migrations/2026-11-16-hardening.sql).
+-- Every client_id references a real person; deleting someone with history fails.
+alter table assignments add constraint assignments_client_fk foreign key (client_id) references clients(id);
+alter table sessions add constraint sessions_client_fk foreign key (client_id) references clients(id);
+alter table weigh_ins add constraint weigh_ins_client_fk foreign key (client_id) references clients(id);
+alter table food_logs add constraint food_logs_client_fk foreign key (client_id) references clients(id);
+alter table runs add constraint runs_client_fk foreign key (client_id) references clients(id);
+-- Performed order is unique per session; deferred so sync_set_logs can
+-- renumber a whole session inside one transaction.
+alter table set_logs add constraint set_logs_session_position_key
+  unique (session_id, position) deferrable initially deferred;
+alter table set_logs add constraint set_logs_values_check check (
+  position >= 1 and set_number >= 1
+  and (reps is null or reps >= 0)
+  and (weight_lbs is null or weight_lbs >= 0)
+  and (added_weight_lbs is null or added_weight_lbs >= 0)
+  and (duration_seconds is null or duration_seconds >= 0)
+  and (distance_feet is null or distance_feet >= 0)
+  and (rir is null or rir between 0 and 10));
+alter table routine_exercises add constraint routine_exercises_values_check check (
+  sets between 1 and 20
+  and rest_seconds >= 0
+  and (rep_min is null or rep_max is null or rep_min <= rep_max));
+alter table programs add constraint programs_weeks_check check (weeks between 1 and 52);
+alter table weigh_ins add constraint weigh_ins_bodyweight_check check (bodyweight_lbs > 0);
+alter table foods add constraint foods_macros_check
+  check (plate_kcal >= 0 and plate_protein_g >= 0 and plate_carbs_g >= 0 and plate_fat_g >= 0);
+alter table food_logs add constraint food_logs_macros_check
+  check (kcal >= 0 and protein_g >= 0 and carbs_g >= 0 and fat_g >= 0);
+-- One active program per person.
+create unique index assignments_one_active_idx on assignments (client_id) where status = 'active';
+-- Behind the delete-guards' reference checks.
+create index program_days_routine_idx on program_days (routine_id);
+create index sessions_routine_idx on sessions (routine_id);
+create index sessions_assignment_idx on sessions (assignment_id);
+create index assignments_client_idx on assignments (client_id);
+create index set_logs_exercise_idx on set_logs (exercise_id);
+
 -- Week-structure rewrites as single transactions, so a failure mid-shift can
 -- never lose a program's schedule. The composite PK forbids in-place shifts,
 -- so rows hop through a +1000 offset (still satisfies check week >= 1).
@@ -273,6 +337,147 @@ begin
     select program_id, p_week + 1, day_of_week, routine_id
     from program_days where program_id = p_program and week = p_week;
   update programs set weeks = n + 1 where id = p_program;
+end $$;
+
+-- Atomic multi-table writes (PostgREST has no client-side transactions).
+-- Rows arrive as JSON in each table's exact snake_case shape
+-- (src/lib/db/mappers.ts), so jsonb_populate_recordset maps them.
+-- A session's whole set list: rows missing from p_rows are deleted, the rest
+-- upserted — one transaction, so renumbering never trips the unique position.
+create or replace function sync_set_logs(p_session text, p_rows jsonb)
+returns void language plpgsql as $$
+begin
+  if exists (
+    select 1 from jsonb_array_elements(p_rows) r
+    where r->>'session_id' is distinct from p_session
+  ) or exists (
+    select 1 from set_logs s
+    join jsonb_array_elements(p_rows) r on s.id = r->>'id'
+    where s.session_id <> p_session
+  ) then
+    raise exception 'set belongs to another session';
+  end if;
+
+  delete from set_logs
+  where session_id = p_session
+    and id not in (select r->>'id' from jsonb_array_elements(p_rows) r);
+
+  insert into set_logs
+  select * from jsonb_populate_recordset(null::set_logs, p_rows)
+  on conflict (id) do update set
+    position = excluded.position,
+    exercise_id = excluded.exercise_id,
+    modality_id = excluded.modality_id,
+    set_number = excluded.set_number,
+    unilateral_mode = excluded.unilateral_mode,
+    side = excluded.side,
+    reps = excluded.reps,
+    weight_lbs = excluded.weight_lbs,
+    added_weight_lbs = excluded.added_weight_lbs,
+    band_id = excluded.band_id,
+    band_role = excluded.band_role,
+    duration_seconds = excluded.duration_seconds,
+    distance_feet = excluded.distance_feet,
+    rir = excluded.rir,
+    is_warmup = excluded.is_warmup,
+    completed = excluded.completed,
+    notes = excluded.notes,
+    interval_scheme = excluded.interval_scheme,
+    target_watts = excluded.target_watts,
+    target_rpm = excluded.target_rpm,
+    avg_watts = excluded.avg_watts,
+    max_watts = excluded.max_watts,
+    avg_rpm = excluded.avg_rpm,
+    calories = excluded.calories;
+end $$;
+
+-- An exercise's basics, muscle scores, and variants together. An UPDATE of
+-- the exercise row (never an upsert): a save racing a delete must fail, not
+-- resurrect it.
+create or replace function save_exercise(p_exercise jsonb, p_scores jsonb, p_modalities jsonb)
+returns void language plpgsql as $$
+declare
+  ex exercises;
+begin
+  ex := jsonb_populate_record(null::exercises, p_exercise);
+  update exercises
+  set name = ex.name, aliases = ex.aliases, pattern = ex.pattern,
+      metric_type = ex.metric_type, is_compound = ex.is_compound
+  where id = ex.id;
+  if not found then raise exception 'exercise % not found', ex.id; end if;
+
+  delete from exercise_muscle_scores where exercise_id = ex.id;
+  insert into exercise_muscle_scores
+  select * from jsonb_populate_recordset(null::exercise_muscle_scores, p_scores);
+
+  delete from exercise_modalities where exercise_id = ex.id;
+  insert into exercise_modalities
+  select * from jsonb_populate_recordset(null::exercise_modalities, p_modalities);
+end $$;
+
+-- A routine and its prescriptions together. p_create inserts the routine row
+-- (duplicate, care import); otherwise it must already exist.
+create or replace function save_routine(p_routine jsonb, p_rows jsonb, p_create boolean default false)
+returns void language plpgsql as $$
+declare
+  r routines;
+begin
+  r := jsonb_populate_record(null::routines, p_routine);
+  if p_create then
+    insert into routines select r.*;
+  else
+    update routines set name = r.name, notes = r.notes where id = r.id;
+    if not found then raise exception 'routine % not found', r.id; end if;
+    delete from routine_exercises where routine_id = r.id;
+  end if;
+  insert into routine_exercises
+  select * from jsonb_populate_recordset(null::routine_exercises, p_rows);
+end $$;
+
+-- Assign a program: the person's other active assignments complete in the
+-- same transaction, so there is never zero or two active.
+create or replace function assign_program(p_id text, p_program text, p_client text, p_start date)
+returns void language plpgsql as $$
+begin
+  update assignments set status = 'completed'
+  where client_id = p_client and status = 'active';
+  insert into assignments (id, program_id, client_id, start_date, status)
+  values (p_id, p_program, p_client, p_start, 'active');
+end $$;
+
+create or replace function set_assignment_status(p_id text, p_status text)
+returns void language plpgsql as $$
+declare
+  c text;
+begin
+  select client_id into c from assignments where id = p_id for update;
+  if c is null then raise exception 'assignment % not found', p_id; end if;
+  if p_status = 'active' then
+    update assignments set status = 'completed'
+    where client_id = c and status = 'active' and id <> p_id;
+  end if;
+  update assignments set status = p_status where id = p_id;
+end $$;
+
+-- Append a week at the end — empty, or a copy of p_copy_from's layout.
+create or replace function add_program_week(p_program text, p_copy_from int, p_max int)
+returns void language plpgsql as $$
+declare
+  n int;
+begin
+  select weeks into n from programs where id = p_program for update;
+  if n is null then raise exception 'program % not found', p_program; end if;
+  if n >= p_max then raise exception 'Programs cap at % weeks.', p_max; end if;
+  if p_copy_from is not null and (p_copy_from < 1 or p_copy_from > n) then
+    raise exception 'week % out of range', p_copy_from;
+  end if;
+
+  update programs set weeks = n + 1 where id = p_program;
+  if p_copy_from is not null then
+    insert into program_days (program_id, week, day_of_week, routine_id)
+    select program_id, n + 1, day_of_week, routine_id
+    from program_days where program_id = p_program and week = p_copy_from;
+  end if;
 end $$;
 
 -- RLS: enabled with a permissive anon policy on every table. This is a

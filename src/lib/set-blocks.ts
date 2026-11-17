@@ -91,3 +91,39 @@ export function cascadePatch(changes: Partial<SetLog>): Partial<SetLog> {
   }
   return patch;
 }
+
+/**
+ * LOG for a dumbbell/barbell set entered at 0 lb: that's bodyweight work, so
+ * it's recorded as the exercise's bodyweight variant (weights cleared). The
+ * block's other 0 lb sets switch with it, so it stays one block. Null when
+ * the rule doesn't apply — not 0 lb, or the exercise has no bodyweight
+ * variant (`hasBodyweight`) — and the caller just marks the set done.
+ */
+export function completeAsBodyweight(
+  sets: readonly SetLog[],
+  setId: string,
+  hasBodyweight: (exerciseId: string) => boolean,
+): SetLog[] | null {
+  const target = sets.find((s) => s.id === setId);
+  if (
+    !target ||
+    target.weightLbs !== 0 ||
+    (target.modalityId !== "dumbbell" && target.modalityId !== "barbell") ||
+    !hasBodyweight(target.exerciseId)
+  ) {
+    return null;
+  }
+  const block = toBlocks(sets).find((b) => b.sets.some((s) => s.id === setId));
+  const convert = new Set(block?.sets.filter((s) => s.weightLbs === 0).map((s) => s.id));
+  return sets.map((s) =>
+    convert.has(s.id)
+      ? {
+          ...s,
+          modalityId: "bodyweight",
+          weightLbs: null,
+          addedWeightLbs: null,
+          completed: s.completed || s.id === setId,
+        }
+      : s,
+  );
+}

@@ -4,7 +4,7 @@ import { BodyHeatmap } from "@/components/body-heatmap";
 import { AssignmentChips } from "@/components/assignment-chips";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
 import { chipClass, PageShell, Section } from "@/components/ui";
-import { ProgramEditor } from "@/components/week-grid";
+import { ProgramEditor } from "@/components/program-editor";
 import { coverageByGroup, neglectedMuscles, weekCoverage } from "@/lib/coverage";
 import { loadGymData } from "@/lib/db/snapshot";
 import { catalogSlice } from "@/lib/exercise-catalog";

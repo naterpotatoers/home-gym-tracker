@@ -4,7 +4,6 @@
  * - PlusIcon  = create / add something new
  * - CopyIcon  = duplicate an existing thing
  * - TrashIcon = delete / remove / discard
- * - PencilIcon = edit / replace
  * - PlayIcon  = start / launch a workout session (primary-variant button)
  * - SaveIcon  = persist a form ("Save …" buttons)
  * - CheckIcon = finish / complete something
@@ -25,14 +24,6 @@ function iconProps(size = 18) {
     strokeLinecap: "round",
     strokeLinejoin: "round",
   } as const;
-}
-
-export function PencilIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg {...iconProps(size)} aria-hidden>
-      <path d="M17 3l4 4L8 20l-5 1 1-5L17 3z" />
-    </svg>
-  );
 }
 
 export function TrashIcon({ size = 18 }: { size?: number }) {

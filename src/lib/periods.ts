@@ -1,4 +1,4 @@
-import type { GymData } from "./gym-data";
+import { activeAssignment, type GymData } from "./gym-data";
 import type { ClientId } from "./types";
 
 /**
@@ -65,11 +65,14 @@ export function localDayLabel(iso: string): string {
   });
 }
 
-/** "Oct 23" — compact gym-zone day for dense lists. Display only. */
-export function shortDayLabel(iso: string): string {
+/** "Oct 23" — compact gym-zone day for dense lists. Pass `todayIso` in
+ *  history lists so an older year reads "Oct 23, 2025". Display only. */
+export function shortDayLabel(iso: string, todayIso?: string): string {
+  const otherYear = todayIso !== undefined && iso.slice(0, 4) !== todayIso.slice(0, 4);
   return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    ...(otherYear ? { year: "numeric" } : {}),
     timeZone: "UTC",
   });
 }
@@ -198,14 +201,13 @@ export function resolvePeriod(
               (a) => a.clientId === clientId && a.programId === params.program,
             )
           : undefined) ??
-        data.assignments.find((a) => a.clientId === clientId && a.status === "active") ??
+        activeAssignment(data, clientId) ??
         data.assignments.find((a) => a.clientId === clientId);
       if (!assignment) {
         // No program history: fall back to the trailing 8 weeks.
-        const today = localTodayIso();
         return {
-          from: addDaysIso(today, -55),
-          to: today,
+          from: addDaysIso(anchor, -55),
+          to: anchor,
           label: "No program assigned — last 8 weeks",
           prevAnchor: null,
           nextAnchor: null,
@@ -222,9 +224,8 @@ export function resolvePeriod(
       };
     }
     case "custom": {
-      const today = localTodayIso();
-      const from = params.from ?? addDaysIso(today, -29);
-      const to = params.to ?? today;
+      const from = params.from ?? addDaysIso(anchor, -29);
+      const to = params.to ?? anchor;
       return { from, to, label: `${from} → ${to}`, prevAnchor: null, nextAnchor: null };
     }
   }

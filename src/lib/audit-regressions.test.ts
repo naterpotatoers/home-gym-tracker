@@ -47,6 +47,7 @@ function set(overrides: Partial<SetLog>): SetLog {
     isWarmup: false,
     completed: true,
     notes: "",
+    conditioning: null,
     ...overrides,
   };
 }
@@ -141,6 +142,7 @@ describe("load factors", () => {
       targetRir: 2,
       supersetGroup: null,
       notes: "",
+      conditioning: null,
     };
     expect(smartPrefill(data, CLIENT, rx, "2026-08-10")).toBeNull();
   });
@@ -201,5 +203,86 @@ describe("describeSet", () => {
     const s = set({ exerciseId: "dip", modalityId: "bodyweight", reps: 8, addedWeightLbs: 45 });
     const data = world([session("s_t1", "2026-08-01")], [s], [bw("2026-07-01", 180)]);
     expect(describeSet(data, s)).toContain("BW+45 lb");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2026-11-16 audit
+// ---------------------------------------------------------------------------
+
+const rxFor = (overrides: Partial<RoutineExercise>): RoutineExercise => ({
+  routineId: "r_t",
+  order: 1,
+  exerciseId: "goblet_squat",
+  modalityId: "dumbbell",
+  bandRole: null,
+  unilateralMode: "bilateral",
+  sets: 3,
+  repMin: 5,
+  repMax: 5,
+  durationSeconds: null,
+  restSeconds: 90,
+  targetRir: 2,
+  supersetGroup: null,
+  notes: "",
+  conditioning: null,
+  ...overrides,
+});
+
+describe("smart prefill honors the variant's load shape", () => {
+  it("goblet squat re-targets the ONE dumbbell, not half of it", () => {
+    // 25 × 10 → e1RM 33.3 → 28.6 at 5 reps → the 30, not the 15.
+    const s = set({ exerciseId: "goblet_squat", modalityId: "dumbbell", weightLbs: 25 });
+    const data = world([session("s_t1", "2026-08-01")], [s]);
+    expect(smartPrefill(data, CLIENT, rxFor({}), "2026-08-10")?.weightLbs).toBe(30);
+  });
+
+  it("dumbbell pull-up subtracts bodyweight before picking a dumbbell", () => {
+    // (180 + 10) × (1 + 8/30) = 240.7 e1RM → 206.3 at 5 reps → 26.3 lb of
+    // dumbbell → the 25. Splitting the total would have maxed out the rack.
+    const s = set({ exerciseId: "pull_up", modalityId: "dumbbell", weightLbs: 10, reps: 8 });
+    const data = world([session("s_t1", "2026-08-01")], [s], [bw("2026-07-01", 180)]);
+    const rx = rxFor({ exerciseId: "pull_up" });
+    expect(smartPrefill(data, CLIENT, rx, "2026-08-10")?.weightLbs).toBe(25);
+  });
+
+  it("dumbbell pull-up without a weigh-in falls back to the last set, never a guess", () => {
+    const s = set({ exerciseId: "pull_up", modalityId: "dumbbell", weightLbs: 10, reps: 8 });
+    const data = world([session("s_t1", "2026-08-01")], [s]);
+    expect(smartPrefill(data, CLIENT, rxFor({ exerciseId: "pull_up" }), "2026-08-10")?.weightLbs).toBe(10);
+  });
+
+  it("split squat (one dumbbell per hand) still splits the total", () => {
+    const s = set({
+      exerciseId: "bulgarian_split_squat",
+      modalityId: "dumbbell",
+      unilateralMode: "single_side",
+      weightLbs: 25,
+    });
+    const data = world([session("s_t1", "2026-08-01")], [s]);
+    const rx = rxFor({ exerciseId: "bulgarian_split_squat", unilateralMode: "single_side" });
+    // 50 × 10 → 66.7 → 57.1 at 5 reps → 28.6 per hand → the 30.
+    expect(smartPrefill(data, CLIENT, rx, "2026-08-10")?.weightLbs).toBe(30);
+  });
+});
+
+describe("describeSet dumbbell totals", () => {
+  it("never prints a null total", () => {
+    const s = set({ exerciseId: "pull_up", modalityId: "dumbbell", weightLbs: 25 });
+    const data = world([session("s_t1", "2026-08-01")], [s]);
+    expect(describeSet(data, s)).not.toContain("null");
+  });
+
+  it("a one-dumbbell variant isn't labeled 'each'", () => {
+    const s = set({ exerciseId: "goblet_squat", modalityId: "dumbbell", weightLbs: 50 });
+    const data = world([session("s_t1", "2026-08-01")], [s]);
+    expect(describeSet(data, s)).toContain("50 lb");
+    expect(describeSet(data, s)).not.toContain("ea");
+  });
+
+  it("a pair shows per-hand weight and the total", () => {
+    const s = set({ exerciseId: "bicep_curl", modalityId: "dumbbell", weightLbs: 25 });
+    const data = world([session("s_t1", "2026-08-01")], [s]);
+    expect(describeSet(data, s)).toContain("25 lb ea (50 total)");
   });
 });

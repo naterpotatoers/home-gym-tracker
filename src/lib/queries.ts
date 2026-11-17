@@ -5,20 +5,22 @@ import {
 } from "./data/equipment";
 import { modalityById } from "./data/modalities";
 import { muscles } from "./data/muscles";
-import { exerciseLookup, type ExerciseCatalog } from "./exercise-catalog";
-import type { GymData } from "./gym-data";
-import { nearestLoadableWeight } from "./loading";
-import { ageOnIso, currentProgramWeek, localIso, localTodayIso, programEnded } from "./periods";
+import { exerciseLookup, groupBy, variantKey, type ExerciseCatalog } from "./exercise-catalog";
+import { activeAssignment, type GymData } from "./gym-data";
+import { ageOnIso, currentProgramWeek, localIso, programEnded } from "./periods";
+import { conditioningSetLabel, loadLabel } from "./session-labels";
 import { toBlocks, type Block } from "./set-blocks";
 import { weighInHistory } from "./weigh-ins";
 import {
   bestE1rm,
-  e1rm,
   effectiveScores,
+  implementsPerRep,
   latestBodyweight,
   normalizedLoad,
   setLoad,
   sidesWorked,
+  variantOf,
+  workingSets,
 } from "./modality";
 import type {
   BandRole,
@@ -98,17 +100,14 @@ export function sessionsFor(data: GymData, clientId: ClientId): Session[] {
 export function openBoardGroups(
   data: GymData,
 ): { date: string; sessionIds: string[] }[] {
-  const byDate = new Map<string, string[]>();
-  for (const s of data.sessions) {
-    if (s.status !== "planned") continue;
-    const ids = byDate.get(s.date);
-    if (ids) ids.push(s.id);
-    else byDate.set(s.date, [s.id]);
-  }
+  const byDate = groupBy(
+    data.sessions.filter((s) => s.status === "planned"),
+    (s) => s.date,
+  );
   return [...byDate]
-    .filter(([, ids]) => ids.length >= 2)
+    .filter(([, sessions]) => sessions.length >= 2)
     .sort(([a], [b]) => b.localeCompare(a))
-    .map(([date, sessionIds]) => ({ date, sessionIds }));
+    .map(([date, sessions]) => ({ date, sessionIds: sessions.map((s) => s.id) }));
 }
 
 /** Where a one-tap start should send a client who already has an unfinished
@@ -161,7 +160,7 @@ export function sessionVolumeLbs(data: GymData, sessionId: string): number {
 /** One-line description of a set, in the units that set was actually measured
  *  in. Ordinal loads render as a band name, never as a number. */
 export function describeSet(data: GymData, set: SetLog): string {
-  const load = setLoad(data, set);
+  if (set.conditioning) return conditioningSetLabel(set);
   const parts: string[] = [];
 
   if (set.durationSeconds !== null) parts.push(`${set.durationSeconds}s`);
@@ -171,58 +170,27 @@ export function describeSet(data: GymData, set: SetLog): string {
   }
 
   if (set.modalityId === "dumbbell" && set.weightLbs !== null) {
-    parts.push(`${set.weightLbs} lb ea (${load.lbs} total)`);
-  } else if (load.precision === "ordinal") {
-    parts.push(`${bandLabel(set)} band`);
-  } else if (set.bandRole === "assistance") {
-    parts.push(`−${bandLabel(set)} band assist`);
-  } else if (set.bandId) {
-    parts.push(`${bandLabel(set)} band`);
-  } else if (set.modalityId === "bodyweight") {
-    if (set.addedWeightLbs) parts.push(`BW+${set.addedWeightLbs} lb`);
-  } else if (set.weightLbs !== null) {
-    parts.push(`${set.weightLbs} lb`);
+    // Per implement as entered; the total only when it says something new
+    // (two dumbbells, or the lifter's bodyweight riding along) and is known.
+    const each = implementsPerRep(data, set) > 1 ? " ea" : "";
+    const total = setLoad(data, set).lbs;
+    parts.push(
+      total !== null && total !== set.weightLbs
+        ? `${set.weightLbs} lb${each} (${total} total)`
+        : `${set.weightLbs} lb${each}`,
+    );
+  } else {
+    const load = loadLabel(set, { verbose: true });
+    if (load && load !== "BW") parts.push(load);
   }
 
   if (set.rir !== null) parts.push(set.rir === 0 ? "to failure" : `RIR ${set.rir}`);
   return parts.join(" · ");
 }
 
-/** Terse one-set label for history chips — "135×10", "50×10" (per
- *  dumbbell, as entered), "BW+25×8", "blue×12", "−green×6" (assist),
- *  "medium band×15" (hip band: ordinal, never pounds), "30s", "×10/side".
- *  "F" marks a set taken to failure. */
-export function compactSet(data: GymData, set: SetLog): string {
-  const load = setLoad(data, set);
-  let what = "";
-  if (load.precision === "ordinal") what = `${bandLabel(set)} band`;
-  else if (set.bandRole === "assistance") what = `−${bandLabel(set)}`;
-  else if (set.bandId) what = bandLabel(set);
-  else if (set.modalityId === "bodyweight") {
-    what = set.addedWeightLbs ? `BW+${set.addedWeightLbs}` : "BW";
-  } else if (set.weightLbs !== null) what = String(set.weightLbs);
-
-  let amount = "";
-  if (set.durationSeconds !== null) amount = `${set.durationSeconds}s`;
-  else if (set.distanceFeet !== null) amount = `${set.distanceFeet}ft`;
-  else if (set.reps !== null) {
-    amount = `${set.reps}${sidesWorked(set) > 1 ? "/side" : ""}`;
-  }
-
-  const label = what && amount ? `${what}×${amount}` : what || amount || "—";
-  return set.rir === 0 ? `${label} F` : label;
-}
-
-/** Short band name for labels — "blue", "small". Exported so cards and
- *  describeSet render bands identically. */
-export function bandLabel(set: SetLog): string {
-  return set.bandId?.replace(/^(band|hip_band)_/, "").replace(/_/g, "/") ?? "";
-}
-
 // ---------------------------------------------------------------------------
 // Strength
 // ---------------------------------------------------------------------------
-
 
 /** Most recent set by (session date, position) — the shared recency rule. */
 export function latestSet(data: GymData, sets: readonly SetLog[]): SetLog | null {
@@ -242,54 +210,8 @@ export function latestSet(data: GymData, sets: readonly SetLog[]): SetLog | null
   return latest;
 }
 
-/** Completed working sets for one client × variant. The shared filter behind
- *  every strength stat, so "counts toward a PR" means one thing. */
-export function workingSets(
-  data: GymData,
-  clientId: ClientId,
-  exerciseId?: ExerciseId,
-  modalityId?: ModalityId,
-): SetLog[] {
-  return data.setLogs.filter((set) => {
-    if (exerciseId && set.exerciseId !== exerciseId) return false;
-    if (modalityId && set.modalityId !== modalityId) return false;
-    if (set.isWarmup || !set.completed) return false;
-    return data.sessionById.get(set.sessionId)?.clientId === clientId;
-  });
-}
-
-/** e1RM relative to the most recent weigh-in — needs weigh-in history, which
- *  is why bodyweight does not live on the profile. */
-function relativeStrength(
-  data: GymData,
-  clientId: ClientId,
-  exerciseId: ExerciseId,
-  modalityId: ModalityId,
-): number | null {
-  const best = bestE1rm(data, workingSets(data, clientId, exerciseId, modalityId));
-  const bodyweight = latestBodyweight(data, clientId, localTodayIso());
-  if (best === null || bodyweight === null || bodyweight <= 0) return null;
-  return best / bodyweight;
-}
-
-// ---------------------------------------------------------------------------
-// Metrics explorations
-// ---------------------------------------------------------------------------
-
-/** Epley inverted: the weight that lands `reps` at this e1RM. Total pounds per
- *  rep, same basis as e1RM itself. */
-export function weightForReps(e1rmLbs: number, reps: number): number {
-  return e1rmLbs / (1 + reps / 30);
-}
-
-/** Epley inverted the other way: reps expected at `weightLbs` given this e1RM. */
-export function repsForWeight(e1rmLbs: number, weightLbs: number): number {
-  if (weightLbs <= 0) return 0;
-  return Math.max(0, 30 * (e1rmLbs / weightLbs - 1));
-}
-
-/** Every exercise × modality anyone has actually trained — the picker list for
- *  the metrics explorer. */
+/** Every exercise × modality anyone has actually trained, with who trained
+ *  it and when — feeds the picker's "Recent" group. */
 type TrainedVariant = {
   exerciseId: ExerciseId;
   modalityId: ModalityId;
@@ -303,7 +225,7 @@ function trainedVariants(data: GymData): TrainedVariant[] {
     if (set.isWarmup || !set.completed) continue;
     const session = data.sessionById.get(set.sessionId);
     if (!session) continue;
-    const key = `${set.exerciseId}|${set.modalityId}`;
+    const key = variantKey(set.exerciseId, set.modalityId);
     let row = byKey.get(key);
     if (!row) {
       row = {
@@ -348,6 +270,37 @@ export function priorBestE1rm(
   return bestE1rm(data, sets);
 }
 
+export type RecapBlock = SetBlock & {
+  done: number;
+  /** Set when this completed session beat every earlier completed session's
+   *  best e1RM for the variant — the recap's PR badge. */
+  pr: { bestLbs: number; priorLbs: number } | null;
+};
+
+/** A finished session's recap, page-ready: blocks with done counts and PR
+ *  calls, plus the headline stats. Skipped sessions never claim PRs. */
+export function sessionRecap(data: GymData, sessionId: string) {
+  const session = data.sessionById.get(sessionId);
+  const blocks: RecapBlock[] = blocksFor(data, sessionId).map((block) => {
+    const working = block.sets.filter((s) => s.completed && !s.isWarmup);
+    const best = bestE1rm(data, working);
+    const prior =
+      session?.status === "completed" && best !== null
+        ? priorBestE1rm(data, session.clientId, block.exerciseId, block.modalityId, session.id, session.date)
+        : null;
+    return {
+      ...block,
+      done: block.sets.filter((s) => s.completed).length,
+      pr: best !== null && prior !== null && best > prior ? { bestLbs: best, priorLbs: prior } : null,
+    };
+  });
+  return {
+    blocks,
+    workingSets: blocks.flatMap((b) => b.sets).filter((s) => s.completed && !s.isWarmup).length,
+    volumeLbs: sessionVolumeLbs(data, sessionId),
+  };
+}
+
 /** The most recently trained variants, as picker keys — pins a "Recent"
  *  group so mid-workout adds don't mean scrolling ~100 rows. No clientId =
  *  household-wide (the routine editor has no person in scope). */
@@ -360,128 +313,7 @@ export function recentVariantKeys(
     .filter((v) => (clientId ? v.clients.includes(clientId) : true))
     .sort((a, b) => b.lastDate.localeCompare(a.lastDate))
     .slice(0, limit)
-    .map((v) => `${v.exerciseId}|${v.modalityId}`);
-}
-
-/**
- * "What should I put on the bar for 8-10s?" All numbers are TOTAL pounds per
- * rep (the e1RM basis) — the UI divides by two for per-implement dumbbell
- * display. Nulls, never fake numbers, for ordinal/unloaded work.
- */
-export type RepRangeAnswer = {
-  /** Heaviest completed set whose reps landed inside the range. */
-  bestActual: { weightLbs: number; reps: number; date: string } | null;
-  /** e1RM-predicted weight at the top of the range. */
-  predicted: number | null;
-  /** Nearest plate-buildable bar load to the prediction (barbell only). */
-  suggestedBarLoad: number | null;
-};
-
-export function workingWeightForRepRange(
-  data: GymData,
-  clientId: ClientId,
-  exerciseId: ExerciseId,
-  modalityId: ModalityId,
-  repMin: number,
-  repMax: number,
-): RepRangeAnswer {
-  const sets = workingSets(data, clientId, exerciseId, modalityId);
-
-  let bestActual: RepRangeAnswer["bestActual"] = null;
-  for (const set of sets) {
-    const load = setLoad(data, set);
-    if (load.lbs === null || load.precision === "ordinal") continue;
-    if (set.reps === null || set.reps < repMin || set.reps > repMax) continue;
-    if (!bestActual || load.lbs > bestActual.weightLbs) {
-      bestActual = {
-        weightLbs: load.lbs,
-        reps: set.reps,
-        date: data.sessionById.get(set.sessionId)?.date ?? "",
-      };
-    }
-  }
-
-  const best = bestE1rm(data, sets);
-  const predicted = best === null ? null : weightForReps(best, repMax);
-  return {
-    bestActual,
-    predicted,
-    suggestedBarLoad:
-      predicted !== null && modalityId === "barbell"
-        ? nearestLoadableWeight(predicted)
-        : null,
-  };
-}
-
-/** "How many reps should X pounds give me?" Same total-pounds basis. */
-export type WeightAnswer = {
-  /** Most reps ever completed at or above the asked weight. */
-  bestActual: { reps: number; weightLbs: number; date: string } | null;
-  predictedReps: number | null;
-};
-
-export function repRangeForWeight(
-  data: GymData,
-  clientId: ClientId,
-  exerciseId: ExerciseId,
-  modalityId: ModalityId,
-  weightLbs: number,
-): WeightAnswer {
-  const sets = workingSets(data, clientId, exerciseId, modalityId);
-
-  let bestActual: WeightAnswer["bestActual"] = null;
-  for (const set of sets) {
-    const load = setLoad(data, set);
-    if (load.lbs === null || load.precision === "ordinal") continue;
-    if (set.reps === null || load.lbs < weightLbs) continue;
-    if (!bestActual || set.reps > bestActual.reps) {
-      bestActual = {
-        reps: set.reps,
-        weightLbs: load.lbs,
-        date: data.sessionById.get(set.sessionId)?.date ?? "",
-      };
-    }
-  }
-
-  const best = bestE1rm(data, sets);
-  return {
-    bestActual,
-    predictedReps: best === null ? null : repsForWeight(best, weightLbs),
-  };
-}
-
-/** One row per client for a cross-client comparison of a single variant. */
-export type PrComparisonRow = {
-  clientId: ClientId;
-  bestE1rmLbs: number | null;
-  heaviestLbs: number | null;
-  /** e1RM ÷ latest bodyweight. */
-  relative: number | null;
-  date: string | null;
-};
-
-export function prComparison(
-  data: GymData,
-  exerciseId: ExerciseId,
-  modalityId: ModalityId,
-): PrComparisonRow[] {
-  return data.clients.map((client) => {
-    const sets = workingSets(data, client.id, exerciseId, modalityId);
-    const best = bestE1rm(data, sets);
-    if (best === null) {
-      return { clientId: client.id, bestE1rmLbs: null, heaviestLbs: null, relative: null, date: null };
-    }
-    const bestSet = sets.reduce((a, b) =>
-      (e1rm(data, b) ?? 0) > (e1rm(data, a) ?? 0) ? b : a,
-    );
-    return {
-      clientId: client.id,
-      bestE1rmLbs: best,
-      heaviestLbs: Math.max(...sets.map((s) => setLoad(data, s).lbs ?? 0)),
-      relative: relativeStrength(data, client.id, exerciseId, modalityId),
-      date: data.sessionById.get(bestSet.sessionId)?.date ?? null,
-    };
-  });
+    .map((v) => variantKey(v.exerciseId, v.modalityId));
 }
 
 /** Load fields of the most recent completed working set for a client ×
@@ -632,11 +464,7 @@ export function bandRolesFor(
   exerciseId: ExerciseId,
   modalityId: ModalityId,
 ): readonly BandRole[] {
-  return (
-    exerciseLookup(catalog)
-      .modalitiesByExercise.get(exerciseId)
-      ?.find((em) => em.modalityId === modalityId)?.bandRoles ?? []
-  );
+  return variantOf(catalog, { exerciseId, modalityId })?.bandRoles ?? [];
 }
 
 /** Hip bands ordered easiest to hardest. Derived from circumference — smaller
@@ -663,9 +491,7 @@ export function routineForDay(
   dayOfWeek: number,
   todayIso: string,
 ) {
-  const assignment = data.assignments.find(
-    (a) => a.clientId === clientId && a.status === "active",
-  );
+  const assignment = activeAssignment(data, clientId);
   if (!assignment) return null;
   const program = data.programById.get(assignment.programId);
   // A program runs its length, then stops — Home prompts to complete or

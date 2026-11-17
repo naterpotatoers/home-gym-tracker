@@ -4,7 +4,7 @@ import { supabase } from "../db/client";
 import { weighInToRow } from "../db/mappers";
 import { newId } from "../ids";
 import { revalidateAll, run } from "./_helpers";
-import { assertClientId } from "./clients";
+import { assertClientId } from "../db/guards";
 import { isIsoDate } from "../validate";
 import type { FormResult } from "../form-result";
 
