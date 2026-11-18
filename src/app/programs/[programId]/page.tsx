@@ -8,7 +8,7 @@ import { ProgramEditor } from "@/components/program-editor";
 import { coverageByGroup, neglectedMuscles, weekCoverage } from "@/lib/coverage";
 import { loadGymData } from "@/lib/db/snapshot";
 import { catalogSlice } from "@/lib/exercise-catalog";
-import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
+import { coverageHeat, coverageMax } from "@/lib/heat";
 import { localTodayIso, mondayOf } from "@/lib/periods";
 
 export default async function ProgramPage({
@@ -33,8 +33,8 @@ export default async function ProgramPage({
   const days = data.programDays.filter((d) => d.programId === programId);
   const coverage = weekCoverage(data, programId, week);
   const neglected = neglectedMuscles(coverage);
-  const coverageMax = heatMax({ coverage });
-  const heat = heatValues({ coverage }, coverageMax, ordinalMax({ coverage }));
+  const maxSets = coverageMax(coverage);
+  const heat = coverageHeat(coverage, maxSets);
   const assignments = data.assignments.filter((a) => a.programId === programId);
 
   return (
@@ -88,7 +88,7 @@ export default async function ProgramPage({
               values={[...heat]}
               catalog={catalogSlice(data)}
               title={`Week ${week} body map`}
-              maxLabel={`${coverageMax.toFixed(1)} sets/wk`}
+              maxLabel={`${maxSets.toFixed(1)} sets/wk`}
             />
           </div>
         </div>

@@ -4,8 +4,6 @@ import { redirect } from "next/navigation";
 import { supabase } from "../db/client";
 import { setLogToRow } from "../db/mappers";
 import { loadGymData } from "../db/snapshot";
-import { localTodayIso } from "../periods";
-import { plannedSessionFromRoutine } from "../planning";
 import { suggestedLoad } from "../queries";
 import { conditioningTarget, EMPTY_TARGET } from "../conditioning";
 import type { LoadPrefill } from "../set-templates";
@@ -19,47 +17,12 @@ import {
   setListProblem,
   setLogProblem,
 } from "../validate";
-import { assertClientId, assertExerciseIds } from "../db/guards";
-import { insertSessions, revalidateAll, run, runMatched, rpc } from "./_helpers";
+import { assertExerciseIds } from "../db/guards";
+import { revalidateAll, run, runMatched, rpc } from "./_helpers";
 
 /** Set ids are slugs (clientSetId / newId) — anything else could break out of
  *  the quoted `not in` filter below. */
 const SET_ID = /^[a-z0-9_-]+$/i;
-
-/**
- * Start a session from a routine: a planned Session plus one editable SetLog
- * per prescribed set, prefilled with the client's most recent load for each
- * variant. The runner then edits these rows set-by-set.
- */
-export async function startSession(
-  clientId: ClientId,
-  routineId: string,
-  assignmentId: string | null,
-): Promise<void> {
-  await assertClientId(clientId);
-  const data = await loadGymData();
-
-  // A planned session of this routine already exists — a stale Play button
-  // (cached page, double tap) must land back in it, not strand it behind a
-  // fresh duplicate. Starting a DIFFERENT routine stays an explicit choice.
-  const existing = data.sessions.find(
-    (s) => s.clientId === clientId && s.routineId === routineId && s.status === "planned",
-  );
-  if (existing) redirect(`/workout/session/${existing.id}`);
-
-  const { session, sets } = plannedSessionFromRoutine(
-    data,
-    clientId,
-    routineId,
-    assignmentId,
-    localTodayIso(),
-  );
-
-  await insertSessions("starting session", [session], sets);
-
-  revalidateAll();
-  redirect(`/workout/session/${session.id}`);
-}
 
 function assertSetLog(set: SetLog): void {
   const problem = setLogProblem(set);

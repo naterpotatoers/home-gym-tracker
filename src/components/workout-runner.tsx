@@ -15,6 +15,7 @@ import { discardSession, finishSession } from "@/lib/actions/workout";
 import type { FinisherOption } from "@/lib/care";
 import type { ExerciseCatalog } from "@/lib/exercise-catalog";
 import type { VariantSessionSummary } from "@/lib/progress";
+import type { StallHint } from "@/lib/progression";
 import type { Variant } from "@/lib/queries";
 import type { RoutineExercise, Session, SetLog } from "@/lib/types";
 import { errorMessage } from "@/lib/format";
@@ -48,6 +49,7 @@ export function WorkoutRunner({
   recentKeys,
   history,
   finishers = [],
+  stalls = {},
 }: {
   session: Session;
   initialSets: SetLog[];
@@ -61,6 +63,8 @@ export function WorkoutRunner({
   history?: Record<string, VariantSessionSummary[]>;
   /** "Continue your workout?" add-ons, suggested first. */
   finishers?: FinisherOption[];
+  /** Stalled lifts per variant key — the block's "stalled" chip/callout. */
+  stalls?: Record<string, StallHint>;
 }) {
   const editor = useSetEditor(session, initialSets, catalog);
   const clock = useSessionClock(session.id);
@@ -146,6 +150,7 @@ export function WorkoutRunner({
           prescriptions={addOns.allPrescriptions}
           catalog={catalog}
           history={history}
+          stalls={stalls}
           onReplace={actions.openReplace}
           onAdd={actions.openAdd}
         />

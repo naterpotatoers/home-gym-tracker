@@ -1,12 +1,14 @@
 import { CLIENT_COLORS } from "./data/clients";
 import {
   MAX_ALIASES,
+  MAX_CUE_LENGTH,
+  MAX_CUES,
   MAX_PRIMARY_MUSCLES,
   MAX_SCORED_MUSCLES,
   ROLE_SCORES,
   scoreForRole,
 } from "./exercise-catalog";
-import { nameKey, normalizeName } from "./names";
+import { nameKey, normalizeName, parseCues } from "./names";
 import { parseIntervalScheme } from "./conditioning";
 import { parseDuration } from "./periods";
 import { isRunKind } from "./running";
@@ -249,6 +251,14 @@ export function normalizeSetLog(set: SetLog): SetLog {
 /** What a server action reads a form through — FormData satisfies it. */
 export type FormFields = { get(name: string): FormDataEntryValue | null };
 
+/** The launcher's "Bike warm-up" checkbox (src/lib/warmup.ts). */
+export const BIKE_WARMUP_FIELD = "bike_warmup";
+
+/** Checked → "on"; an unchecked checkbox is simply absent from the form. */
+export function parseBikeWarmup(form: FormFields): boolean {
+  return form.get(BIKE_WARMUP_FIELD) === "on";
+}
+
 export type RunForm = {
   date: string;
   distanceMiles: number;
@@ -368,6 +378,8 @@ export function isLocalPath(path: string): boolean {
 export type ExercisePayload = {
   name: string;
   aliases: string[];
+  /** Coaching cues, in order — "Explain exercise". */
+  cues: string[];
   pattern: MovementPattern;
   metricType: MetricType;
   isCompound: boolean;
@@ -375,9 +387,21 @@ export type ExercisePayload = {
   modalities: Omit<ExerciseModality, "exerciseId">[];
 };
 
+/** What a save actually stores: name and aliases trimmed and
+ *  single-spaced, cues cleaned and de-duplicated (parseCues). Validate this,
+ *  not the raw payload — four typed cues with one repeat is three cues. */
+export function normalizeExercisePayload(payload: ExercisePayload): ExercisePayload {
+  return {
+    ...payload,
+    name: normalizeName(payload.name),
+    aliases: payload.aliases.map(normalizeName),
+    cues: parseCues(payload.cues),
+  };
+}
+
 /**
  * Everything an exercise save can get wrong, as the first user-facing problem
- * or null. Muscle scores are authored as roles (see exercise-catalog.ts) —
+ * or null — run it on normalizeExercisePayload's output. Muscle scores are authored as roles (see exercise-catalog.ts) —
  * the guardrail against inflated profiles skewing the heat map. Zero score
  * rows is fine (the mobility convention).
  */
@@ -407,6 +431,13 @@ export function exercisePayloadProblem(payload: ExercisePayload): string | null 
     }
     if (seenAliases.has(key)) return `duplicate alias ${clean}`;
     seenAliases.add(key);
+  }
+
+  if (payload.cues.length > MAX_CUES) return `Too many cues — ${MAX_CUES} at most.`;
+  for (const cue of payload.cues) {
+    if (cue.length > MAX_CUE_LENGTH) {
+      return `Cue "${cue.slice(0, 24)}…" is too long — ${MAX_CUE_LENGTH} characters at most.`;
+    }
   }
 
   if (payload.scores.length > MAX_SCORED_MUSCLES) {

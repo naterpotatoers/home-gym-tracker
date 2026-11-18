@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Select } from "@/components/ui";
-import type { FinisherOption } from "@/lib/care";
+import { finisherGroups, type FinisherOption } from "@/lib/care";
 import type { RoutineExercise } from "@/lib/types";
 
 const PICK_EXERCISE = "__exercise";
@@ -29,9 +29,7 @@ export function ContinuePrompt({
   onRoutine: (option: FinisherOption) => void;
   onExercise: () => void;
 }) {
-  const suggested = options.filter((o) => o.suggested);
-  const rest = options.filter((o) => !o.suggested && o.kind === "care");
-  const conditioning = options.filter((o) => !o.suggested && o.kind === "conditioning");
+  const groups = finisherGroups(options);
 
   return (
     <label className="flex flex-col gap-1.5">
@@ -53,33 +51,15 @@ export function ContinuePrompt({
         className="w-full sm:max-w-sm"
       >
         <option value="">No — wrap up</option>
-        {suggested.length > 0 && (
-          <optgroup label="Suggested finishers">
-            {suggested.map((o) => (
+        {groups.map((group) => (
+          <optgroup key={group.label} label={group.label}>
+            {group.options.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.name}
+                {o.text}
               </option>
             ))}
           </optgroup>
-        )}
-        {rest.length > 0 && (
-          <optgroup label="Care & mobility">
-            {rest.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-        {conditioning.length > 0 && (
-          <optgroup label="Conditioning">
-            {conditioning.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
+        ))}
         <optgroup label="Something else">
           <option value={PICK_EXERCISE}>Pick an exercise…</option>
         </optgroup>

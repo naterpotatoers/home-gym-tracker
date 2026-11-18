@@ -1,3 +1,4 @@
+import { SEED_EXERCISE_CUES } from "./exercise-cues";
 import type {
   Exercise,
   ExerciseModality,
@@ -23,7 +24,7 @@ import type {
  * alternative names only; a movement that differs in loading or metric (e.g.
  * farmer_carry vs timed_carry) stays a separate exercise, never an alias.
  */
-export const exercises: readonly Exercise[] = [
+const baseExercises: readonly Exercise[] = [
   // ---- squat ----
   { id: "squat", name: "Squat", aliases: ["Back Squat"], pattern: "squat", metricType: "reps", isCompound: true },
   { id: "front_squat", name: "Front Squat", pattern: "squat", metricType: "reps", isCompound: true },
@@ -163,6 +164,12 @@ export const exercises: readonly Exercise[] = [
   // ---- conditioning ---- (no muscle scores: it never feeds the heat map)
   { id: "echo_bike", name: "Echo Bike", aliases: ["Assault Bike", "Air Bike", "Fan Bike"], pattern: "conditioning", metricType: "time", isCompound: true },
 ];
+
+/** The seed catalog with its built-in cues (data/exercise-cues.ts) merged in. */
+export const exercises: readonly Exercise[] = baseExercises.map((e) => ({
+  ...e,
+  cues: SEED_EXERCISE_CUES[e.id] ?? [],
+}));
 
 /**
  * Score scale: 10 = primary mover, 6-8 = strong secondary, 3-5 = supporting,

@@ -16,6 +16,13 @@ export function isMissingTable(error: { code?: string } | null | undefined): boo
   return error?.code === "PGRST205";
 }
 
+/** A column whose migration hasn't run yet: PostgREST's "not in the schema
+ *  cache" on a write (PGRST204), Postgres' "column does not exist" on a
+ *  select (42703). */
+export function isMissingColumn(error: { code?: string } | null | undefined): boolean {
+  return error?.code === "PGRST204" || error?.code === "42703";
+}
+
 /** Verify a client id exists before writing. Falls back to the TS seed
  *  roster while the clients table doesn't exist, mirroring the read side. */
 export async function assertClientId(id: string): Promise<void> {

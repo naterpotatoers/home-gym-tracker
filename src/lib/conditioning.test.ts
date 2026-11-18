@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bumpTarget,
+  conditioningPieceDates,
   conditioningSummaries,
   conditioningTarget,
   EMPTY_CONDITIONING,
@@ -19,6 +20,7 @@ import { buildGymData } from "./gym-data";
 import { effectiveScores, setLoad } from "./modality";
 import { liftOverview } from "./progress";
 import { sessionVolumeLbs } from "./queries";
+import { cardioWeekLine } from "./running";
 import { compactSet, rxLabel } from "./session-labels";
 import type { ConditioningLog, RoutineExercise, Session, SetLog } from "./types";
 
@@ -183,6 +185,35 @@ describe("conditioningTarget", () => {
     ]);
     expect(conditioningTarget(data, "nate", "echo_bike", ROW)).toEqual(ROW);
     expect(conditioningTarget(withPieces([{ date: "2026-11-10", log: { targetWatts: 120 } }]), "lidia", "echo_bike", ROW)).toEqual(ROW);
+  });
+
+  it("lists every piece's date, newest first, warm-ups excluded", () => {
+    const data = withPieces([
+      { date: "2026-11-09", log: {} },
+      { date: "2026-11-16", log: {} },
+      { date: "2026-11-17", log: {}, extra: { isWarmup: true } },
+      { date: "2026-11-18", log: {} },
+    ]);
+    expect(conditioningPieceDates(data, "nate")).toEqual(["2026-11-18", "2026-11-16", "2026-11-09"]);
+  });
+
+  it("cardioWeekLine: this week's bike pieces; 'nothing yet' for older bike-only history", () => {
+    const data = withPieces([
+      { date: "2026-11-09", log: {} },
+      { date: "2026-11-16", log: {} },
+      { date: "2026-11-18", log: {} },
+    ]);
+    expect(cardioWeekLine(data, "nate", "2026-11-18")).toBe("2 bike pieces");
+    // Bike-only, nothing this week — still links to Cardio.
+    expect(cardioWeekLine(data, "nate", "2026-12-01")).toBe("nothing yet");
+    expect(cardioWeekLine(data, "lidia", "2026-11-18")).toBeNull();
+  });
+
+  it("bike warm-ups never show up in the Echo Bike history", () => {
+    const data = withPieces([
+      { date: "2026-11-10", log: { intervalScheme: null, avgWatts: 90 }, extra: { isWarmup: true } },
+    ]);
+    expect(conditioningSummaries(data, "nate")).toEqual(conditioningSummaries(seed, "nate"));
   });
 
   it("added mid-session (no row): their last piece of any scheme, scheme included", () => {

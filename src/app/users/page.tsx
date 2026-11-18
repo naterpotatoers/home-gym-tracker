@@ -24,6 +24,7 @@ function runSyncSourcesFor(clientId: string): RunSource[] {
 import { weighInHistory } from "@/lib/weigh-ins";
 import { ProfileForm } from "./_components/forms";
 import { LogPane } from "./_components/log-pane";
+import { CardioPane } from "./_components/cardio-pane";
 import { Overview } from "./_components/overview";
 import { PersonHeader } from "./_components/person-header";
 import { PersonSwitcher } from "./_components/person-switcher";
@@ -138,6 +139,13 @@ export default async function UsersPage({
                   }
                 />
               </Card>
+            ) : params.view === "cardio" ? (
+              <CardioPane
+                data={data}
+                client={person.id}
+                today={today}
+                runSyncSources={runSyncSourcesFor(person.id)}
+              />
             ) : params.view === "tracking" ? (
               <LogPane
                 key={person.id}
@@ -192,7 +200,6 @@ export default async function UsersPage({
                 params={params}
                 personName={person.firstName}
                 today={today}
-                runSyncSources={runSyncSourcesFor(person.id)}
               />
             )}
           </>

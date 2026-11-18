@@ -11,7 +11,6 @@ const DEFAULTS: ProgressParams = {
   view: "metrics",
   exercise: "",
   modality: "",
-  span: "week",
 };
 
 describe("progressHref", () => {
@@ -61,7 +60,6 @@ describe("parseProgressParams", () => {
       view: "tracking",
       exercise: "squat",
       modality: "barbell",
-      span: "all",
     };
     const qs = new URLSearchParams(progressHref(params).split("?")[1] ?? "");
     const raw = Object.fromEntries(qs.entries());
@@ -82,12 +80,10 @@ describe("parseProgressParams", () => {
     );
   });
 
-  it("span defaults to week, omits from the URL, and round-trips", () => {
-    expect(parseProgressParams({}, data).span).toBe("week");
-    expect(parseProgressParams({ span: "bogus" }, data).span).toBe("week");
-    expect(progressHref({ ...DEFAULTS, span: "week" })).toBe("/users");
-    expect(progressHref({ ...DEFAULTS, span: "all" })).toBe("/users?span=all");
-    expect(parseProgressParams({ span: "program" }, data).span).toBe("program");
+  it("the Cardio tab round-trips; the retired body-map span is ignored", () => {
+    expect(parseProgressParams({ view: "cardio" }, data).view).toBe("cardio");
+    expect(progressHref({ ...DEFAULTS, view: "cardio" })).toBe("/users?view=cardio");
+    expect(parseProgressParams({ span: "program" }, data)).toEqual(parseProgressParams({}, data));
   });
 
   it("unknown views (including retired 'settings') fall back to metrics", () => {

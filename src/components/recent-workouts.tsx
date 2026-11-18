@@ -9,12 +9,12 @@ import type { ClientId } from "@/lib/types";
 import { completedCount } from "@/lib/session-labels";
 import { plural } from "@/lib/format";
 import { shortDayLabel, localTodayIso } from "@/lib/periods";
-import { SetRecap } from "@/components/set-recap";
+import { SetChips } from "@/components/set-chips";
 
 /**
  * One person's completed sessions as an in-place accordion list — shared by
  * the Users Metrics view and the per-person workout page. Native <details>:
- * every body is server-rendered (just the set lines), so opening is instant.
+ * every body is server-rendered (just the set chips), so opening is instant.
  */
 export function RecentWorkouts({
   data,
@@ -62,26 +62,25 @@ export function RecentWorkouts({
                       </span>
                     )}
                   </summary>
-                  {/* Inset panel, blocks in a two-up grid with aligned set
-                      numbers — same grouped-inset language as the workout
-                      page's unfinished-sessions block. */}
-                  <div className="mb-2 ml-5 mt-1 rounded-lg bg-background px-4 py-3">
-                    <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+                  {/* The runner's lighter block card: one exercise per cell,
+                      its sets as weight×reps chips, two-up on wider screens. */}
+                  <div className="mb-2 mt-1 rounded-lg border border-border bg-surface-alt px-3 py-3 sm:ml-5">
+                    <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
                       {blocksFor(data, session.id).map((block) => {
                         const done = completedCount(block.sets);
                         return (
                           <div key={block.key} className="min-w-0">
-                            <h4 className="flex items-center gap-1.5 text-xs font-semibold">
+                            <h4 className="flex items-center gap-1.5 text-sm font-semibold">
                               <span className="truncate">
                                 {data.exerciseById.get(block.exerciseId)?.name ?? block.exerciseId}
                               </span>
                               <ModalityChip modalityId={block.modalityId} />
-                              <span className="ml-auto shrink-0 font-mono text-[10px] font-normal text-muted">
+                              <span className="ml-auto shrink-0 font-mono text-xs font-normal text-muted">
                                 {done}/{block.sets.length}
                               </span>
                             </h4>
-                            <div className="mt-1">
-                              <SetRecap data={data} sets={block.sets} />
+                            <div className="mt-1.5">
+                              <SetChips sets={block.sets} />
                             </div>
                           </div>
                         );

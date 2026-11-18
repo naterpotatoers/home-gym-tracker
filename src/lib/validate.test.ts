@@ -10,6 +10,9 @@ import {
   isUnilateralMode,
   finishProblem,
   isLocalPath,
+  exercisePayloadProblem,
+  normalizeExercisePayload,
+  parseBikeWarmup,
   parseProfile,
   parseRunForm,
   routineExerciseProblem,
@@ -192,3 +195,46 @@ describe("parseRunForm", () => {
     }
   });
 });
+
+describe("parseBikeWarmup", () => {
+  const form = (entries: Record<string, string>) => ({ get: (k: string) => entries[k] ?? null });
+  it("is on only when the checkbox was submitted", () => {
+    expect(parseBikeWarmup(form({ bike_warmup: "on" }))).toBe(true);
+    expect(parseBikeWarmup(form({}))).toBe(false);
+  });
+});
+
+describe("exercisePayloadProblem — cues", () => {
+  const payload = (cues: string[]) => ({
+    name: "Squat",
+    aliases: [],
+    cues,
+    pattern: "squat" as const,
+    metricType: "reps" as const,
+    isCompound: true,
+    scores: [{ muscleId: "quads" as const, score: 10 }],
+    modalities: [],
+  });
+  it("allows up to three short cues", () => {
+    expect(exercisePayloadProblem(payload([]))).toBeNull();
+    expect(exercisePayloadProblem(payload(["Brace.", "Knees out.", "Drive up."]))).toBeNull();
+  });
+  it("rejects a fourth or an over-long cue", () => {
+    expect(exercisePayloadProblem(payload(["a", "b", "c", "d"]))).toMatch(/Too many cues/);
+    expect(exercisePayloadProblem(payload(["x".repeat(91)]))).toMatch(/too long/);
+  });
+  it("validates what's saved: blanks and repeats are cleaned before counting", () => {
+    const clean = normalizeExercisePayload({
+      ...payload(["Brace.", "  ", "Knees  out.", "brace.", "Drive up."]),
+      name: "  Back   Squat ",
+      aliases: [" High-bar  squat "],
+    });
+    expect(clean).toMatchObject({
+      name: "Back Squat",
+      aliases: ["High-bar squat"],
+      cues: ["Brace.", "Knees out.", "Drive up."],
+    });
+    expect(exercisePayloadProblem(clean)).toBeNull();
+  });
+});
+

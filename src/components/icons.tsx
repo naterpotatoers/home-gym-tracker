@@ -112,6 +112,24 @@ export function CheckIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+export function InfoIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg {...iconProps(size)} aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5M12 7.5v.01" />
+    </svg>
+  );
+}
+
+export function HeartIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg {...iconProps(size)} aria-hidden>
+      <path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z" />
+      <path d="M7 12.5h2.5l1.2-2 1.8 4 1.3-2H17" />
+    </svg>
+  );
+}
+
 export function SwapIcon({ size = 18 }: { size?: number }) {
   return (
     <svg {...iconProps(size)} aria-hidden>

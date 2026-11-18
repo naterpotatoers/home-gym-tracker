@@ -1,5 +1,4 @@
 import type { GymData } from "./gym-data";
-import { isMuscleSpan, type MuscleSpan } from "./muscle-span";
 import { defaultClientId } from "./queries";
 import { isModalityId } from "./validate";
 
@@ -13,23 +12,20 @@ export type ProgressParams = {
    *  Never serialized itself. */
   defaultClient: string;
   /** Which pane of the Clients hub: "metrics" (default; labelled Progress),
-   *  "tracking" (labelled Log — body weight + food), "profile" (slow-changing
-   *  fields), or "add" (new-person form, reached from the sidebar). The URL
-   *  values predate the labels and stay so old links keep working. */
+   *  "cardio" (runs + Echo Bike), "tracking" (labelled Log — body weight +
+   *  food), "profile" (slow-changing fields), or "add" (new-person form,
+   *  reached from the sidebar). The URL values predate the labels and stay
+   *  so old links keep working. */
   view: string;
   exercise: string;
   modality: string;
-  /** The Progress tab's body-map range: this week, the current program, or
-   *  all time. */
-  span: MuscleSpan;
 };
 
 export const PROGRESS_DEFAULTS = {
   view: "metrics",
-  span: "week",
 } as const;
 
-const VIEWS = new Set(["tracking", "profile", "add"]);
+const VIEWS = new Set(["cardio", "tracking", "profile", "add"]);
 
 /** Validate raw searchParams into ProgressParams. Unknown clients fall back
  *  to the roster's first client — never a hardcoded id, since clients are
@@ -50,7 +46,6 @@ export function parseProgressParams(
     defaultClient: fallback,
     view: raw.view && VIEWS.has(raw.view) ? raw.view : PROGRESS_DEFAULTS.view,
     ...selected,
-    span: raw.span && isMuscleSpan(raw.span) ? raw.span : PROGRESS_DEFAULTS.span,
   };
 }
 
@@ -60,7 +55,6 @@ export function progressHref(params: Partial<ProgressParams>): string {
   if (params.view && params.view !== PROGRESS_DEFAULTS.view) qs.set("view", params.view);
   if (params.exercise) qs.set("exercise", params.exercise);
   if (params.modality) qs.set("modality", params.modality);
-  if (params.span && params.span !== PROGRESS_DEFAULTS.span) qs.set("span", params.span);
   const s = qs.toString();
   return `/users${s ? `?${s}` : ""}`;
 }

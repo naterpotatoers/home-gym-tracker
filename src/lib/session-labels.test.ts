@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   advanceCursor,
+  blockPrescription,
+  blockRxLine,
+  blockStall,
+  prescriptionFor,
+  supersetPosition,
+  warmupRxLabel,
   compactSet,
   DEFAULT_REST_SECONDS,
   restAfterLog,
   loadLabel,
+  stallCallout,
   nextIncomplete,
   performOrder,
   resolveCursor,
@@ -13,6 +20,7 @@ import {
   upcomingFoldIndex,
 } from "./session-labels";
 import type { RoutineExercise, SetLog } from "./types";
+import { BIKE_WARMUP_RX } from "./warmup";
 
 const set = (id: string, completed: boolean) => ({ id, completed }) as SetLog;
 
@@ -294,3 +302,119 @@ describe("restAfterLog", () => {
     expect(restAfterLog(v("lunge"), undefined, prescriptions, groups)).toBe(DEFAULT_REST_SECONDS);
   });
 });
+
+describe("bike warm-up prescription", () => {
+  const finisher = {
+    ...BIKE_WARMUP_RX,
+    routineId: "r_echo",
+    order: 1,
+    restSeconds: 120,
+    conditioning: { intervalScheme: "8x20/10", targetWatts: 200, targetRpm: null },
+  } as RoutineExercise;
+  const squat = { exerciseId: "squat", modalityId: "barbell", restSeconds: 150 } as RoutineExercise;
+  const bike = (isWarmup: boolean) => ({ exerciseId: "echo_bike", modalityId: "cardio" as const, isWarmup });
+
+  it("the warm-up gets its own rx even beside an Echo finisher row", () => {
+    expect(prescriptionFor([finisher], bike(true))).toBe(BIKE_WARMUP_RX);
+    expect(prescriptionFor([finisher], bike(false))).toBe(finisher);
+  });
+
+  it("a lift toggled to warm-up keeps its routine row", () => {
+    expect(prescriptionFor([squat], { exerciseId: "squat", modalityId: "barbell", isWarmup: true })).toBe(squat);
+    expect(
+      blockPrescription([squat], {
+        exerciseId: "squat",
+        modalityId: "barbell",
+        sets: [{ isWarmup: true } as SetLog, { isWarmup: false } as SetLog],
+      }),
+    ).toBe(squat);
+  });
+
+  it("rests 60 s after the warm-up and reads as an easy steady piece", () => {
+    expect(restAfterLog(bike(true), undefined, [finisher], new Map())).toBe(60);
+    expect(warmupRxLabel(BIKE_WARMUP_RX)).toBe("5:00 steady · easy, RPE 3–4 · rest 60s");
+  });
+
+  const bikeBlock = (isWarmup: boolean) => ({
+    exerciseId: "echo_bike",
+    modalityId: "cardio" as const,
+    sets: [{ exerciseId: "echo_bike", modalityId: "cardio", isWarmup } as SetLog],
+  });
+
+  it("a warm-up bike block takes the warm-up's rx; a finisher block keeps its row", () => {
+    expect(blockPrescription([finisher], bikeBlock(true))).toBe(BIKE_WARMUP_RX);
+    expect(blockPrescription([finisher], bikeBlock(false))).toBe(finisher);
+    expect(blockPrescription([finisher], { ...bikeBlock(true), sets: [] })).toBe(finisher);
+  });
+
+  it("blockRxLine: the warm-up's line, a bike piece without its target, a lift's rx", () => {
+    expect(blockRxLine(BIKE_WARMUP_RX, bikeBlock(true), true)).toBe("5:00 steady · easy, RPE 3–4 · rest 60s");
+    expect(blockRxLine(finisher, bikeBlock(false), true)).toBe("8 × 20/10 · rest 120s");
+    const row = { ...squat, sets: 3, repMin: 5, repMax: 5, durationSeconds: null, targetRir: 2, conditioning: null };
+    expect(blockRxLine(row, { exerciseId: "squat", modalityId: "barbell", sets: [] }, false)).toBe(
+      "3×5 @ RIR 2 · rest 150s",
+    );
+    expect(blockRxLine(undefined, bikeBlock(false), true)).toBeNull();
+  });
+});
+
+describe("open-block helpers", () => {
+  const hint = {
+    sinceDate: "2026-10-20",
+    days: 28,
+    exposures: 3,
+    suggestion: { kind: "same_load" as const, load: 200, targetReps: 5, lastReps: [5, 4] },
+  };
+  const block = (completed: boolean[]) => ({
+    exerciseId: "deadlift",
+    modalityId: "barbell" as const,
+    sets: completed.map((c, i) => ({ id: `s${i}`, completed: c }) as SetLog),
+  });
+
+  it("blockStall: shown while sets remain, dropped once the block is done", () => {
+    const stalls = { "deadlift|barbell": hint };
+    expect(blockStall(block([true, false]), stalls)).toBe(hint);
+    expect(blockStall(block([true, true]), stalls)).toBeUndefined();
+    expect(blockStall(block([false]), {})).toBeUndefined();
+  });
+
+  it("supersetPosition: adjacent runs only, tagged where they start", () => {
+    const labels = ["A", "A", undefined, "B", "A"];
+    expect(labels.map((_, i) => supersetPosition(labels, i))).toEqual([
+      { inSuperset: true, starts: true },
+      { inSuperset: true, starts: false },
+      { inSuperset: false, starts: false },
+      { inSuperset: false, starts: false },
+      { inSuperset: false, starts: false },
+    ]);
+  });
+});
+
+describe("stallCallout", () => {
+  const hint = (suggestion: Parameters<typeof stallCallout>[0]["suggestion"]) => ({
+    sinceDate: "2026-10-20",
+    days: 28,
+    exposures: 3,
+    suggestion,
+  });
+  it("names the stall, then the next step", () => {
+    expect(stallCallout(hint({ kind: "add_load", load: 150, repMin: 8, repMax: 10 }), "barbell")).toBe(
+      "No progress in 4 wk (3 sessions) — every set hit 10: try 150 lb × 8–10",
+    );
+    expect(
+      stallCallout(hint({ kind: "same_load", load: 145, targetReps: 10, lastReps: [10, 9, 8] }), "barbell"),
+    ).toBe("No progress in 4 wk (3 sessions) — stay at 145 lb and work every set up to 10 (last 10/9/8)");
+    expect(stallCallout(hint({ kind: "add_load", load: 25, repMin: 8, repMax: 8 }), "bodyweight")).toBe(
+      "No progress in 4 wk (3 sessions) — every set hit 8: try BW+25 lb × 8",
+    );
+  });
+  it("at the ceiling: reps or tempo, never a made-up weight", () => {
+    expect(stallCallout(hint({ kind: "at_ceiling", load: 50, lastReps: [12, 12] }), "dumbbell")).toBe(
+      "No progress in 4 wk (3 sessions) — already on the heaviest dumbbells: add reps or slow the tempo",
+    );
+    expect(stallCallout(hint({ kind: "at_ceiling", load: 0, lastReps: [8, 8, 8] }), "bodyweight")).toBe(
+      "No progress in 4 wk (3 sessions) — every set hit 8: add reps or hold a dumbbell",
+    );
+  });
+});
+

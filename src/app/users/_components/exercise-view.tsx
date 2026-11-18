@@ -7,7 +7,7 @@ import type { ChartPoint } from "@/lib/meters";
 import { shortDayLabel } from "@/lib/periods";
 import { e1rmTrend, exerciseHistory, type ExerciseHistoryPoint } from "@/lib/progress";
 import { hipBandLadder } from "@/lib/queries";
-import { compactSet } from "@/lib/session-labels";
+import { SetChips } from "@/components/set-chips";
 import type { ClientId, ExerciseId, ModalityId } from "@/lib/types";
 import { lbs } from "@/lib/format";
 
@@ -68,14 +68,7 @@ export function LiftHistory({
             {shortDayLabel(p.date)}
           </Link>
           <span className="flex min-h-9 flex-1 flex-wrap items-center gap-1 pointer-coarse:min-h-11">
-            {p.sets.map((set) => (
-              <span
-                key={set.id}
-                className="rounded bg-current/10 px-1.5 py-0.5 font-mono text-xs"
-              >
-                {compactSet(set)}
-              </span>
-            ))}
+            <SetChips sets={p.sets} />
             {best?.sessionId === p.sessionId && (
               <span className="rounded bg-success/15 px-1.5 py-0.5 text-xs font-semibold text-success-text">
                 best

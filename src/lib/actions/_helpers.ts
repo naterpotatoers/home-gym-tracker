@@ -51,7 +51,7 @@ const RPC_MIGRATION = {
   remove_program_week: "2026-10-24-audit-fixes.sql",
   duplicate_program_week: "2026-10-24-audit-fixes.sql",
   sync_set_logs: "2026-11-16-hardening.sql",
-  save_exercise: "2026-11-16-hardening.sql",
+  save_exercise: "2026-11-18-exercise-cues.sql",
   save_routine: "2026-11-16-hardening.sql",
   assign_program: "2026-11-16-hardening.sql",
   set_assignment_status: "2026-11-16-hardening.sql",
@@ -116,8 +116,8 @@ export async function runMatched(
 
 /** Sessions plus their sets, all or nothing: Supabase has no client-side
  *  transactions, so a failed set insert removes the session rows it would
- *  have orphaned (an empty planned session would otherwise capture every
- *  later Play tap via the resume check in startSession). Shared by the solo and group starts. */
+ *  have orphaned (an empty planned session would otherwise sit in the
+ *  launcher's Resume list). Used by the launcher start (solo and group). */
 export async function insertSessions(
   label: string,
   sessions: readonly Session[],

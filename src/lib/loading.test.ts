@@ -4,6 +4,7 @@ import {
   formatPlates,
   loadableWeights,
   nearestLoadableWeight,
+  nextLoadStep,
   weightStep,
 } from "./loading";
 
@@ -60,3 +61,30 @@ describe("weightStep", () => {
     expect(weightStep("band")).toBeNull();
   });
 });
+
+describe("nextLoadStep", () => {
+  it("barbell: +5 on the bar's own plate grid, null past the top of the stack", () => {
+    expect(nextLoadStep("barbell", 145)).toBe(150);
+    expect(nextLoadStep("barbell", 147.5)).toBe(152.5);
+    expect(nextLoadStep("barbell", 63)).toBe(68); // Bella grid (33 + 2.5k)
+    expect(nextLoadStep("barbell", 137)).toBe(142.5); // off-grid → next buildable
+    const top = loadableWeights("ohio_bar").at(-1)!;
+    expect(nextLoadStep("barbell", top)).toBeNull();
+  });
+
+  it("dumbbell: the next pair you own", () => {
+    expect(nextLoadStep("dumbbell", 10)).toBe(15);
+    expect(nextLoadStep("dumbbell", 45)).toBe(50);
+    expect(nextLoadStep("dumbbell", 47)).toBe(50);
+    expect(nextLoadStep("dumbbell", 50)).toBeNull();
+  });
+
+  it("bodyweight progresses by reps until something's held; bands and cardio never get pounds", () => {
+    expect(nextLoadStep("bodyweight", 0)).toBeNull();
+    expect(nextLoadStep("bodyweight", 10)).toBe(15);
+    expect(nextLoadStep("machine", 100)).toBe(105);
+    expect(nextLoadStep("band", 0)).toBeNull();
+    expect(nextLoadStep("cardio", 0)).toBeNull();
+  });
+});
+

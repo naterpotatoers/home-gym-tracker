@@ -29,11 +29,16 @@ export type MuscleRegion = {
 };
 
 /** Open half-outline from head-top to crotch, stroked twice (mirrored) to
- *  form the figure. One per view; front and back share the same contour. */
+ *  form the figure. One per view; front and back share the same contour:
+ *  head, neck, trapezius slope, a rounded deltoid cap, upper arm, forearm,
+ *  hand, then back up the inner arm to the armpit, lat flare, waist, hip
+ *  and leg. */
 const HALF_SILHOUETTE =
   "M100 14 C88 14 82 21 82 30 C82 39 88 46 96 49 L96 56 " +
-  "C78 60 60 62 50 68 C36 74 28 82 26 92 L22 132 L18 180 L16 198 L32 200 " +
-  "L38 142 L44 112 C48 104 52 100 56 100 L62 146 C58 160 52 172 52 188 " +
+  "C86 59 70 61 58 64 C44 66 32 74 30 90 C29 104 27 120 26 132 " +
+  "C24 150 21 168 20 184 C19 192 20 202 26 204 C31 205 34 200 34 194 " +
+  "C35 178 38 158 40 140 C42 124 44 112 47 104 C49 100 52 98 56 98 " +
+  "C58 112 60 128 62 144 C59 160 53 172 52 188 " +
   "L54 252 L60 318 L54 356 L64 408 L58 428 L84 430 L90 408 L86 354 " +
   "L90 320 L96 258 L100 194";
 
@@ -49,55 +54,56 @@ function circle(cx: number, cy: number, r: number): string {
 export const bodyMap: Record<MuscleId, readonly MuscleRegion[]> = {
   // ---- chest (front) ------------------------------------------------------
   upper_chest: [
-    { view: "front", mirror: true, d: "M62 64 C72 59 86 59 97 62 L97 75 C84 71 70 72 62 77 Z" },
+    { view: "front", mirror: true, d: "M63 67 C73 62 86 62 97 64 L97 76 C84 72 72 73 63 78 Z" },
   ],
   mid_chest: [
-    { view: "front", mirror: true, d: "M62 79 C72 74 85 73 97 77 L97 93 C86 91 72 89 63 93 Z" },
+    { view: "front", mirror: true, d: "M63 80 C72 75 85 74 97 78 L97 93 C86 91 73 89 64 93 Z" },
   ],
   lower_chest: [
-    { view: "front", mirror: true, d: "M63 95 C74 92 86 93 97 95 L97 103 C88 109 74 107 65 103 Z" },
+    { view: "front", mirror: true, d: "M64 95 C74 92 86 93 97 95 L97 103 C88 109 75 107 66 103 Z" },
   ],
 
-  // ---- back torso ---------------------------------------------------------
+  // ---- back torso (non-overlapping: traps above, rhomboids under the
+  //      trap's lower edge, lats around them, lower back below) ------------
   traps: [
-    { view: "back", mirror: false, d: "M100 46 C88 50 74 56 62 64 C74 70 84 80 90 92 C94 100 98 108 100 114 C102 108 106 100 110 92 C116 80 126 70 138 64 C126 56 112 50 100 46 Z" },
+    { view: "back", mirror: false, d: "M100 52 L97 57 C86 60 74 62 63 66 C72 70 80 75 86 81 C91 88 96 96 100 104 C104 96 109 88 114 81 C120 75 128 70 137 66 C126 62 114 60 103 57 Z" },
   ],
   rhomboids: [
-    { view: "back", mirror: true, d: "M86 78 C90 75 95 74 97 76 L97 104 C92 100 86 94 83 88 Z" },
+    { view: "back", mirror: true, d: "M85 85 C90 91 95 99 98 107 L98 117 C91 115 85 111 81 106 L80 93 C81 89 83 86 85 85 Z" },
   ],
   lats: [
-    { view: "back", mirror: true, d: "M60 100 C70 96 82 98 96 106 L97 148 C86 154 72 146 66 132 L58 110 Z" },
+    { view: "back", mirror: true, d: "M58 101 C64 97 72 96 78 97 L78 108 C84 114 90 119 98 122 L98 127 C93 128 89 130 85 133 L83 148 C76 150 69 147 65 140 L61 120 Z" },
   ],
   lower_back: [
-    { view: "back", mirror: false, d: "M86 132 C92 128 108 128 114 132 L112 164 C106 170 94 170 88 164 Z" },
+    { view: "back", mirror: false, d: "M87 135 C93 131 107 131 113 135 L112 162 C106 168 94 168 88 162 Z" },
   ],
 
-  // ---- shoulders ----------------------------------------------------------
+  // ---- shoulders (inside the deltoid cap) ---------------------------------
   front_delts: [
-    { view: "front", mirror: true, d: "M44 64 C50 60 58 62 60 66 C60 72 56 78 50 80 C44 78 42 70 44 64 Z" },
+    { view: "front", mirror: true, d: "M57 67 C60 70 61 76 60 82 C58 89 53 95 47 98 C44 91 44 82 46 75 C49 70 53 67 57 67 Z" },
   ],
   side_delts: [
-    { view: "front", mirror: true, d: "M28 74 C28 66 34 62 42 64 C44 70 42 80 38 86 C32 84 28 80 28 74 Z" },
+    { view: "front", mirror: true, d: "M44 71 C41 77 40 87 41 99 C37 100 34 98 32 94 C32 83 36 75 44 71 Z" },
   ],
   rear_delts: [
-    { view: "back", mirror: true, d: "M28 72 C28 64 36 60 44 64 C46 72 42 82 36 86 C30 82 28 78 28 72 Z" },
+    { view: "back", mirror: true, d: "M58 67 C55 75 51 86 46 97 C41 98 36 97 32 94 C32 82 38 73 47 69 C51 67 55 67 58 67 Z" },
   ],
   rotator_cuff: [
-    { view: "back", mirror: true, deep: true, d: circle(65, 80, 5) },
+    { view: "back", mirror: true, deep: true, d: circle(68, 82, 5) },
   ],
   serratus: [
-    { view: "front", mirror: true, deep: true, d: circle(64, 108, 6) },
+    { view: "front", mirror: true, deep: true, d: circle(64, 110, 5) },
   ],
 
   // ---- arms ---------------------------------------------------------------
   biceps: [
-    { view: "front", mirror: true, d: "M32 88 C38 84 46 86 48 92 L46 122 C42 128 36 128 32 122 L30 100 Z" },
+    { view: "front", mirror: true, d: "M35 104 C38 101 43 101 45 106 L42 127 C40 132 34 132 32 128 L31 112 Z" },
   ],
   triceps: [
-    { view: "back", mirror: true, d: "M32 86 C38 82 46 84 48 90 L44 122 C40 128 34 126 30 120 L30 98 Z" },
+    { view: "back", mirror: true, d: "M34 101 C38 99 43 100 45 105 L42 128 C39 133 33 132 31 127 L30 111 Z" },
   ],
   forearms: [
-    { view: "front", mirror: true, d: "M26 134 C32 130 40 132 42 138 L40 172 C38 178 32 178 28 172 L24 146 Z" },
+    { view: "front", mirror: true, d: "M27 140 C31 136 37 136 39 140 L37 170 C35 177 28 177 24 172 L23 155 Z" },
   ],
 
   // ---- core (front) -------------------------------------------------------
@@ -105,7 +111,7 @@ export const bodyMap: Record<MuscleId, readonly MuscleRegion[]> = {
     { view: "front", mirror: false, d: "M84 112 C90 108 110 108 116 112 L118 162 C112 170 88 170 82 162 Z" },
   ],
   obliques: [
-    { view: "front", mirror: true, d: "M64 114 C70 112 78 112 80 116 L80 158 C76 164 68 164 64 158 L62 132 Z" },
+    { view: "front", mirror: true, d: "M64 118 C70 115 77 115 80 118 L80 158 C76 164 69 164 65 158 L63 136 Z" },
   ],
 
   // ---- hips & legs --------------------------------------------------------
@@ -119,16 +125,16 @@ export const bodyMap: Record<MuscleId, readonly MuscleRegion[]> = {
     { view: "front", mirror: true, d: "M90 194 C95 191 98 193 98 198 L96 246 C94 254 91 254 89 246 L88 212 Z" },
   ],
   glutes: [
-    { view: "back", mirror: true, d: "M60 168 C70 160 88 162 96 170 L97 202 C88 212 68 210 60 200 L58 182 Z" },
+    { view: "back", mirror: true, d: "M58 177 C68 172 86 172 97 177 L97 205 C88 214 68 212 60 204 L57 190 Z" },
   ],
   glute_med: [
-    { view: "back", mirror: true, d: "M56 156 C62 150 72 150 76 156 C76 164 70 170 62 168 C56 164 54 160 56 156 Z" },
+    { view: "back", mirror: true, d: "M62 156 C68 152 78 152 84 156 C85 162 80 167 72 168 C66 168 62 163 62 156 Z" },
   ],
   hamstrings: [
-    { view: "back", mirror: true, d: "M58 208 C66 202 84 204 92 210 L90 260 L86 304 C78 314 66 312 62 302 L56 250 Z" },
+    { view: "back", mirror: true, d: "M58 217 C66 214 84 214 92 217 L90 262 L86 304 C78 314 66 312 62 302 L56 252 Z" },
   ],
   calves: [
-    { view: "back", mirror: true, d: "M60 330 C68 322 82 324 88 332 L86 372 C82 398 70 398 66 384 L58 352 Z" },
+    { view: "back", mirror: true, d: "M61 330 C68 324 80 325 86 332 L85 372 C81 396 71 396 67 384 L59 352 Z" },
   ],
   tibialis: [
     { view: "front", mirror: true, d: "M62 328 C68 322 78 324 84 330 L82 372 C78 394 68 394 64 382 L58 350 Z" },

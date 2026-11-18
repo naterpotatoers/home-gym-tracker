@@ -342,6 +342,35 @@ export function chipClass(selected: boolean, extra = "min-h-11 px-3 text-xs"): s
   }`;
 }
 
+/** A page's view switcher: link chips, the current one marked for screen
+ *  readers. Scrolls sideways on narrow screens instead of wrapping. */
+export function ChipTabs({
+  label,
+  tabs,
+  className = "",
+}: {
+  /** The nav's accessible name, e.g. "Library view". */
+  label: string;
+  tabs: readonly { href: string; label: string; current: boolean; icon?: React.ReactNode }[];
+  className?: string;
+}) {
+  return (
+    <nav aria-label={label} className={`-mx-4 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0 ${className}`}>
+      {tabs.map((tab) => (
+        <Link
+          key={tab.href}
+          href={tab.href}
+          aria-current={tab.current ? "page" : undefined}
+          className={chipClass(tab.current, "min-h-11 shrink-0 px-3 text-sm sm:px-4")}
+        >
+          {tab.icon}
+          {tab.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 /** An aria-pressed toggle — RPE/feel pickers, band-role and equipment chips,
  *  Single/Range. `extra` carries size and rounding. */
 export function toggleChipClass(
@@ -393,11 +422,14 @@ export function ColorDot({
   );
 }
 
+/** A skipped set, wherever sets are listed: muted and struck through. */
+export const SKIPPED_SET_CLASS = "text-muted line-through decoration-current/40";
+
 /** Recap line treatment for a logged set: completed dims slightly, a skipped
  *  set is struck through — same reading on the session page and the
  *  recent-workouts accordion. */
 export function recapSetClass(completed: boolean): string {
-  return completed ? "opacity-80" : "text-muted line-through decoration-current/40";
+  return completed ? "opacity-80" : SKIPPED_SET_CLASS;
 }
 
 /** Border tint for person-colored cards — one blend everywhere. */

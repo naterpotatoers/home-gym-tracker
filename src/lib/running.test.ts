@@ -10,6 +10,8 @@ import {
   runFromGarmin,
   paceLabel,
   runFromActivity,
+  cardioWeekLine,
+  runLog,
   runnerSummary,
   runWeek,
   weeklyMiles,
@@ -78,21 +80,36 @@ describe("weekly tallies", () => {
     expect(week.miles).toBeCloseTo(16.5);
   });
 
-  it("summarizes this week's runs by weekday", () => {
+  it("summarizes this week's tally and a 12-week chart", () => {
     const summary = runnerSummary(data, "nate", "2026-11-08", ["strava"]);
     expect(summary.weekRuns).toBe(3);
     expect(summary.weekMiles).toBe("16.5 mi");
-    expect(summary.weekly).toHaveLength(6);
-    expect(summary.recent.map((r) => r.dayLabel)).toEqual(["Sat", "Thu", "Tue"]);
-    expect(summary.recent[0]).toMatchObject({ kindLabel: "Long", miles: "7.0 mi", source: "manual" });
+    expect(summary.weekly).toHaveLength(12);
+    expect(summary.weekly.at(-1)).toEqual({ label: "Nov 2", miles: 16.5 });
     expect(summary.syncSources).toEqual(["strava"]);
+    expect(runnerSummary(data, "nate", "2026-11-08", [], 6).weekly).toHaveLength(6);
   });
 
-  it("falls back to the latest runs, by date, in a week without any", () => {
-    const summary = runnerSummary(data, "nate", "2026-11-12", [], 2);
-    expect(summary.weekRuns).toBe(0);
-    expect(summary.recent.map((r) => r.id)).toEqual(["c", "b"]);
-    expect(summary.recent[0].dayLabel).not.toBe("Sat");
+  it("runLog: every run by Monday-week, newest first, with week totals", () => {
+    const log = runLog(data, "nate", "2026-11-17");
+    expect(log.map((w) => [w.weekStart, w.label, w.miles, w.runs.map((r) => r.id)])).toEqual([
+      ["2026-11-02", "Week of Nov 2", "16.5 mi", ["c", "b", "a"]],
+      ["2026-10-26", "Week of Oct 26", "6.0 mi", ["e"]],
+    ]);
+    expect(log[0].runs[0]).toMatchObject({ dayLabel: "Sat Nov 7", kindLabel: "Long", miles: "7.0 mi" });
+    expect(runLog(data, "gabriel", "2026-11-17")).toEqual([]);
+  });
+
+  it("runLog: last year's runs carry their year", () => {
+    const log = runLog(data, "nate", "2027-01-05");
+    expect(log[0].label).toBe("Week of Nov 2, 2026");
+    expect(log[0].runs[0].dayLabel).toBe("Sat Nov 7, 2026");
+  });
+
+  it("cardioWeekLine: this week's runs, 'nothing yet' on a quiet week, null with no cardio", () => {
+    expect(cardioWeekLine(data, "nate", "2026-11-08")).toBe("3 runs · 16.5 mi");
+    expect(cardioWeekLine(data, "nate", "2026-11-12")).toBe("nothing yet");
+    expect(cardioWeekLine(data, "gabriel", "2026-11-08")).toBeNull();
   });
 
   it("lists weekly mileage oldest first", () => {

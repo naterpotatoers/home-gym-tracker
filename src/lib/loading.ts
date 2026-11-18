@@ -1,4 +1,4 @@
-import { barById, plates } from "./data/equipment";
+import { barById, dumbbells, plates } from "./data/equipment";
 import type { Bar, ModalityId } from "./types";
 
 /**
@@ -134,3 +134,40 @@ export function weightStep(modalityId: ModalityId): number | null {
       return null;
   }
 }
+
+/** The bars, in "which grid is this weight on?" order — the Ohio (45 +
+ *  2.5k) and Bella (33 + 2.5k) grids never overlap. */
+const BAR_IDS: readonly BarId[] = ["ohio_bar", "bella_bar"];
+
+/**
+ * The next heavier load you can actually build, in the SetLog's own field
+ * semantics: barbell = total on the bar (the next weight at least one
+ * stepper step — 5 lb, 2.5 a side — up on that bar's plate grid), dumbbell =
+ * the next pair you own, machine = one stepper step,
+ * bodyweight = the next dumbbell to hold or belt on (null at plain
+ * bodyweight — that progresses by reps). Null when there's no heavier step,
+ * or for bands (rank) and cardio (watts).
+ */
+export function nextLoadStep(modalityId: ModalityId, weightLbs: number): number | null {
+  const ownedAbove = (lbs: number) =>
+    dumbbells
+      .map((d) => d.weightLbs)
+      .sort((a, b) => a - b)
+      .find((w) => w > lbs) ?? null;
+  switch (modalityId) {
+    case "barbell": {
+      const onGrid = (id: BarId) => loadableWeights(id).some((w) => Math.abs(w - weightLbs) < 0.01);
+      const bar = BAR_IDS.find(onGrid) ?? "ohio_bar";
+      return loadableWeights(bar).find((w) => w >= weightLbs + weightStep("barbell")! - 0.01) ?? null;
+    }
+    case "dumbbell":
+      return ownedAbove(weightLbs);
+    case "machine":
+      return weightLbs + weightStep("machine")!;
+    case "bodyweight":
+      return weightLbs > 0 ? ownedAbove(weightLbs) : null;
+    default:
+      return null;
+  }
+}
+

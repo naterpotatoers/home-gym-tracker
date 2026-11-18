@@ -1,7 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { careRoutineExercises, careRoutines } from "../data/care-routines";
+import {
+  builtInDriftFromRows,
+  builtInRoutineRows,
+  builtInRoutines,
+  builtInRowsFor,
+} from "../built-in-routines";
 import { supabase } from "../db/client";
 import {
   routineExerciseToRow,
@@ -80,43 +85,58 @@ export async function duplicateRoutine(routineId: string): Promise<void> {
   redirect(`/routines/${copy.id}`);
 }
 
-/**
- * Add the pre-built "Care" routines (src/lib/data/care-routines.ts) to the
- * live DB. Add-only per routine: a care routine whose id already exists is
- * skipped entirely — never merged or overwritten — so user edits survive and
- * re-running after new care routines land imports just the new ones.
- * (Deliberately NOT a row-level ignoreDuplicates upsert: the row PK is
- * (routine_id, sort_order) and saveRoutine renumbers, so stale seed rows
- * could interleave into an edited routine.)
- */
-export async function importCareRoutines(): Promise<void> {
+/** The built-in finishers' current live state — only their own routines
+ *  and rows, shaped for builtInRoutineDrift. */
+async function liveBuiltIns(label: string) {
+  const ids = builtInRoutines.map((r) => r.id);
+  const [routines, rows] = await Promise.all([
+    run(label, supabase.from("routines").select("*").in("id", ids)),
+    run(label, supabase.from("routine_exercises").select("*").in("routine_id", ids)),
+  ]);
+  return builtInDriftFromRows((routines ?? []).map(rowToRoutine), (rows ?? []).map(rowToRoutineExercise));
+}
+
+async function assertBuiltInExercises(): Promise<void> {
   try {
-    await assertExerciseIds(careRoutineExercises.map((row) => row.exerciseId));
+    await assertExerciseIds(builtInRoutineRows.map((row) => row.exerciseId));
   } catch (e) {
     throw new Error(
-      `${errorMessage(e, "unknown exercise")} — the care routines reference the ` +
+      `${errorMessage(e, "unknown exercise")} — the built-in finishers reference the ` +
         "newest catalog exercises; import/re-import the seed catalog at /exercises first.",
     );
   }
+}
 
-  const careIds = careRoutines.map((r) => r.id);
-  const data = await run(
-    "importing care routines",
-    supabase.from("routines").select("id").in("id", careIds),
-  );
-  const present = new Set((data ?? []).map((row) => row.id));
-  const missing = careRoutines.filter((r) => !present.has(r.id));
-  if (missing.length === 0) return;
-
+/**
+ * Add the built-in Care and Core finishers (src/lib/data/care-routines.ts,
+ * core-routines.ts) the live DB doesn't have yet. Add-only: a routine whose
+ * id exists is left alone here — updateBuiltInRoutines is the explicit
+ * overwrite. (Deliberately NOT a row-level ignoreDuplicates upsert: the row
+ * PK is (routine_id, sort_order) and saveRoutine renumbers, so stale seed
+ * rows could interleave into an edited routine.)
+ */
+export async function addBuiltInRoutines(): Promise<void> {
+  await assertBuiltInExercises();
+  const { missing } = await liveBuiltIns("adding built-in finishers");
   for (const routine of missing) {
-    await writeRoutine(
-      "importing care routines",
-      routine,
-      careRoutineExercises.filter((row) => row.routineId === routine.id),
-      true,
-    );
+    await writeRoutine("adding built-in finishers", routine, builtInRowsFor(routine.id), true);
   }
-  revalidateAll();
+  if (missing.length > 0) revalidateAll();
+}
+
+/**
+ * Overwrite built-in finishers that drifted from the shipped version (an
+ * older seed, or hand edits) with the current rows — name, notes and every
+ * row, each routine one all-or-nothing save_routine. The /programs button
+ * confirms first, since edits to built-ins are lost.
+ */
+export async function updateBuiltInRoutines(): Promise<void> {
+  await assertBuiltInExercises();
+  const { changed } = await liveBuiltIns("updating built-in finishers");
+  for (const routine of changed) {
+    await writeRoutine("updating built-in finishers", routine, builtInRowsFor(routine.id), false);
+  }
+  if (changed.length > 0) revalidateAll();
 }
 
 export async function deleteRoutine(routineId: string): Promise<void> {

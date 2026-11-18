@@ -18,7 +18,9 @@ import {
   weightForReps,
   workingSets,
 } from "./modality";
+import { doubleProgression } from "./progression";
 import { latestSet, suggestedLoad } from "./queries";
+import { BIKE_WARMUP_RX, wantsBikeWarmup } from "./warmup";
 import { addDaysIso, currentProgramWeek, isoDow, programEnded } from "./periods";
 import type {
   Assignment,
@@ -34,7 +36,11 @@ function roundTo(lbs: number, step: number): number {
   return Math.round(lbs / step) * step;
 }
 
-type Prefill = Pick<SetLog, "weightLbs" | "addedWeightLbs" | "bandId" | "bandRole">;
+type Prefill = Pick<SetLog, "weightLbs" | "addedWeightLbs" | "bandId" | "bandRole"> & {
+  /** Set when the load was just bumped — reps restart at the bottom of the
+   *  range. Absent: the prescription's top rep. */
+  reps?: number;
+};
 
 /** Snap a predicted TOTAL load to what the equipment can actually build, in
  *  the SetLog's own field semantics (weightLbs is per implement). Null when
@@ -94,7 +100,9 @@ function roundedPrefill(
 /**
  * The prefill for a prescription, most-honest first:
  * 1. the most recent working set AT the prescribed rep range (verbatim fields
- *    — covers bands naturally);
+ *    — covers bands naturally) — or, when every set at that session's top
+ *    load reached the top of the range, the next load step at the bottom of
+ *    the range (double progression);
  * 2. else this variant's best e1RM, re-targeted to the prescribed reps;
  * 3. else a cross-modality transfer: same exercise, most recently trained
  *    other modality, converted through the load-factor model;
@@ -118,6 +126,17 @@ export function smartPrefill(
     own.filter((set) => set.reps !== null && set.reps >= lo && set.reps <= hi),
   );
   if (inRange) {
+    const step = doubleProgression(
+      rx.modalityId,
+      own.filter((set) => set.sessionId === inRange.sessionId),
+      rx,
+    );
+    if (step?.kind === "add_load") {
+      const bumped = rx.modalityId === "bodyweight"
+        ? { weightLbs: inRange.weightLbs, addedWeightLbs: step.load }
+        : { weightLbs: step.load, addedWeightLbs: inRange.addedWeightLbs };
+      return { ...bumped, bandId: inRange.bandId, bandRole: inRange.bandRole, reps: step.repMin };
+    }
     return {
       weightLbs: inRange.weightLbs,
       addedWeightLbs: inRange.addedWeightLbs,
@@ -174,9 +193,11 @@ export function smartPrefill(
 
 /**
  * Build a planned session from a routine: one editable SetLog per prescribed
- * set, prefilled via `smartPrefill`. Pure — the solo and group start actions
- * both insert what this returns. Throws on a missing routine or an
- * assignment that isn't this person's (ids arrive from forms).
+ * set, prefilled via `smartPrefill`. With `bikeWarmup`, a lifting routine
+ * opens with the 5-minute Echo Bike warm-up (BIKE_WARMUP_RX, flagged
+ * isWarmup). Pure — the start action inserts what this returns. Throws on a
+ * missing routine or an assignment that isn't this person's (ids arrive
+ * from forms).
  */
 export function plannedSessionFromRoutine(
   data: GymData,
@@ -184,6 +205,7 @@ export function plannedSessionFromRoutine(
   routineId: string,
   assignmentId: string | null,
   date: string,
+  { bikeWarmup = false }: { bikeWarmup?: boolean } = {},
 ): { session: Session; sets: SetLog[] } {
   if (!data.routineById.has(routineId)) throw new Error("That routine no longer exists.");
   if (assignmentId !== null && data.assignments.find((a) => a.id === assignmentId)?.clientId !== clientId) {
@@ -205,11 +227,16 @@ export function plannedSessionFromRoutine(
     notes: "",
   };
 
+  const rows =
+    bikeWarmup && wantsBikeWarmup(data, routineId) ? [BIKE_WARMUP_RX, ...prescriptions] : prescriptions;
   const sets: SetLog[] = [];
-  for (const rx of prescriptions) {
+  for (const rx of rows) {
+    const warmup = rx === BIKE_WARMUP_RX;
     // A bike piece: the person's own target, no pounds, timed by the piece.
-    const conditioning =
-      data.exerciseById.get(rx.exerciseId)?.pattern === "conditioning"
+    // The warm-up is just easy — no target carried over from finisher pieces.
+    const conditioning = warmup
+      ? { ...EMPTY_CONDITIONING }
+      : data.exerciseById.get(rx.exerciseId)?.pattern === "conditioning"
         ? { ...EMPTY_CONDITIONING, ...conditioningTarget(data, clientId, rx.exerciseId, rx.conditioning ?? EMPTY_TARGET) }
         : null;
     const prefill = conditioning ? null : smartPrefill(data, clientId, rx, date);
@@ -223,7 +250,7 @@ export function plannedSessionFromRoutine(
         setNumber: i + 1,
         unilateralMode: rx.unilateralMode,
         side: null,
-        reps: conditioning || rx.durationSeconds !== null ? null : rx.repMax ?? rx.repMin,
+        reps: conditioning || rx.durationSeconds !== null ? null : prefill?.reps ?? rx.repMax ?? rx.repMin,
         weightLbs: prefill?.weightLbs ?? null,
         addedWeightLbs: prefill?.addedWeightLbs ?? null,
         bandId: prefill?.bandId ?? null,
@@ -231,7 +258,7 @@ export function plannedSessionFromRoutine(
         durationSeconds: conditioning ? pieceSeconds(rx) : rx.durationSeconds,
         distanceFeet: null,
         rir: null,
-        isWarmup: false,
+        isWarmup: warmup,
         completed: false,
         notes: "",
         conditioning,

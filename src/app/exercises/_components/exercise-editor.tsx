@@ -25,6 +25,8 @@ import { modalities } from "@/lib/data/modalities";
 import { muscleById, muscles } from "@/lib/data/muscles";
 import {
   exerciseLookup,
+  MAX_CUE_LENGTH,
+  MAX_CUES,
   MAX_PRIMARY_MUSCLES,
   MAX_SCORED_MUSCLES,
   METRIC_LABELS,
@@ -39,10 +41,10 @@ import {
   type ScoreRole,
 } from "@/lib/exercise-catalog";
 import { newId } from "@/lib/ids";
-import { parseAliases } from "@/lib/names";
+import { parseAliases, parseCues } from "@/lib/names";
 import { BAND_ROLES, UNILATERAL_MODES, type ExercisePayload } from "@/lib/validate";
 import { errorMessage } from "@/lib/format";
-import type { HeatValue } from "@/lib/heat";
+import { heatFromScores } from "@/lib/heat";
 import type {
   Exercise,
   ExerciseModality,
@@ -89,18 +91,6 @@ function toVariantRows(rows: readonly ExerciseModality[]): VariantRow[] {
   }));
 }
 
-function heatFromScores(rows: readonly { muscleId: MuscleId; score: number }[]) {
-  const values = new Map<MuscleId, HeatValue>();
-  for (const row of rows) {
-    values.set(row.muscleId, {
-      intensity: row.score / 10,
-      detail: `${muscleById.get(row.muscleId)?.name ?? row.muscleId} — score ${row.score}`,
-      ordinalOnly: false,
-    });
-  }
-  return values;
-}
-
 /**
  * Full authoring for one exercise: basics, muscle roles, and modality
  * variants, with an explicit Save. Muscle work is authored as ROLES (primary/
@@ -124,6 +114,10 @@ export function ExerciseEditor({
 }) {
   const [name, setName] = useState(exercise.name);
   const [aliasText, setAliasText] = useState((exercise.aliases ?? []).join(", "));
+  // Always MAX_CUES inputs; blanks are dropped on save.
+  const [cueInputs, setCueInputs] = useState<string[]>(() =>
+    Array.from({ length: MAX_CUES }, (_, i) => exercise.cues?.[i] ?? ""),
+  );
   const [pattern, setPattern] = useState<MovementPattern>(exercise.pattern);
   const [metricType, setMetricType] = useState<MetricType>(exercise.metricType);
   const [isCompound, setIsCompound] = useState(exercise.isCompound);
@@ -140,6 +134,7 @@ export function ExerciseEditor({
   const snapshot = JSON.stringify({
     name,
     aliasText,
+    cues: parseCues(cueInputs),
     pattern,
     metricType,
     isCompound,
@@ -265,6 +260,7 @@ export function ExerciseEditor({
       const payload: ExercisePayload = {
         name,
         aliases: parseAliases(aliasText),
+        cues: parseCues(cueInputs),
         pattern,
         metricType,
         isCompound,
@@ -340,6 +336,31 @@ export function ExerciseEditor({
             />
           </Field>
         </div>
+        <fieldset className="col-span-2 sm:col-span-3">
+          <legend className="mb-1 text-[11px] uppercase tracking-wide text-muted">
+            Cues · shown by Explain exercise ({MAX_CUES} max)
+          </legend>
+          <div className="space-y-1.5">
+            {cueInputs.map((cue, i) => (
+              <Input
+                key={i}
+                type="text"
+                value={cue}
+                maxLength={MAX_CUE_LENGTH}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCueInputs((prev) => prev.map((c, j) => (j === i ? value : c)));
+                }}
+                disabled={readOnly}
+                aria-label={`Cue ${i + 1}`}
+                placeholder={
+                  ["Setup — e.g. “Brace before you descend.”", "The movement", "The common mistake"][i]
+                }
+                className="w-full"
+              />
+            ))}
+          </div>
+        </fieldset>
         <label className="col-span-2 flex min-h-11 items-center gap-2 text-sm sm:col-span-3">
           <Checkbox
             checked={isCompound}

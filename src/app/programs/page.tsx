@@ -2,8 +2,9 @@ import Link from "next/link";
 import { PlusIcon } from "@/components/icons";
 import { Button, Chip, Input, PageShell, Section } from "@/components/ui";
 import { createProgram } from "@/lib/actions/programs";
-import { createRoutine, importCareRoutines } from "@/lib/actions/routines";
-import { careRoutines } from "@/lib/data/care-routines";
+import { MaintenanceSubmit } from "@/components/maintenance-submit";
+import { addBuiltInRoutines, createRoutine, updateBuiltInRoutines } from "@/lib/actions/routines";
+import { builtInRoutineDrift } from "@/lib/built-in-routines";
 import { loadGymData } from "@/lib/db/snapshot";
 import { DAY_LABELS } from "@/lib/periods";
 import { plural } from "@/lib/format";
@@ -24,9 +25,8 @@ export default async function PlanPage() {
   const data = await loadGymData();
   const programs = [...data.programs].sort((a, b) => a.name.localeCompare(b.name));
   const routines = [...data.routines].sort((a, b) => a.name.localeCompare(b.name));
-  const careMissing =
-    data.source === "database" &&
-    careRoutines.some((r) => !data.routineById.has(r.id));
+  const drift =
+    data.source === "database" ? builtInRoutineDrift(data) : { missing: [], changed: [] };
 
   return (
     <PageShell>
@@ -88,17 +88,37 @@ export default async function PlanPage() {
           </form>
         }
       >
-        {careMissing && (
+        {(drift.missing.length > 0 || drift.changed.length > 0) && (
           <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5">
             <p className="min-w-56 flex-1 text-sm text-muted">
-              Six pre-built <span className="font-semibold text-foreground">Care routines</span>{" "}
-              (low back, knee, shoulder, hips, posture, ankle/achilles) built
-              from the PT evidence review. Add-only — never touches existing
-              routines.
+              Built-in <span className="font-semibold text-foreground">finishers</span> — short
+              Care (low back, knee, shoulder, hips, posture, ankle) and Core circuits, 3
+              exercises and under 10 minutes each.
+              {drift.changed.length > 0 && (
+                <>
+                  {" "}
+                  {plural(drift.changed.length, "built-in")} differ from the current version:{" "}
+                  {drift.changed.map((r) => r.name).join(", ")}.
+                </>
+              )}
             </p>
-            <form action={importCareRoutines}>
-              <Button type="submit" size="sm">Import care routines</Button>
-            </form>
+            {drift.missing.length > 0 && (
+              <form action={addBuiltInRoutines}>
+                <MaintenanceSubmit
+                  label={`Add ${plural(drift.missing.length, "finisher")}`}
+                  pendingLabel="Adding…"
+                />
+              </form>
+            )}
+            {drift.changed.length > 0 && (
+              <form action={updateBuiltInRoutines}>
+                <MaintenanceSubmit
+                  label={`Update ${plural(drift.changed.length, "finisher")}`}
+                  pendingLabel="Updating…"
+                  confirmText={`Replace ${plural(drift.changed.length, "built-in finisher")} with the current version? Edits you made to them will be lost.`}
+                />
+              </form>
+            )}
           </div>
         )}
         <ul className={listClass}>

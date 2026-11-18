@@ -21,6 +21,7 @@ import {
 } from "@/lib/conditioning";
 import { conditioningSetLabel } from "@/lib/session-labels";
 import type { ConditioningLog, SetLog } from "@/lib/types";
+import { WARMUP_EFFORT } from "@/lib/warmup";
 
 const STEADY = "steady";
 
@@ -182,7 +183,11 @@ export function ConditioningSetRow({
         </Labeled>
       </div>
       {!target && (
-        <p className="text-xs text-muted">No target yet — set watts or RPM (or both).</p>
+        <p className="text-xs text-muted">
+          {set.isWarmup
+            ? `Warm-up: easy pace, ${WARMUP_EFFORT} — no target needed.`
+            : "No target yet — set watts or RPM (or both)."}
+        </p>
       )}
 
       {/* The console's frozen screen after STOP */}

@@ -8,6 +8,7 @@ import { type Plan, parsePlanValue } from "../launcher";
 import type { ClientId, Session, SetLog } from "../types";
 import { insertSessions, revalidateAll } from "./_helpers";
 import { assertClientId } from "../db/guards";
+import { parseBikeWarmup } from "../validate";
 
 type GroupEntry = { clientId: ClientId; plan: Plan };
 
@@ -17,7 +18,10 @@ type GroupEntry = { clientId: ClientId; plan: Plan };
  * Not exported — in a "use server" file every export is a live RPC endpoint,
  * and only `startGroupFromForm` should be one.
  */
-async function startGroupSessions(entries: GroupEntry[]): Promise<void> {
+async function startGroupSessions(
+  entries: GroupEntry[],
+  { bikeWarmup }: { bikeWarmup: boolean },
+): Promise<void> {
   if (entries.length === 0) throw new Error("Pick at least one client.");
   const data = await loadGymData();
 
@@ -42,6 +46,7 @@ async function startGroupSessions(entries: GroupEntry[]): Promise<void> {
       plan.routineId,
       plan.assignmentId,
       localTodayIso(),
+      { bikeWarmup },
     );
     newSessions.push(session);
     newSets.push(...sets);
@@ -59,8 +64,9 @@ async function startGroupSessions(entries: GroupEntry[]): Promise<void> {
 }
 
 /**
- * FormData shape from the launcher: `include_<clientId>` checkboxes and
- * `plan_<clientId>` selects holding a planValue (src/lib/launcher.ts).
+ * FormData shape from the launcher: `include_<clientId>` checkboxes,
+ * `plan_<clientId>` selects holding a planValue (src/lib/launcher.ts), and
+ * the shared `bike_warmup` checkbox (lifting starts open on the bike).
  */
 export async function startGroupFromForm(formData: FormData): Promise<void> {
   const entries: GroupEntry[] = [];
@@ -74,5 +80,5 @@ export async function startGroupFromForm(formData: FormData): Promise<void> {
     if (!plan) throw new Error(`bad plan ${value}`);
     entries.push({ clientId, plan });
   }
-  await startGroupSessions(entries);
+  await startGroupSessions(entries, { bikeWarmup: parseBikeWarmup(formData) });
 }

@@ -93,7 +93,7 @@ export function implementsPerRep(
 }
 
 /** Sides worked. Reps are stored PER SIDE, so this is the multiplier. */
-export function sidesWorked(set: SetLog): number {
+export function sidesWorked(set: Pick<SetLog, "unilateralMode">): number {
   return set.unilateralMode === "bilateral" ? 1 : 2;
 }
 
@@ -325,37 +325,6 @@ export function effectiveLoadFactor(
     return { ...derived, factor: derived.seed ?? derived.factor };
   }
   return derived;
-}
-
-/**
- * Load expressed as barbell-equivalent pounds, so one chart can plot a lift
- * across every modality it has been trained with instead of fragmenting into
- * separate lines. Null where the load has no magnitude.
- */
-export function normalizedLoad(
-  data: GymData,
-  set: SetLog,
-  /** Optional per-call memo of factors by client|exercise|modality — the
-   *  factor scans every set log, so whole-history callers (muscleVolume)
-   *  pass one to stay linear. */
-  factorCache?: Map<string, number | null>,
-): number | null {
-  const load = setLoad(data, set);
-  if (load.lbs === null || load.precision === "ordinal") return null;
-  const session = data.sessionById.get(set.sessionId);
-  if (!session) return null;
-  if (!data.clientById.has(session.clientId)) return null;
-
-  const cacheKey = `${session.clientId}|${set.exerciseId}|${set.modalityId}`;
-  let factor = factorCache?.get(cacheKey);
-  if (factor === undefined) {
-    factor = effectiveLoadFactor(data, session.clientId, set.exerciseId, set.modalityId).factor;
-    factorCache?.set(cacheKey, factor);
-  }
-  // No comparable factor (unmeasured bodyweight/band): the raw load is the
-  // most honest number there is.
-  if (!factor) return load.lbs;
-  return load.lbs / factor;
 }
 
 function clamp(n: number, min: number, max: number): number {

@@ -149,6 +149,7 @@ export function GroupPersonCard({
         prescriptions={addOns.allPrescriptions}
         catalog={catalog}
         history={person.history}
+        stalls={person.stalls}
         dense
         onReplace={actions.openReplace}
         onAdd={actions.openAdd}

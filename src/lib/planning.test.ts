@@ -184,3 +184,82 @@ describe("plannedSessionFromRoutine — conditioning rows", () => {
     });
   });
 });
+
+describe("plannedSessionFromRoutine — bike warm-up", () => {
+  it("opens a lifting routine with one easy Echo Bike warm-up piece", () => {
+    const prescriptions = data.exercisesByRoutine.get("r_full_a") ?? [];
+    const expected = prescriptions.reduce((n, p) => n + p.sets, 0) + 1;
+    const { sets } = plannedSessionFromRoutine(data, "nate", "r_full_a", null, TODAY, { bikeWarmup: true });
+    expect(sets).toHaveLength(expected);
+    expect(sets[0]).toMatchObject({
+      exerciseId: "echo_bike",
+      modalityId: "cardio",
+      isWarmup: true,
+      position: 1,
+      durationSeconds: 300,
+      reps: null,
+      weightLbs: null,
+      conditioning: { intervalScheme: null, targetWatts: null, targetRpm: null, avgWatts: null },
+    });
+    expect(sets.slice(1).every((s) => !s.isWarmup)).toBe(true);
+    expect(sets.map((s) => s.position)).toEqual(sets.map((_, i) => i + 1));
+  });
+
+  it("doesn't carry a finisher target into the warm-up", () => {
+    const session = data.sessions.find((s) => s.clientId === "nate" && s.status === "completed")!;
+    const template = data.setsBySession.get(session.id)![0];
+    const withPiece = buildGymData({
+      ...data,
+      setLogs: [
+        ...data.setLogs,
+        {
+          ...template,
+          id: "sl_echo_prior",
+          exerciseId: "echo_bike",
+          modalityId: "cardio",
+          reps: null,
+          weightLbs: null,
+          completed: true,
+          isWarmup: false,
+          conditioning: { intervalScheme: null, targetWatts: 180, targetRpm: null, avgWatts: 185, maxWatts: null, avgRpm: null, calories: null },
+        },
+      ],
+    });
+    const { sets } = plannedSessionFromRoutine(withPiece, "nate", "r_full_a", null, TODAY, { bikeWarmup: true });
+    expect(sets[0].conditioning?.targetWatts).toBeNull();
+  });
+
+  it("skips care routines and leaves the default off", () => {
+    const care = plannedSessionFromRoutine(data, "nate", "r_knee_care", null, TODAY, { bikeWarmup: true });
+    expect(care.sets.some((s) => s.isWarmup)).toBe(false);
+    const plain = plannedSessionFromRoutine(data, "nate", "r_full_a", null, TODAY);
+    expect(plain.sets[0].exerciseId).not.toBe("echo_bike");
+  });
+});
+
+describe("plannedSessionFromRoutine — double progression", () => {
+  const rowFor = (routineId: string, exerciseId: string) =>
+    data.exercisesByRoutine.get(routineId)!.find((r) => r.exerciseId === exerciseId)!;
+  const setsFor = (clientId: string, routineId: string, exerciseId: string) =>
+    plannedSessionFromRoutine(data, clientId, routineId, null, TODAY).sets.filter((s) => s.exerciseId === exerciseId);
+
+  it("every set at the top of the range last time → +5 on the bar, reps back to the bottom", () => {
+    // Gabriel rowed 95×10×3 against 8–10.
+    const row = rowFor("r_upper_bb", "bent_over_row");
+    expect([row.repMin, row.repMax]).toEqual([8, 10]);
+    const sets = setsFor("gabriel", "r_upper_bb", "bent_over_row");
+    expect(sets.map((s) => [s.weightLbs, s.reps])).toEqual(sets.map(() => [100, 8]));
+  });
+
+  it("a set short of the top keeps last time's load and the top rep target", () => {
+    // Nate's dumbbell bench: 50 × 12/11/10 against 10–12.
+    const sets = setsFor("nate", "r_full_a", "bench_press");
+    expect(sets.every((s) => s.weightLbs === 50 && s.reps === 12)).toBe(true);
+  });
+
+  it("one missed set holds the dumbbells too (45 × 12/12/10)", () => {
+    const sets = setsFor("nate", "r_full_b", "chest_supported_row");
+    expect(sets.every((s) => s.weightLbs === 45)).toBe(true);
+  });
+});
+

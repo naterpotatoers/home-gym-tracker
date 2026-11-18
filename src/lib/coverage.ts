@@ -11,7 +11,7 @@ import type {
 
 /**
  * Muscle coverage of PRESCRIBED work — routines and program weeks. Unlike
- * `muscleVolume` (logged work, load × reps), prescriptions carry no load, so
+ * logged volume (load × reps), prescriptions carry no load, so
  * coverage is set-based: hard-set equivalents, weighted by how directly each
  * exercise trains the muscle.
  */

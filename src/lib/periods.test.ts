@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { seedSnapshot } from "./data/seed-snapshot";
 import {
   addDaysIso,
   ageOnIso,
@@ -9,12 +8,12 @@ import {
   localDayLabel,
   localIso,
   mondayOf,
+  inMondayWeek,
   relativeDayLabel,
-  resolvePeriod,
   shortDayLabel,
+  weekdayDateLabel,
+  weekOfLabel,
 } from "./periods";
-
-const data = seedSnapshot();
 
 describe("date helpers", () => {
   it("addDaysIso crosses month and year boundaries", () => {
@@ -109,41 +108,19 @@ describe("programEnded", () => {
   });
 });
 
-describe("resolvePeriod (explicit dates only — no wall clock)", () => {
-  it("day steps by one", () => {
-    const p = resolvePeriod(data, "nate", { period: "day", date: "2026-07-15" });
-    expect(p.from).toBe("2026-07-15");
-    expect(p.to).toBe("2026-07-15");
-    expect(p.prevAnchor).toBe("2026-07-14");
-    expect(p.nextAnchor).toBe("2026-07-16");
+describe("Monday-week helpers", () => {
+  it("inMondayWeek: Monday through Sunday, nothing after", () => {
+    expect(inMondayWeek("2026-11-16", "2026-11-16")).toBe(true);
+    expect(inMondayWeek("2026-11-22", "2026-11-16")).toBe(true);
+    expect(inMondayWeek("2026-11-23", "2026-11-16")).toBe(false);
+    expect(inMondayWeek("2026-11-15", "2026-11-16")).toBe(false);
   });
 
-  it("week snaps to Monday..Sunday", () => {
-    const p = resolvePeriod(data, "nate", { period: "week", date: "2026-08-02" });
-    expect(p.from).toBe("2026-07-27");
-    expect(p.to).toBe("2026-08-02");
-  });
-
-  it("program uses the assignment span", () => {
-    const assignment = data.assignments.find(
-      (a) => a.clientId === "nate" && a.status === "active",
-    );
-    if (!assignment) return; // seed shape changed — other tests will notice
-    const program = data.programById.get(assignment.programId)!;
-    const p = resolvePeriod(data, "nate", { period: "program" });
-    expect(p.from).toBe(assignment.startDate);
-    expect(p.to).toBe(addDaysIso(assignment.startDate, program.weeks * 7 - 1));
-    expect(p.prevAnchor).toBeNull();
-  });
-
-  it("custom respects explicit bounds", () => {
-    const p = resolvePeriod(data, "nate", {
-      period: "custom",
-      from: "2026-06-01",
-      to: "2026-06-30",
-    });
-    expect(p.from).toBe("2026-06-01");
-    expect(p.to).toBe("2026-06-30");
+  it("week and weekday labels add the year only outside today's", () => {
+    expect(weekOfLabel("2026-11-02", "2026-11-17")).toBe("Week of Nov 2");
+    expect(weekOfLabel("2025-12-29", "2026-11-17")).toBe("Week of Dec 29, 2025");
+    expect(weekdayDateLabel("2026-11-07", "2026-11-17")).toBe("Sat Nov 7");
+    expect(weekdayDateLabel("2025-11-07", "2026-11-17")).toBe("Fri Nov 7, 2025");
   });
 });
 

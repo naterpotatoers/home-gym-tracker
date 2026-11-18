@@ -191,7 +191,9 @@ create table exercises (
   is_compound boolean not null default false,
   -- Alternative names ("Overhead Press" for Shoulder Press) — searched by the
   -- picker and checked by the duplicate guard, never displayed as the title.
-  aliases text[] not null default '{}'
+  aliases text[] not null default '{}',
+  -- Up to 3 short coaching cues, shown by "Explain exercise".
+  cues text[] not null default '{}' check (cardinality(cues) <= 3)
 );
 
 -- Authored once per exercise; modality muscleModifiers adjust these in app
@@ -391,10 +393,10 @@ begin
     calories = excluded.calories;
 end $$;
 
--- An exercise's basics, muscle scores, and variants together. An UPDATE of
--- the exercise row (never an upsert): a save racing a delete must fail, not
--- resurrect it.
-create or replace function save_exercise(p_exercise jsonb, p_scores jsonb, p_modalities jsonb)
+-- An exercise's basics, cues, muscle scores, and variants together. An
+-- UPDATE of the exercise row (never an upsert): a save racing a delete must
+-- fail, not resurrect it.
+create or replace function save_exercise(p_exercise jsonb, p_scores jsonb, p_modalities jsonb, p_cues text[])
 returns void language plpgsql as $$
 declare
   ex exercises;
@@ -402,7 +404,8 @@ begin
   ex := jsonb_populate_record(null::exercises, p_exercise);
   update exercises
   set name = ex.name, aliases = ex.aliases, pattern = ex.pattern,
-      metric_type = ex.metric_type, is_compound = ex.is_compound
+      metric_type = ex.metric_type, is_compound = ex.is_compound,
+      cues = coalesce(p_cues, '{}')
   where id = ex.id;
   if not found then raise exception 'exercise % not found', ex.id; end if;
 

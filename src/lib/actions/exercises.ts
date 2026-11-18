@@ -7,7 +7,7 @@ import {
   exercises as seedExercises,
 } from "../data/exercises";
 import { supabase } from "../db/client";
-import { assertExerciseIds, isMissingTable } from "../db/guards";
+import { assertExerciseIds, isMissingColumn, isMissingTable } from "../db/guards";
 import {
   exerciseModalityToRow,
   exerciseMuscleScoreToRow,
@@ -16,7 +16,13 @@ import {
 import { findNameCollision, type NamedExercise } from "../exercise-catalog";
 import { slugId } from "../ids";
 import { nameKey, normalizeName } from "../names";
-import { exercisePayloadProblem, isMetricType, isMovementPattern, type ExercisePayload } from "../validate";
+import {
+  exercisePayloadProblem,
+  isMetricType,
+  isMovementPattern,
+  normalizeExercisePayload,
+  type ExercisePayload,
+} from "../validate";
 import { assertNoRefs, revalidateAll, run, runOrDuplicate, rpc } from "./_helpers";
 
 /**
@@ -92,11 +98,10 @@ export async function saveExercise(
   payload: ExercisePayload,
 ): Promise<void> {
   await assertExerciseIds([exerciseId]);
-  const problem = exercisePayloadProblem(payload);
+  const clean = normalizeExercisePayload(payload);
+  const problem = exercisePayloadProblem(clean);
   if (problem) throw new Error(problem);
-
-  const name = normalizeName(payload.name);
-  const aliases = payload.aliases.map(normalizeName);
+  const { name, aliases, cues } = clean;
   // Covers renames and new aliases; excludeId lets an exercise keep its own
   // name/aliases on every save.
   await assertNameAvailable(
@@ -122,6 +127,7 @@ export async function saveExercise(
       p_modalities: payload.modalities.map((variant) =>
         exerciseModalityToRow({ exerciseId, ...variant }),
       ),
+      p_cues: cues,
     },
     `"${name}" is already in the catalog — edit that exercise instead.`,
   );
@@ -182,10 +188,9 @@ async function importMissingSeedExercises(): Promise<Set<string>> {
   const missingIds = new Set(missing.map((e) => e.id));
 
   if (missing.length > 0) {
-    await run(
-      "importing exercises",
-      supabase.from("exercises").insert(missing.map(exerciseToRow)),
-    );
+    const { error } = await supabase.from("exercises").insert(missing.map(exerciseToRow));
+    if (isMissingColumn(error)) throw new Error(CUES_MIGRATION_MESSAGE);
+    if (error) throw new Error(`importing exercises: ${error.message}`);
     const scores = seedExerciseMuscleScores.filter((s) => missingIds.has(s.exerciseId));
     if (scores.length > 0) {
       await run(
@@ -207,12 +212,15 @@ async function importMissingSeedExercises(): Promise<Set<string>> {
   );
 }
 
+const CUES_MIGRATION_MESSAGE =
+  "The exercises table has no cues column yet — run supabase/migrations/2026-11-18-exercise-cues.sql in the Supabase SQL editor.";
+
 /**
  * Make the DB's built-in exercises match the CURRENT seed: first the same
  * add-only import as importSeedExercises (so built-ins added to the seed
  * after the first import — or ones you deleted — come back with their scores
- * and variants), then an overwrite of muscle scores and aliases for every
- * built-in. The explicit opt-in counterpart to importSeedExercises'
+ * and variants), then an overwrite of muscle scores, aliases and coaching
+ * cues for every built-in. The explicit opt-in counterpart to importSeedExercises'
  * never-overwrite contract, for when the seed data itself gets corrected
  * (e.g. after a literature review). Deliberately narrow: names, patterns,
  * variants, and custom (non-seed-id) exercises are untouched.
@@ -256,17 +264,16 @@ export async function resyncSeedCatalogScores(): Promise<void> {
     );
   }
 
-  // Targeted alias update per exercise — an upsert of the whole row would
-  // also revert name/pattern edits, which stay the user's.
+  // Targeted alias + cue update per exercise — an upsert of the whole row
+  // would also revert name/pattern edits, which stay the user's.
   for (const exercise of seedExercises) {
     if (!seedIds.has(exercise.id)) continue;
-    await run(
-      "re-syncing seed aliases",
-      supabase
-        .from("exercises")
-        .update({ aliases: [...(exercise.aliases ?? [])] })
-        .eq("id", exercise.id),
-    );
+    const { error } = await supabase
+      .from("exercises")
+      .update({ aliases: [...(exercise.aliases ?? [])], cues: [...(exercise.cues ?? [])] })
+      .eq("id", exercise.id);
+    if (isMissingColumn(error)) throw new Error(CUES_MIGRATION_MESSAGE);
+    if (error) throw new Error(`re-syncing seed aliases and cues: ${error.message}`);
   }
   revalidateAll();
 }

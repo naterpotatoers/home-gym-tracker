@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
-import { bestE1rm, e1rm, latestBodyweight, normalizedLoad, setLoad } from "./modality";
-import { workingSets } from "./modality";
+import { bestE1rm, e1rm, latestBodyweight, setLoad } from "./modality";
 
 const data = seedSnapshot();
 
@@ -79,11 +78,3 @@ describe("e1rm", () => {
   });
 });
 
-describe("normalizedLoad", () => {
-  it("equals raw load for barbell (factor 1)", () => {
-    const sets = workingSets(data, "nate", "bench_press", "barbell");
-    const set = sets[0];
-    const load = setLoad(data, set);
-    expect(normalizedLoad(data, set)).toBeCloseTo(load.lbs!, 6);
-  });
-});

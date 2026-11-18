@@ -250,6 +250,9 @@ export type ExerciseRow = {
   pattern: Exercise["pattern"];
   metric_type: Exercise["metricType"];
   is_compound: boolean;
+  /** Absent before 2026-11-18-exercise-cues.sql (and omitted on write when
+   *  empty, so creating an exercise works on a DB without the column). */
+  cues?: string[];
 };
 
 export type ExerciseMuscleScoreRow = {
@@ -549,6 +552,7 @@ export function rowToExercise(r: ExerciseRow): Exercise {
     pattern: r.pattern,
     metricType: r.metric_type,
     isCompound: r.is_compound,
+    cues: r.cues ?? [],
   };
 }
 
@@ -560,6 +564,7 @@ export function exerciseToRow(e: Exercise): ExerciseRow {
     pattern: e.pattern,
     metric_type: e.metricType,
     is_compound: e.isCompound,
+    ...((e.cues ?? []).length > 0 ? { cues: [...e.cues!] } : {}),
   };
 }
 

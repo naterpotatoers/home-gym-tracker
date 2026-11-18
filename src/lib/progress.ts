@@ -10,8 +10,8 @@ import type { ClientId, ExerciseId, ModalityId, Muscle, MuscleGroupId, SetLog } 
 /**
  * Time-series and frequency stats for the Progress page. Pure and synchronous
  * over `GymData`, like coverage.ts. The chart's y-axis is RAW e1RM with the
- * modality pinned — `normalizedLoad`'s seed↔measured factor switching would
- * silently reshape a progress line between visits. Ordinal (hip-band) work
+ * modality pinned — a cross-modality load factor's seed↔measured switching
+ * would silently reshape a progress line between visits. Ordinal (hip-band) work
  * never produces a number here: sessions of it yield `bestE1rmLbs: null`.
  */
 

@@ -10,8 +10,10 @@ import { startGroupFromForm } from "@/lib/actions/group";
 import { restartAssignment, updateAssignmentStatus } from "@/lib/actions/programs";
 import { errorMessage } from "@/lib/format";
 import { discardSession } from "@/lib/actions/workout";
-import { type LauncherRow, parsePlanValue } from "@/lib/launcher";
+import { type LauncherRow, startLabel, warmupApplies } from "@/lib/launcher";
 import { shortDayLabel } from "@/lib/periods";
+import { BIKE_WARMUP_FIELD } from "@/lib/validate";
+import { WARMUP_MINUTES } from "@/lib/warmup";
 
 /** Consecutive runs of options sharing a group label, in order. */
 function grouped(options: LauncherRow["options"]) {
@@ -36,6 +38,9 @@ export function WorkoutLauncher({ rows }: { rows: LauncherRow[] }) {
   const [plans, setPlans] = useState<Record<string, string>>(() =>
     Object.fromEntries(rows.map((r) => [r.clientId, r.defaultPlan])),
   );
+  // Controlled, so the choice survives the box hiding and reappearing as
+  // plans change.
+  const [bikeWarmup, setBikeWarmup] = useState(true);
 
   function toggle(clientId: string, on: boolean) {
     setChecked((prev) => {
@@ -47,12 +52,8 @@ export function WorkoutLauncher({ rows }: { rows: LauncherRow[] }) {
   }
 
   const selected = rows.filter((r) => checked.has(r.clientId));
-  const label =
-    selected.length === 0
-      ? "Pick who's training"
-      : selected.length === 1
-        ? `${parsePlanValue(plans[selected[0].clientId] ?? "")?.kind === "resume" ? "Resume" : "Start"} ${selected[0].firstName}'s workout`
-        : `Start group workout (${selected.length})`;
+  const label = startLabel(selected, plans);
+  const offerWarmup = warmupApplies(selected, plans);
 
   return (
     <form action={startGroupFromForm} className="mt-6">
@@ -132,8 +133,18 @@ export function WorkoutLauncher({ rows }: { rows: LauncherRow[] }) {
 
       {/* Start stays reachable however long the roster gets — pinned above
           the phone tab bar, to the viewport bottom on md+. */}
-      <div className="sticky bottom-16 z-10 -mx-4 mt-3 bg-background/90 px-4 py-2 backdrop-blur md:bottom-0 sm:-mx-6 sm:px-6">
+      <div className="sticky bottom-16 z-10 -mx-4 mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 bg-background/90 px-4 py-2 backdrop-blur md:bottom-0 sm:-mx-6 sm:px-6">
         <StartButton label={label} disabled={selected.length === 0} />
+        {offerWarmup && (
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+            <Checkbox
+              name={BIKE_WARMUP_FIELD}
+              checked={bikeWarmup}
+              onChange={(e) => setBikeWarmup(e.target.checked)}
+            />
+            Bike warm-up <span className="text-muted">{WARMUP_MINUTES} min easy</span>
+          </label>
+        )}
       </div>
     </form>
   );

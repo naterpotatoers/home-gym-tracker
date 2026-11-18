@@ -7,6 +7,15 @@ added to the seed catalog (Aug 2026) and the six pre-built **Care routines**
 covers the strength catalog — same deal: the numbers live in code, this page
 is why they are what they are. Keep prescriptions and doc in sync.
 
+**Nov 2026 trim.** The Care routines are end-of-workout wind-downs, so each
+is now **at most 3 exercises and under ~10 minutes** (enforced by
+`care-routines.test.ts`). Each section below says which exercises made the
+cut; the evidence for the ones that didn't stays here as reference, since
+those exercises remain in the catalog for training days. The built-in
+**Core finishers** (`src/lib/data/core-routines.ts`, AthleanX-style
+three-exercise ab circuits) are training templates, not rehab, and make no
+clinical claims [consensus / influence].
+
 > **This is not medical advice.** The Care routines are general conditioning
 > templates for healthy people with everyday complaints — a stiff back after
 > deadlifts, cranky knees on stairs, desk shoulders. They are not a diagnosis
@@ -69,10 +78,10 @@ splints (strengthening is unproven for MTSS — Winters 2013).
   by adding reps not seconds, daily practice, cat-camel as prep, and avoid
   loaded flexion in the first hour after waking.
 
-**How the routine reflects it:** cat-cow prep → curl-up, side plank, and
-bird dog all as short 10s holds in pyramid style → glute bridge for
-hip-dominant patterning → child's pose flagged "skip if end-range flexion
-aggravates symptoms." The McGill curl-up scores abs 6 on purpose — it's
+**How the routine reflects it:** just the Big 3 — curl-up, side plank, and
+bird dog as short ~10s braced holds, 2 sets each. Cat-cow, the glute bridge
+and child's pose were cut for the 10-minute version (do cat-camel as prep
+on your own if it feels good). The McGill curl-up scores abs 6 on purpose — it's
 deliberately sub-maximal (sit-up 9, bicycle crunch 9).
 
 **Sources**
@@ -97,8 +106,9 @@ deliberately sub-maximal (sit-up 9, bicycle crunch 9).
   [RCT]; hip/core resolved pain earlier in Ferber 2015 [RCT, n=199];
   proximal-plus-local wins in meta-analysis [SR/MA — Lack 2015, Nascimento
   2018]; and it's a Grade A recommendation in the JOSPT clinical practice
-  guideline [consensus/CPG — Willy 2019]. The routine's 3 quad + 3 hip
-  exercise structure is that recipe.
+  guideline [consensus/CPG — Willy 2019]. The 10-minute routine keeps that
+  recipe in miniature: a quad isometric (wall sit), a quad TKE and a hip
+  abductor (side-lying abduction).
 - Quad work is supported *as a class* — open and closed chain both produce
   good long-term outcomes [RCT — Witvrouw 2000/2004]. The TKE is included as
   a well-tolerated low-load entry point [consensus], **not** as a VMO
@@ -110,11 +120,13 @@ deliberately sub-maximal (sit-up 9, bicycle crunch 9).
   studied dose is heavier than a bodyweight wall sit, hence the routine's
   "build toward 4–5×45s" note.
 - Step exercises carry direct RCT support at ~2–4 sets of 10+ reps for ≥6
-  weeks [SR — Harvie 2011]; the 3s-lowering emphasis is [consensus].
+  weeks [SR — Harvie 2011]; the 3s-lowering emphasis is [consensus]. Cut
+  from the finisher for time — program step-ups on training days.
 - Restricted ankle dorsiflexion predicts patellar tendinopathy [prospective
   cohort — Backman & Danielson 2011] and associates with knee valgus
-  [SR/MA — Lima 2018]; the knee-to-wall stretch addresses it, with modest
+  [SR/MA — Lima 2018]; the knee-to-wall drill addresses it, with modest
   expected ROM gains (~2–3° from calf stretching [SR/MA — Radford 2006]).
+  It now lives in the Ankle & Achilles routine.
 
 **Sources**
 
@@ -165,8 +177,13 @@ deliberately sub-maximal (sit-up 9, bicycle crunch 9).
 - **Face pull** has no dedicated EMG study — supported by extension from
   the rowing/horizontal-abduction literature [consensus].
 - **Dead hang**: no peer-reviewed evidence at all (the popular claims trace
-  to a self-published, uncontrolled case series) [consensus/anecdote] —
-  included as optional stretch/grip work, flagged to skip if painful.
+  to a self-published, uncontrolled case series) [consensus/anecdote].
+
+**How the routine reflects it (10-minute version):** band external rotation
+and full-can scaption as a superset, then the push-up plus (scapular
+push-up) for serratus. Internal rotation, Y-T-W, pull-aparts, the doorway
+stretch and the hang were cut for time; pull-aparts and the stretch live in
+the Posture routine.
 
 **Sources**
 
@@ -184,7 +201,7 @@ deliberately sub-maximal (sit-up 9, bicycle crunch 9).
 
 ---
 
-## Hips & glute med — "Care: Hips & Glute Activation"
+## Hips & glute med — "Care: Hips & Glutes"
 
 **What the evidence says**
 
@@ -204,8 +221,13 @@ deliberately sub-maximal (sit-up 9, bicycle crunch 9).
   recovery; it isn't fixing a proven defect.
 - "Glute activation / gluteal amnesia" is coaching lore — no study shows
   glutes "shut off" from sitting [SR-adjacent; even post-ACL inhibition
-  evidence is limited]. The routine name says *activation* in the
-  colloquial warm-up sense; the mechanism claim stops there.
+  evidence is limited]. The routine was renamed from "Hips & Glute
+  Activation" to drop the implied mechanism.
+
+**How the routine reflects it (10-minute version):** glute bridge +
+side-lying abduction (the top glute-med drill) as a superset, then a
+figure-four stretch. The lateral walk, clam and single-leg bridge were cut
+for time.
 
 **Sources**
 
@@ -242,6 +264,11 @@ deliberately sub-maximal (sit-up 9, bicycle crunch 9).
   [biomech — Borstad & Ludewig 2006]. Thread-the-needle is thoracic-rotation
   rationale only [consensus].
 
+**How the routine reflects it (10-minute version):** wall slides +
+palms-up pull-aparts as a superset, then the doorway stretch. Y-T-W, face
+pulls and thread-the-needle were cut for time (face pulls are in most
+training days already).
+
 **Sources**
 
 - [Ruivo et al. 2017, *J Manipulative Physiol Ther* — posture RCT](https://doi.org/10.1016/j.jmpt.2016.10.005)
@@ -254,7 +281,12 @@ deliberately sub-maximal (sit-up 9, bicycle crunch 9).
 
 ---
 
-## Ankle, Achilles & hamstrings — "Care: Ankle, Achilles & Hamstrings"
+## Ankle & Achilles (formerly "Ankle, Achilles & Hamstrings") — "Care: Ankle & Achilles"
+
+**10-minute version:** slow calf raises (set 3 knee-bent for the soleus),
+tibialis raises, and knee-to-wall. Nordics and single-leg RDLs moved out of
+the finisher — they're training-day lifts (Nordics are in Lift B); their
+evidence stays below for reference.
 
 **What the evidence says**
 
@@ -265,8 +297,8 @@ deliberately sub-maximal (sit-up 9, bicycle crunch 9).
   Alfredson protocol with better satisfaction [RCT — Beyer 2015], no
   protocol is clearly superior [SR/MA — Murphy 2018], and do-as-tolerated
   volume was non-inferior [RCT — Stevens & Tan 2014]. Hence the routine's
-  "progress by adding load" note. Alfredson also runs knee-bent sets for
-  the soleus — worth adding as tolerance grows.
+  "add load over weeks" note. Alfredson also runs knee-bent sets for the
+  soleus — the routine's third set.
 - **Nordic curls** are the hamstring-strain-prevention standout: ~60–70%
   injury reduction [cluster RCT — Petersen 2011, n=942], 2 vs 12 injuries
   [RCT — van der Horst 2015], roughly halved rates in meta-analysis [SR/MA

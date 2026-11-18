@@ -1,6 +1,3 @@
-import { activeAssignment, type GymData } from "./gym-data";
-import type { ClientId } from "./types";
-
 /**
  * THE date module. Two blessed forms only: display/storage dates are GYM-ZONE
  * ISO strings (yyyy-mm-dd via en-CA in GYM_TZ), regression math uses UTC day
@@ -15,18 +12,6 @@ import type { ClientId } from "./types";
  *  bundles (this module is imported by 'use client' components too). */
 const GYM_TZ = process.env.NEXT_PUBLIC_GYM_TZ ?? "America/Los_Angeles";
 
-export type PeriodKind = "day" | "week" | "program" | "custom";
-
-export type ResolvedPeriod = {
-  from: string;
-  to: string;
-  label: string;
-  /** Anchor date for the previous/next period, or null when stepping makes no
-   *  sense (program spans, custom ranges). */
-  prevAnchor: string | null;
-  nextAnchor: string | null;
-};
-
 export function addDaysIso(iso: string, days: number): string {
   const date = new Date(`${iso}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
@@ -40,6 +25,21 @@ export function isoDow(iso: string): number {
 }
 
 /** Monday of the week containing the date — the schema's week starts Monday. */
+/** Whether `iso` falls in the Monday-week starting `weekStart`. */
+export function inMondayWeek(iso: string, weekStart: string): boolean {
+  return iso >= weekStart && iso < addDaysIso(weekStart, 7);
+}
+
+/** "Week of Nov 2" — the year appears when it isn't todayIso's. */
+export function weekOfLabel(weekStart: string, todayIso?: string): string {
+  return `Week of ${shortDayLabel(weekStart, todayIso)}`;
+}
+
+/** "Sat Nov 7" — the year appears when it isn't todayIso's. */
+export function weekdayDateLabel(iso: string, todayIso?: string): string {
+  return `${DAY_LABELS[isoDow(iso) - 1]} ${shortDayLabel(iso, todayIso)}`;
+}
+
 export function mondayOf(iso: string): string {
   return addDaysIso(iso, -(isoDow(iso) - 1));
 }
@@ -160,73 +160,4 @@ export function programEnded(
   todayIso: string,
 ): boolean {
   return utcDay(todayIso) >= utcDay(assignment.startDate) + Math.max(program.weeks, 1) * 7;
-}
-
-export function resolvePeriod(
-  data: GymData,
-  clientId: ClientId,
-  params: {
-    period: PeriodKind;
-    date?: string;
-    from?: string;
-    to?: string;
-    program?: string;
-  },
-): ResolvedPeriod {
-  const anchor = params.date ?? localTodayIso();
-
-  switch (params.period) {
-    case "day":
-      return {
-        from: anchor,
-        to: anchor,
-        label: anchor,
-        prevAnchor: addDaysIso(anchor, -1),
-        nextAnchor: addDaysIso(anchor, 1),
-      };
-    case "week": {
-      const monday = mondayOf(anchor);
-      return {
-        from: monday,
-        to: addDaysIso(monday, 6),
-        label: `Week of ${monday}`,
-        prevAnchor: addDaysIso(monday, -7),
-        nextAnchor: addDaysIso(monday, 7),
-      };
-    }
-    case "program": {
-      const assignment =
-        (params.program
-          ? data.assignments.find(
-              (a) => a.clientId === clientId && a.programId === params.program,
-            )
-          : undefined) ??
-        activeAssignment(data, clientId) ??
-        data.assignments.find((a) => a.clientId === clientId);
-      if (!assignment) {
-        // No program history: fall back to the trailing 8 weeks.
-        return {
-          from: addDaysIso(anchor, -55),
-          to: anchor,
-          label: "No program assigned — last 8 weeks",
-          prevAnchor: null,
-          nextAnchor: null,
-        };
-      }
-      const program = data.programById.get(assignment.programId);
-      const weeks = program?.weeks ?? 8;
-      return {
-        from: assignment.startDate,
-        to: addDaysIso(assignment.startDate, weeks * 7 - 1),
-        label: `${program?.name ?? assignment.programId} (${assignment.startDate})`,
-        prevAnchor: null,
-        nextAnchor: null,
-      };
-    }
-    case "custom": {
-      const from = params.from ?? addDaysIso(anchor, -29);
-      const to = params.to ?? anchor;
-      return { from, to, label: `${from} → ${to}`, prevAnchor: null, nextAnchor: null };
-    }
-  }
 }

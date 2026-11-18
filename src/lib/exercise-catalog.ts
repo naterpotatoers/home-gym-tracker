@@ -4,7 +4,9 @@ import type {
   ExerciseModality,
   ExerciseMuscleScore,
   MetricType,
+  ModalityId,
   MovementPattern,
+  MuscleId,
 } from "./types";
 
 /**
@@ -49,6 +51,44 @@ export function exerciseLookup(catalog: ExerciseCatalog): ExerciseLookup {
   };
   lookupCache.set(catalog, lookup);
   return lookup;
+}
+
+export type MuscleExercise = {
+  exerciseId: string;
+  name: string;
+  score: number;
+  /** The implements it can be done with, in catalog order. */
+  modalityIds: ModalityId[];
+};
+
+/** Exercises that train a muscle as a primary or secondary mover (the
+ *  editor's roles, via roleForScore), best first (score, then name).
+ *  Exercises with no variants can't be picked, so they're left out. The
+ *  muscle explorer's lists. */
+export function exercisesForMuscle(
+  catalog: ExerciseCatalog,
+  muscleId: MuscleId,
+): { primary: MuscleExercise[]; secondary: MuscleExercise[] } {
+  const { exerciseById, modalitiesByExercise } = exerciseLookup(catalog);
+  const rows: MuscleExercise[] = catalog.exerciseMuscleScores
+    .filter((r) => r.muscleId === muscleId && isMoverScore(r.score))
+    .flatMap((r) => {
+      const variants = modalitiesByExercise.get(r.exerciseId) ?? [];
+      const exercise = exerciseById.get(r.exerciseId);
+      if (!exercise || variants.length === 0) return [];
+      return [{ exerciseId: r.exerciseId, name: exercise.name, score: r.score, modalityIds: variants.map((v) => v.modalityId) }];
+    })
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  return {
+    primary: rows.filter((r) => roleForScore(r.score) === "primary"),
+    secondary: rows.filter((r) => roleForScore(r.score) === "secondary"),
+  };
+}
+
+/** The heat map's "Build it" line: the best few exercises for a muscle. */
+export function buildItSuggestions(catalog: ExerciseCatalog, muscleId: MuscleId, limit = 4): MuscleExercise[] {
+  const { primary, secondary } = exercisesForMuscle(catalog, muscleId);
+  return [...primary, ...secondary].slice(0, limit);
 }
 
 /** The one spelling of an exercise × modality variant as a string key —
@@ -108,6 +148,12 @@ export const METRIC_ORDER = Object.keys(METRIC_LABELS) as MetricType[];
 // ---------------------------------------------------------------------------
 
 export const MAX_ALIASES = 8;
+/** "Explain exercise" stays skimmable: three short cues at most. */
+export const MAX_CUES = 3;
+export const MAX_CUE_LENGTH = 90;
+/** The built-in cues' style bar (tested, not enforced on save): one idea,
+ *  readable between sets. */
+export const MAX_CUE_WORDS = 12;
 
 /** What the duplicate guard needs to know about an exercise — a full
  *  `Exercise` satisfies it, and so does a narrow `select id, name, aliases`. */
@@ -166,6 +212,13 @@ export function roleForScore(score: number): ScoreRole {
   if (score >= 6) return "secondary";
   if (score >= 3) return "supporting";
   return "stabilizer";
+}
+
+/** Primary or secondary — a muscle the exercise actually moves, as opposed
+ *  to one it only supports or stabilizes. "Works"/"Also" everywhere. */
+export function isMoverScore(score: number): boolean {
+  const role = roleForScore(score);
+  return role === "primary" || role === "secondary";
 }
 
 export function scoreForRole(role: ScoreRole): number {

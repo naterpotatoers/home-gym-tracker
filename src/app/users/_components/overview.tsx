@@ -1,28 +1,19 @@
 import Link from "next/link";
-import { BodyHeatmap } from "@/components/body-heatmap";
-import { ArrowLeftIcon } from "@/components/icons";
+import { ArrowLeftIcon, HeartIcon } from "@/components/icons";
 import { LiftList, type LiftListRow } from "@/components/lift-list";
 import { RecentWorkouts } from "@/components/recent-workouts";
-import { ConditioningSection } from "@/components/conditioning-section";
-import { RunningSection } from "@/components/running-section";
-import { Caret, chipClass, Note, Section, summaryClass } from "@/components/ui";
+import { Caret, chipClass, FOCUS_RING, Note, Section, summaryClass } from "@/components/ui";
 import { MUSCLE_GROUP_COLORS, muscleGroups } from "@/lib/data/muscles";
 import { modalityById } from "@/lib/data/modalities";
-import { catalogSlice } from "@/lib/exercise-catalog";
 import type { GymData } from "@/lib/gym-data";
-import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
-import { MUSCLE_SPANS, muscleSpanRange } from "@/lib/muscle-span";
 import { liftOverview } from "@/lib/progress";
 import { progressHref, type ProgressParams } from "@/lib/progress-url";
-import { muscleVolume } from "@/lib/queries";
 import { relativeDayLabel } from "@/lib/periods";
-import { conditioningSummaries } from "@/lib/conditioning";
-import { runnerSummary } from "@/lib/running";
+import { cardioWeekLine } from "@/lib/running";
 import { isModalityId } from "@/lib/validate";
 import type { ClientId } from "@/lib/types";
 import { LiftHistory } from "./exercise-view";
 import { dash, lbs } from "@/lib/format";
-import { RunSource } from "@/lib/types";
 
 export function Overview({
   data,
@@ -30,16 +21,12 @@ export function Overview({
   params,
   personName,
   today,
-  runSyncSources = [],
 }: {
   data: GymData;
   client: ClientId;
   params: ProgressParams;
   personName: string;
   today: string;
-  /** Import sources syncing this person's runs (strava.ts/garmin.ts are
-   *  server-only, so the page decides). */
-  runSyncSources?: RunSource[];
 }) {
   const lifts = liftOverview(data, client);
   // exercise/modality URL params name the selected lift. Without one, md+
@@ -71,11 +58,8 @@ export function Overview({
       search: [exercise?.name ?? row.exerciseId, ...(exercise?.aliases ?? []), gear, group ?? ""],
     };
   });
-  const span = muscleSpanRange(data, client, params.span, today);
-  const volume = muscleVolume(data, client, { from: span.from, to: span.to });
-  const volumeHeatMax = heatMax({ volumes: volume });
-  const volumeOrdinalMax = ordinalMax({ volumes: volume });
-  const volumeHeat = heatValues({ volumes: volume }, volumeHeatMax, volumeOrdinalMax);
+  // Runs and bike pieces live on the Cardio tab; Progress keeps one line.
+  const cardioLine = cardioWeekLine(data, client, today);
 
   return (
     <>
@@ -114,46 +98,17 @@ export function Overview({
 
       <RecentWorkouts data={data} client={client} limit={5} showTotal={false} />
 
-      {data.runsSource === "missing" ? (
-        <p className="mt-10 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
-          Running isn&apos;t set up yet — run{" "}
-          <code className="font-mono">supabase/migrations/2026-11-07-runs.sql</code> in the
-          Supabase SQL editor, then reload.
-        </p>
-      ) : (
-        <RunningSection runner={runnerSummary(data, client, today, runSyncSources)} today={today} />
+      {cardioLine && (
+        <Link
+          href={progressHref({ ...params, view: "cardio", exercise: "", modality: "" })}
+          className={`mt-8 flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface-alt px-3 text-sm hover:bg-current/5 ${FOCUS_RING}`}
+        >
+          <HeartIcon size={16} />
+          <span className="text-muted">Cardio this week:</span>
+          <span className="font-mono">{cardioLine}</span>
+          <span className="ml-auto text-accent-text">Cardio →</span>
+        </Link>
       )}
-
-      <ConditioningSection summaries={conditioningSummaries(data, client)} today={today} />
-
-      <Section
-        title="Muscle work"
-        action={
-          <nav aria-label="Muscle work range" className="flex gap-1">
-            {MUSCLE_SPANS.map((s) => (
-              <Link
-                key={s.id}
-                scroll={false}
-                href={progressHref({ ...params, span: s.id })}
-                aria-current={params.span === s.id ? "page" : undefined}
-                className={chipClass(params.span === s.id)}
-              >
-                {s.label}
-              </Link>
-            ))}
-          </nav>
-        }
-      >
-        <BodyHeatmap
-          values={[...volumeHeat]}
-          catalog={catalogSlice(data)}
-          title={span.label}
-          maxLabel={`${Math.round(volumeHeatMax).toLocaleString()} lb·reps`}
-          ordinalMaxLabel={
-            volumeOrdinalMax > 0 ? `${Math.round(volumeOrdinalMax)} reps` : undefined
-          }
-        />
-      </Section>
 
       <details className="group mt-8 rounded-xl border border-border">
         <summary className={summaryClass("rounded-xl px-4 py-2 text-sm font-semibold")}>
@@ -172,13 +127,6 @@ export function Overview({
             <strong className="text-foreground">Sessions</strong> list every working
             set as entered — dumbbells per hand, bands by color, &quot;F&quot; = to
             failure — and the dot beside a lift is its primary muscle group.
-          </p>
-          <p>
-            <strong className="text-foreground">Muscle work</strong> is score-weighted
-            volume: each set counts toward every muscle it trains, scaled by how
-            directly it trains it. Tap a region for its numbers; hatched regions are
-            hip-band work — reps, never pounds — on their own scale. Dashed outlines
-            mark deep muscles drawn as callouts.
           </p>
         </div>
       </details>

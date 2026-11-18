@@ -3,7 +3,7 @@ import { seedSnapshot } from "./data/seed-snapshot";
 import { buildGymData, type GymData } from "./gym-data";
 import { deriveLoadFactor, effectiveLoadFactor, setLoad } from "./modality";
 import { smartPrefill } from "./planning";
-import { describeSet, muscleVolume } from "./queries";
+import { describeSet } from "./queries";
 import type { RoutineExercise, Session, SetLog, WeighIn } from "./types";
 
 /** Regressions from the 2026-10-24 audit: a seed client with only
@@ -183,18 +183,6 @@ describe("load factors", () => {
     expect(derived.source).toBe("measured");
     expect(derived.ceilingLimited).toBe(true);
     expect(effectiveLoadFactor(data, CLIENT, "bench_press", "dumbbell").factor).toBe(0.7);
-  });
-});
-
-describe("muscleVolume", () => {
-  it("counts missing loads as unloaded, never as ordinal band work", () => {
-    // Push-ups logged before the first weigh-in: no bodyweight, no load.
-    const s = set({ exerciseId: "push_up", modalityId: "bodyweight", reps: 20 });
-    const data = world([session("s_t1", "2026-08-01")], [s]);
-    const chest = muscleVolume(data, CLIENT).find((v) => v.muscleId === "mid_chest")!;
-    expect(chest.ordinalReps).toBe(0);
-    expect(chest.unloadedReps).toBeGreaterThan(0);
-    expect(chest.sets).toBe(1);
   });
 });
 

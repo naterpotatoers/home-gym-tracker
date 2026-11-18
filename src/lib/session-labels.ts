@@ -1,8 +1,11 @@
 import { EMPTY_TARGET, pieceLabel, readoutLabel, targetLabel } from "./conditioning";
 import { bandById } from "./data/equipment";
 import { variantKey } from "./exercise-catalog";
+import { mmss } from "./periods";
+import type { StallHint } from "./progression";
 import { toBlocks } from "./set-blocks";
-import type { RoutineExercise, SetLog } from "./types";
+import type { ModalityId, RoutineExercise, SetLog } from "./types";
+import { BIKE_WARMUP_RX, isBikeWarmupBlock, isBikeWarmupSet, WARMUP_EFFORT, WARMUP_MINUTES } from "./warmup";
 
 /** Pure label + cursor helpers for the live session cards — extracted so the
  *  self-healing cursor logic is unit-testable outside the client component. */
@@ -129,19 +132,88 @@ export function advanceCursor(sets: readonly SetLog[], fromId: string): string |
   return next === -1 ? null : sets[next].id;
 }
 
-type VariantFields = Pick<SetLog, "exerciseId" | "modalityId">;
+type VariantFields = Pick<SetLog, "exerciseId" | "modalityId"> &
+  Partial<Pick<SetLog, "isWarmup">>;
 
 /** Rest after a set with no prescription (an exercise added mid-session). */
 export const DEFAULT_REST_SECONDS = 90;
 
-/** The routine's prescription for a set's variant, if it has one. */
+/** The routine's prescription for a set's variant, if it has one. The bike
+ *  warm-up has its own (BIKE_WARMUP_RX), so a later Echo Bike finisher block
+ *  keeps the finisher's row and the warm-up never borrows it. */
 export function prescriptionFor(
   prescriptions: readonly RoutineExercise[],
   set: VariantFields,
 ): RoutineExercise | undefined {
+  if (set.isWarmup !== undefined && isBikeWarmupSet({ ...set, isWarmup: set.isWarmup })) {
+    return BIKE_WARMUP_RX;
+  }
   return prescriptions.find(
     (p) => p.exerciseId === set.exerciseId && p.modalityId === set.modalityId,
   );
+}
+
+/** A block's prescription — the warm-up's when every set is the bike
+ *  warm-up (a squat set toggled to warm-up keeps the squat row). */
+export function blockPrescription(
+  prescriptions: readonly RoutineExercise[],
+  block: { exerciseId: string; modalityId: SetLog["modalityId"]; sets: readonly SetLog[] },
+): RoutineExercise | undefined {
+  if (isBikeWarmupBlock(block)) return BIKE_WARMUP_RX;
+  return prescriptionFor(prescriptions, { exerciseId: block.exerciseId, modalityId: block.modalityId });
+}
+
+/** "5:00 steady · easy, RPE 3–4 · rest 60s" — the warm-up's rx line. */
+export function warmupRxLabel(rx: Pick<RoutineExercise, "durationSeconds" | "restSeconds">): string {
+  return `${mmss(rx.durationSeconds ?? WARMUP_MINUTES * 60)} steady · easy, ${WARMUP_EFFORT} · rest ${rx.restSeconds}s`;
+}
+
+type BlockFields = {
+  exerciseId: string;
+  modalityId: ModalityId;
+  sets: readonly SetLog[];
+};
+
+/** The rx line under an open block's name, null without a prescription: the
+ *  warm-up's own line; a bike piece's shape and rest only (each person's
+ *  target is on their piece, so the row's default isn't repeated); else the
+ *  lift's rxLabel. */
+export function blockRxLine(
+  rx: RoutineExercise | undefined,
+  block: BlockFields,
+  isBike: boolean,
+): string | null {
+  if (!rx) return null;
+  if (isBikeWarmupBlock(block)) return warmupRxLabel(rx);
+  if (isBike) {
+    return `${pieceLabel(rx.conditioning?.intervalScheme ?? null, rx.durationSeconds)} · rest ${rx.restSeconds}s`;
+  }
+  return rxLabel(rx);
+}
+
+/** A block's stall hint — only while it has sets left to log: a finished
+ *  block's stall is old news. */
+export function blockStall(
+  block: BlockFields,
+  stalls: Readonly<Record<string, StallHint>>,
+): StallHint | undefined {
+  if (completedCount(block.sets) === block.sets.length) return undefined;
+  return stalls[variantKey(block.exerciseId, block.modalityId)];
+}
+
+/** Where block `index` sits among adjacent blocks sharing a superset label
+ *  (`labels` per block, matching performOrder, which only interleaves
+ *  adjacent runs): in a run at all, and whether it starts one — where the
+ *  "superset" tag goes. */
+export function supersetPosition(
+  labels: readonly (string | undefined)[],
+  index: number,
+): { inSuperset: boolean; starts: boolean } {
+  const label = labels[index];
+  if (label === undefined) return { inSuperset: false, starts: false };
+  const prevSame = index > 0 && labels[index - 1] === label;
+  const nextSame = labels[index + 1] === label;
+  return { inSuperset: prevSame || nextSame, starts: nextSame && !prevSame };
 }
 
 /**
@@ -241,3 +313,47 @@ export function upcomingFoldIndex(
   cut = Math.max(cut, expandedIndex + 1);
   return labels.length - cut >= 2 ? cut : null;
 }
+
+/** A progression load in words — "150 lb", "BW+25 lb", "BW". */
+function progressionLoad(modalityId: ModalityId, load: number): string {
+  const bodyweight = modalityId === "bodyweight";
+  return (
+    loadLabel(
+      {
+        modalityId,
+        bandId: null,
+        bandRole: null,
+        weightLbs: bodyweight ? null : load,
+        addedWeightLbs: bodyweight && load > 0 ? load : null,
+      },
+      { verbose: true },
+    ) ?? `${load} lb`
+  );
+}
+
+/** The runner's stall callout, headline then what to do — "No progress in
+ *  4 wk (3 sessions) — every set hit 10: try 150 lb × 8–10". */
+export function stallCallout(hint: StallHint, modalityId: ModalityId): string {
+  const weeks = Math.floor(hint.days / 7);
+  const head = `No progress in ${weeks} wk (${hint.exposures} sessions)`;
+  const s = hint.suggestion;
+  switch (s.kind) {
+    case "add_load": {
+      const reps = s.repMin === s.repMax ? `${s.repMax}` : `${s.repMin}–${s.repMax}`;
+      return `${head} — every set hit ${s.repMax}: try ${progressionLoad(modalityId, s.load)} × ${reps}`;
+    }
+    case "same_load":
+      return `${head} — stay at ${progressionLoad(modalityId, s.load)} and work every set up to ${s.targetReps} (last ${s.lastReps.join("/")})`;
+    case "at_ceiling": {
+      const why =
+        modalityId === "dumbbell"
+          ? "already on the heaviest dumbbells"
+          : modalityId === "bodyweight" && s.load === 0
+            ? `every set hit ${Math.min(...s.lastReps)}`
+            : "no heavier step to take";
+      const what = modalityId === "bodyweight" && s.load === 0 ? "add reps or hold a dumbbell" : "add reps or slow the tempo";
+      return `${head} — ${why}: ${what}`;
+    }
+  }
+}
+

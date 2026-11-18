@@ -155,6 +155,16 @@ function pieces(data: GymData, clientId: ClientId, exerciseId: ExerciseId): SetL
     .sort((a, b) => date(b).localeCompare(date(a)) || b.position - a.position);
 }
 
+/** The dates of every bike piece a person has logged (any conditioning
+ *  exercise, warm-ups excluded), newest first — one per piece. */
+export function conditioningPieceDates(data: GymData, clientId: ClientId): string[] {
+  return data.exercises
+    .filter((e) => e.pattern === "conditioning")
+    .flatMap((e) => pieces(data, clientId, e.id))
+    .map((set) => data.sessionById.get(set.sessionId)?.date ?? "")
+    .sort((a, b) => b.localeCompare(a));
+}
+
 const sameTarget = (a: ConditioningTarget, b: ConditioningTarget) =>
   a.targetWatts === b.targetWatts && a.targetRpm === b.targetRpm;
 

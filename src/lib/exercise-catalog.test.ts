@@ -4,6 +4,7 @@ import {
   exerciseMuscleScores,
   exercises,
 } from "./data/exercises";
+import { muscles } from "./data/muscles";
 import {
   exerciseLookup,
   findNameCollision,
@@ -13,6 +14,8 @@ import {
   MAX_SCORED_MUSCLES,
   roleForScore,
   scoreForRole,
+  buildItSuggestions,
+  exercisesForMuscle,
 } from "./exercise-catalog";
 import { nameKey } from "./names";
 
@@ -242,3 +245,31 @@ describe("score roles", () => {
     expect(roleForScore(1)).toBe("stabilizer");
   });
 });
+
+describe("exercisesForMuscle", () => {
+  it("primary then secondary movers (the editor's roles), best first, each with its implements", () => {
+    const { primary, secondary } = exercisesForMuscle(catalog, "glutes");
+    expect(primary.map((r) => r.exerciseId)).toContain("hip_thrust");
+    // Squats score 7 for glutes — the editor calls that Secondary, so here too.
+    expect(secondary.map((r) => r.exerciseId)).toContain("squat");
+    expect(primary.every((r) => roleForScore(r.score) === "primary")).toBe(true);
+    expect(secondary.every((r) => roleForScore(r.score) === "secondary")).toBe(true);
+    for (const list of [primary, secondary]) {
+      expect(list.map((r) => r.score)).toEqual([...list.map((r) => r.score)].sort((a, b) => b - a));
+      expect(list.every((r) => r.modalityIds.length > 0)).toBe(true);
+    }
+  });
+
+  it("every muscle has at least one primary mover", () => {
+    for (const muscle of muscles) {
+      expect(exercisesForMuscle(catalog, muscle.id).primary.length, muscle.id).toBeGreaterThan(0);
+    }
+  });
+
+  it("buildItSuggestions: the best few, primaries first", () => {
+    const top = buildItSuggestions(catalog, "glutes");
+    expect(top).toHaveLength(4);
+    expect(roleForScore(top[0].score)).toBe("primary");
+  });
+});
+

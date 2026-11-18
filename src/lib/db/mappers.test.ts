@@ -131,6 +131,16 @@ describe("mapper round-trips (row ↔ type symmetry)", () => {
     }
   });
 
+  it("cues: omitted on write when empty; a pre-migration row reads back as none", () => {
+    const base = { id: "ex_x", name: "X", pattern: "squat", metricType: "reps", isCompound: false } as const;
+    expect("cues" in exerciseToRow({ ...base, cues: [] })).toBe(false);
+    expect("cues" in exerciseToRow(base)).toBe(false);
+    expect(exerciseToRow({ ...base, cues: ["Brace."] }).cues).toEqual(["Brace."]);
+    const { cues: _omitted, ...legacy } = exerciseToRow({ ...base, cues: ["Brace."] });
+    void _omitted;
+    expect(rowToExercise(legacy).cues).toEqual([]);
+  });
+
   it("variant load-shape columns are omitted at their defaults", () => {
     // Inserts must keep working against a table without the 2026-10-24
     // columns, and rows read from it must default them.

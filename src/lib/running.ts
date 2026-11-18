@@ -1,5 +1,17 @@
+import { conditioningPieceDates } from "./conditioning";
+import { groupBy } from "./exercise-catalog";
+import { plural } from "./format";
 import type { GymData } from "./gym-data";
-import { addDaysIso, DAY_LABELS, hmmss, isoDow, mmss, mondayOf, shortDayLabel } from "./periods";
+import {
+  addDaysIso,
+  hmmss,
+  inMondayWeek,
+  mmss,
+  mondayOf,
+  shortDayLabel,
+  weekdayDateLabel,
+  weekOfLabel,
+} from "./periods";
 import type { ClientId, Run, RunKind, RunSource } from "./types";
 
 export const RUN_KIND_LABELS: Record<RunKind, string> = {
@@ -53,10 +65,9 @@ export type RunWeek = {
   seconds: number;
 };
 
-/** The runs in the Monday-week starting `weekStart` — the one week filter. */
+/** The runs in the Monday-week starting `weekStart`. */
 function inWeek(runs: readonly Run[], weekStart: string): Run[] {
-  const weekEnd = addDaysIso(weekStart, 7);
-  return runs.filter((r) => r.date >= weekStart && r.date < weekEnd);
+  return runs.filter((r) => inMondayWeek(r.date, weekStart));
 }
 
 const totalMiles = (runs: readonly Run[]) => runs.reduce((sum, r) => sum + r.distanceMiles, 0);
@@ -108,47 +119,86 @@ export type RunnerSummary = {
   clientId: ClientId;
   weekRuns: number;
   weekMiles: string;
-  /** Last 6 Monday-weeks, oldest first: { "Oct 6", 12.4 }. */
+  /** The last `weeks` Monday-weeks, oldest first: { "Oct 6", 12.4 }. */
   weekly: { label: string; miles: number }[];
-  /** This week's runs, or the latest few when this week has none. */
-  recent: RunView[];
   /** The import sources syncing this person's runs (empty = manual only). */
   syncSources: RunSource[];
 };
 
-/** Everything the Running section shows for one person. */
+function runView(r: Run, dayLabel: string): RunView {
+  return {
+    id: r.id,
+    dayLabel,
+    kind: r.kind,
+    kindLabel: RUN_KIND_LABELS[r.kind],
+    miles: milesLabel(r.distanceMiles),
+    time: hmmss(r.durationSeconds),
+    pace: paceLabel(r),
+    heartRate: r.avgHeartRate,
+    name: r.name,
+    source: r.source,
+  };
+}
+
+/** The Running section's header numbers: this week's tally and the weekly
+ *  mileage chart (`weeks` long). The runs themselves come from runLog. */
 export function runnerSummary(
   data: GymData,
   clientId: ClientId,
   todayIso: string,
   syncSources: RunSource[],
-  recentLimit = 5,
+  weeks = 12,
 ): RunnerSummary {
   const week = runWeek(data, clientId, todayIso);
-  const recent = week.runs.length > 0 ? week.runs : runsFor(data, clientId).slice(0, recentLimit);
   return {
     clientId,
     weekRuns: week.runs.length,
     weekMiles: milesLabel(week.miles),
-    weekly: weeklyMiles(data, clientId, todayIso).map((w) => ({
+    weekly: weeklyMiles(data, clientId, todayIso, weeks).map((w) => ({
       label: shortDayLabel(w.weekStart),
       miles: w.miles,
     })),
-    recent: recent.map((r) => ({
-      id: r.id,
-      // This week's runs by weekday; older ones by date.
-      dayLabel: week.runs.includes(r) ? DAY_LABELS[isoDow(r.date) - 1] : shortDayLabel(r.date),
-      kind: r.kind,
-      kindLabel: RUN_KIND_LABELS[r.kind],
-      miles: milesLabel(r.distanceMiles),
-      time: hmmss(r.durationSeconds),
-      pace: paceLabel(r),
-      heartRate: r.avgHeartRate,
-      name: r.name,
-      source: r.source,
-    })),
     syncSources,
   };
+}
+
+export type RunLogWeek = {
+  weekStart: string;
+  /** "Week of Nov 16". */
+  label: string;
+  miles: string;
+  runs: RunView[];
+};
+
+/** Every run, grouped into Monday-weeks, newest week (and run) first —
+ *  the Cardio tab's log. Weeks without runs are left out; dates outside
+ *  todayIso's year carry their year. */
+export function runLog(data: GymData, clientId: ClientId, todayIso: string): RunLogWeek[] {
+  return [...groupBy(runsFor(data, clientId), (run) => mondayOf(run.date))]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([weekStart, runs]) => ({
+      weekStart,
+      label: weekOfLabel(weekStart, todayIso),
+      miles: milesLabel(totalMiles(runs)),
+      runs: runs.map((r) => runView(r, weekdayDateLabel(r.date, todayIso))),
+    }));
+}
+
+/** The Progress tab's one cardio line: this week's runs and bike pieces
+ *  ("2 runs · 8.3 mi · 1 bike piece"), "nothing yet" for someone who does
+ *  cardio but hasn't this week, null for someone who never has. */
+export function cardioWeekLine(data: GymData, clientId: ClientId, todayIso: string): string | null {
+  const runs = runsFor(data, clientId);
+  const bikeDates = conditioningPieceDates(data, clientId);
+  if (runs.length === 0 && bikeDates.length === 0) return null;
+  const weekStart = mondayOf(todayIso);
+  const weekRuns = inWeek(runs, weekStart);
+  const weekBike = bikeDates.filter((date) => inMondayWeek(date, weekStart)).length;
+  const parts = [
+    weekRuns.length > 0 ? `${plural(weekRuns.length, "run")} · ${milesLabel(totalMiles(weekRuns))}` : null,
+    weekBike > 0 ? plural(weekBike, "bike piece") : null,
+  ].filter((part) => part !== null);
+  return parts.length > 0 ? parts.join(" · ") : "nothing yet";
 }
 
 /** Strava's workout_type for runs: 1 race, 2 long run, 3 workout; else easy. */

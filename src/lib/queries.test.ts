@@ -3,7 +3,6 @@ import { seedSnapshot } from "./data/seed-snapshot";
 import { buildGymData } from "./gym-data";
 import { e1rm, weightForReps } from "./modality";
 import {
-  muscleVolume,
   openBoardGroups,
   priorBestE1rm,
   recentVariantKeys,
@@ -123,36 +122,6 @@ describe("recentVariantKeys", () => {
 
   it("household-wide without a client", () => {
     expect(recentVariantKeys(data).length).toBeGreaterThan(0);
-  });
-});
-
-describe("muscleVolume honesty", () => {
-  const volumes = new Map(muscleVolume(data, "nate").map((v) => [v.muscleId, v]));
-
-  it("accumulates real pounds for loaded work", () => {
-    const quads = volumes.get("quads")!;
-    expect(quads.weightedVolumeLbs).toBeGreaterThan(0);
-    expect(quads.sets).toBeGreaterThan(0);
-    expect(quads.peakScore).toBe(10); // squat is a primary quad driver
-  });
-
-  it("keeps ordinal (hip-band) work out of the pounds total", () => {
-    // Nate's glute_med work includes hip-band lateral walks — ordinal only.
-    const gluteMed = volumes.get("glute_med")!;
-    expect(gluteMed.ordinalReps).toBeGreaterThan(0);
-    // Loaded sets that *also* score glute_med may add lbs, but the band reps
-    // themselves never do: an ordinal-only muscle would have zero lbs.
-    const ordinalOnly = [...volumes.values()].filter(
-      (v) => v.ordinalReps > 0 && v.sets > 0,
-    );
-    expect(ordinalOnly.length).toBeGreaterThan(0);
-  });
-
-  it("returns a row for every muscle, zeroed when untrained", () => {
-    const untouched = [...volumes.values()].filter(
-      (v) => v.weightedVolumeLbs === 0 && v.ordinalReps === 0,
-    );
-    expect(untouched.every((v) => v.sets === 0 && v.peakScore === 0)).toBe(true);
   });
 });
 

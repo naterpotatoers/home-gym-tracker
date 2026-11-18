@@ -6,18 +6,39 @@ import { PlusIcon } from "@/components/icons";
 import { Button, ErrorText, Field, Input, Select } from "@/components/ui";
 import { deleteRun, logRun, syncGarmin, syncStrava } from "@/lib/actions/runs";
 import { plural } from "@/lib/format";
-import { RUN_KIND_LABELS, RUN_KINDS, RUN_SOURCE_LABELS, type RunnerSummary } from "@/lib/running";
+import {
+  RUN_KIND_LABELS,
+  RUN_KINDS,
+  RUN_SOURCE_LABELS,
+  type RunLogWeek,
+  type RunnerSummary,
+  type RunView,
+} from "@/lib/running";
 import { useFormAction } from "@/components/use-form-action";
 
+/** Weeks of the full log shown before "Show older". */
+const LOG_WEEKS_SHOWN = 8;
+
 /**
- * One person's running, on their Clients › Progress tab: this week's runs
- * and mileage, six weeks of weekly miles, recent runs, a Strava/Garmin sync
- * (that source's athlete only — auto on open, at most every 30 minutes) and
- * a manual log. Imported runs show their source and can't be deleted here. Styled as a page Section to sit among Lifts / Recent workouts.
+ * One person's running, on their Clients › Cardio tab: this week's tally,
+ * weekly miles, every run grouped by week, a Strava/Garmin sync (that
+ * source's athlete only — auto on open, at most every 30 minutes) and a
+ * manual log. Imported runs show their source and can't be deleted here.
+ * Styled as a page Section.
  */
-export function RunningSection({ runner, today }: { runner: RunnerSummary; today: string }) {
+export function RunningSection({
+  runner,
+  today,
+  log,
+}: {
+  runner: RunnerSummary;
+  today: string;
+  /** Every run by week, newest first. */
+  log: RunLogWeek[];
+}) {
   const [logging, setLogging] = useState(false);
-  const hasRuns = runner.recent.length > 0 || runner.weekly.some((w) => w.miles > 0);
+  const [showOlder, setShowOlder] = useState(false);
+  const weeksShown = showOlder ? log : log.slice(0, LOG_WEEKS_SHOWN);
 
   return (
     <section className="mt-10">
@@ -42,7 +63,7 @@ export function RunningSection({ runner, today }: { runner: RunnerSummary; today
         <LogRunForm clientId={runner.clientId} today={today} onDone={() => setLogging(false)} />
       )}
 
-      {!hasRuns ? (
+      {log.length === 0 ? (
         <p className="text-sm text-muted">No runs yet — log one.</p>
       ) : (
         <>
@@ -51,64 +72,93 @@ export function RunningSection({ runner, today }: { runner: RunnerSummary; today
             <span className="font-mono">{runner.weekMiles}</span>
           </p>
           <WeeklyMiles weeks={runner.weekly} />
-          {runner.recent.length > 0 && (
-            <ul className="mt-3 divide-y divide-border border-t border-border text-sm">
-              {runner.recent.map((run) => (
-                <li key={run.id} className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-0.5 py-1">
-                  <span className="w-20 shrink-0 text-muted">{run.dayLabel}</span>
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-xs ${
-                      run.kind === "easy" ? "bg-current/10" : "bg-accent-soft text-accent-text"
-                    }`}
-                  >
-                    {run.kindLabel}
+          <div className="mt-4 space-y-4">
+            {weeksShown.map((week) => (
+              <div key={week.weekStart}>
+                <h3 className="flex items-baseline justify-between border-b border-border pb-0.5 text-xs font-semibold uppercase tracking-wide text-muted">
+                  <span>{week.label}</span>
+                  <span className="font-mono normal-case tracking-normal text-foreground">
+                    {plural(week.runs.length, "run")} · {week.miles}
                   </span>
-                  <span className="font-mono">{run.miles}</span>
-                  <span className="font-mono text-muted">{run.time}</span>
-                  <span className="font-mono">{run.pace}</span>
-                  {run.heartRate !== null && (
-                    <span className="font-mono text-xs text-muted">♥ {run.heartRate}</span>
-                  )}
-                  {run.name && <span className="truncate text-xs text-muted">{run.name}</span>}
-                  {run.source !== "manual" && (
-                    <span className="text-[10px] uppercase tracking-wide text-muted">
-                      {RUN_SOURCE_LABELS[run.source]}
-                    </span>
-                  )}
-                  {run.source === "manual" && (
-                    <ConfirmDeleteButton
-                      action={deleteRun.bind(null, run.id)}
-                      confirmText={`Delete the ${run.miles} run on ${run.dayLabel}?`}
-                      ariaLabel={`Delete the ${run.miles} run on ${run.dayLabel}`}
-                      className="ml-auto text-danger-text"
-                    />
-                  )}
-                </li>
+                </h3>
+                <RunList runs={week.runs} />
+              </div>
               ))}
-            </ul>
-          )}
+              {log.length > LOG_WEEKS_SHOWN && (
+                <Button size="sm" variant="ghost" onClick={() => setShowOlder((v) => !v)} aria-expanded={showOlder}>
+                  {showOlder ? "Show fewer weeks" : `Show ${log.length - LOG_WEEKS_SHOWN} older weeks`}
+                </Button>
+              )}
+          </div>
         </>
       )}
     </section>
   );
 }
 
-/** Six weeks of mileage as labelled bars — the number is always printed, the
- *  bar is just the at-a-glance shape (a jump week stands out). */
+/** One line per run: day, kind, miles, time, pace, HR, name, source. */
+function RunList({ runs }: { runs: RunView[] }) {
+  return (
+    <ul className="divide-y divide-border text-sm">
+      {runs.map((run) => (
+        <li key={run.id} className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-0.5 py-1">
+          <span className="w-24 shrink-0 text-muted">{run.dayLabel}</span>
+          <span
+            className={`rounded px-1.5 py-0.5 text-xs ${
+              run.kind === "easy" ? "bg-current/10" : "bg-accent-soft text-accent-text"
+            }`}
+          >
+            {run.kindLabel}
+          </span>
+          <span className="font-mono">{run.miles}</span>
+          <span className="font-mono text-muted">{run.time}</span>
+          <span className="font-mono">{run.pace}</span>
+          {run.heartRate !== null && <span className="font-mono text-xs text-muted">♥ {run.heartRate}</span>}
+          {run.name && <span className="truncate text-xs text-muted">{run.name}</span>}
+          {run.source !== "manual" && (
+            <span className="text-[10px] uppercase tracking-wide text-muted">{RUN_SOURCE_LABELS[run.source]}</span>
+          )}
+          {run.source === "manual" && (
+            <ConfirmDeleteButton
+              action={deleteRun.bind(null, run.id)}
+              confirmText={`Delete the ${run.miles} run on ${run.dayLabel}?`}
+              ariaLabel={`Delete the ${run.miles} run on ${run.dayLabel}`}
+              className="ml-auto text-danger-text"
+            />
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Weekly mileage as labelled bars — the number is always printed, the bar
+ *  is just the at-a-glance shape (a jump week stands out). Past eight weeks,
+ *  every other date label is dropped (the current week's stays) so they fit
+ *  on a phone. */
 function WeeklyMiles({ weeks }: { weeks: RunnerSummary["weekly"] }) {
   const max = Math.max(...weeks.map((w) => w.miles), 1);
+  const thin = weeks.length > 8;
   return (
-    <div className="mt-2 grid grid-cols-6 items-end gap-1.5" aria-label="Weekly miles, last six weeks">
+    <div
+      className="mt-2 grid items-end gap-1"
+      style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}
+      aria-label={`Weekly miles, last ${weeks.length} weeks`}
+    >
       {weeks.map((w, i) => (
-        <div key={w.label} className="flex flex-col items-center gap-0.5">
-          <span className="font-mono text-[11px]">{w.miles > 0 ? w.miles.toFixed(1) : "–"}</span>
+        <div key={w.label} className="flex min-w-0 flex-col items-center gap-0.5">
+          <span className={`font-mono ${thin ? "text-[10px]" : "text-[11px]"}`}>
+            {w.miles > 0 ? w.miles.toFixed(thin && w.miles >= 10 ? 0 : 1) : "–"}
+          </span>
           <div className="flex h-10 w-full items-end rounded-sm bg-track">
             <div
               className={`w-full rounded-sm ${i === weeks.length - 1 ? "bg-accent" : "bg-accent/50"}`}
               style={{ height: `${(w.miles / max) * 100}%` }}
             />
           </div>
-          <span className="whitespace-nowrap text-[10px] text-muted">{w.label}</span>
+          <span className="whitespace-nowrap text-[10px] text-muted">
+            {thin && (weeks.length - 1 - i) % 2 === 1 ? "\u00a0" : w.label}
+          </span>
         </div>
       ))}
     </div>

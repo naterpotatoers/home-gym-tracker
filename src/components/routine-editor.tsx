@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { BodyHeatmap } from "@/components/body-heatmap";
 import { ExercisePicker } from "@/components/exercise-picker";
-import { CopyIcon, PlusIcon, SwapIcon, TrashIcon } from "@/components/icons";
+import { ExerciseInfoSheet } from "@/components/exercise-info-sheet";
+import { CopyIcon, InfoIcon, PlusIcon, SwapIcon, TrashIcon } from "@/components/icons";
 import { ModalityChip } from "@/components/modality-chip";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { useDebouncedSave } from "@/components/use-debounced-save";
@@ -23,13 +24,13 @@ import { deleteRoutine, duplicateRoutine, saveRoutine } from "@/lib/actions/rout
 import { coverageByGroup, prescribedCoverage } from "@/lib/coverage";
 import { MUSCLE_GROUP_COLORS, muscleById } from "@/lib/data/muscles";
 import { exerciseLookup, type ExerciseCatalog } from "@/lib/exercise-catalog";
-import { heatMax, heatValues, ordinalMax } from "@/lib/heat";
+import { coverageHeat, coverageMax } from "@/lib/heat";
 import { newId } from "@/lib/ids";
 import { bandRolesFor, type Variant } from "@/lib/queries";
 import type { ConditioningTarget, Routine, RoutineExercise, UnilateralMode } from "@/lib/types";
 import { CONSOLE_PRESETS, DEFAULT_STEADY_SECONDS, EMPTY_TARGET } from "@/lib/conditioning";
 import { rxLabel } from "@/lib/session-labels";
-import { useEscape } from "@/components/use-escape";
+import { Dialog } from "@/components/dialog";
 import { UNILATERAL_MODES } from "@/lib/validate";
 import { runAction } from "@/components/run-action";
 import { defaultPrescription } from "@/lib/set-templates";
@@ -262,8 +263,8 @@ export function RoutineEditor({
   const [notes, setNotes] = useState(routine.notes);
   const [rows, setRows] = useState<EditorRow[]>(() => initialRows.map(withKey));
   const [picker, setPicker] = useState<PickerTarget | null>(null);
+  const [explaining, setExplaining] = useState<EditorRow | null>(null);
   const [coverageOpen, setCoverageOpen] = useState(false);
-  useEscape(coverageOpen ? () => setCoverageOpen(false) : null);
   /** The one row open for editing — everything else is a one-line summary. */
   const [openKey, setOpenKey] = useState<string | null>(null);
 
@@ -276,11 +277,8 @@ export function RoutineEditor({
 
   const coverage = useMemo(() => prescribedCoverage(catalog, rows), [catalog, rows]);
   const heat = useMemo(() => {
-    const max = heatMax({ coverage });
-    return {
-      max,
-      values: heatValues({ coverage }, max, ordinalMax({ coverage })),
-    };
+    const max = coverageMax(coverage);
+    return { max, values: coverageHeat(coverage, max) };
   }, [coverage]);
 
   function patch(index: number, changes: Partial<RoutineExercise>) {
@@ -400,6 +398,11 @@ export function RoutineEditor({
               <OverflowMenu
                 label={`${name} actions`}
                 items={[
+                  {
+                    label: "Explain exercise",
+                    icon: <InfoIcon size={16} />,
+                    onSelect: () => setExplaining(row),
+                  },
                   {
                     label: "Swap exercise",
                     icon: <SwapIcon size={16} />,
@@ -577,39 +580,28 @@ export function RoutineEditor({
 
       {/* Coverage side sheet — quick reference without scrolling away. */}
       {coverageOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-scrim"
-          onClick={() => setCoverageOpen(false)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="coverage-sheet-title"
-            className="ml-auto flex h-dvh w-full max-w-md flex-col overflow-y-auto border-l border-border bg-surface p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
-              <h2 id="coverage-sheet-title" className="text-lg font-semibold">
-                Muscle coverage
-              </h2>
-              <Button variant="ghost" autoFocus onClick={() => setCoverageOpen(false)}>
-                Close
-              </Button>
-            </div>
-            {/* One routine is one session — "neglected" only means something
-                across a program's week, so that callout lives on the program page. */}
-            <p className="mb-3 text-xs text-muted">Working sets per session of this routine.</p>
-            <BodyHeatmap
-              values={[...heat.values]}
-              catalog={catalog}
-              title="Body map"
-              maxLabel={`${heat.max.toFixed(1)} sets/session`}
-            />
-            <div className="mt-6">
-              <MuscleCoverageBars groups={coverageByGroup(coverage)} />
-            </div>
+        <Dialog labelledBy="coverage-sheet-title" placement="side" onClose={() => setCoverageOpen(false)}>
+          <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
+            <h2 id="coverage-sheet-title" className="text-lg font-semibold">
+              Muscle coverage
+            </h2>
+            <Button variant="ghost" autoFocus onClick={() => setCoverageOpen(false)}>
+              Close
+            </Button>
           </div>
-        </div>
+          {/* One routine is one session — "neglected" only means something
+              across a program's week, so that callout lives on the program page. */}
+          <p className="mb-3 text-xs text-muted">Working sets per session of this routine.</p>
+          <BodyHeatmap
+            values={[...heat.values]}
+            catalog={catalog}
+            title="Body map"
+            maxLabel={`${heat.max.toFixed(1)} sets/session`}
+          />
+          <div className="mt-6">
+            <MuscleCoverageBars groups={coverageByGroup(coverage)} />
+          </div>
+        </Dialog>
       )}
 
       {picker && (
@@ -625,6 +617,16 @@ export function RoutineEditor({
                 )?.pattern
               : undefined
           }
+        />
+      )}
+
+      {explaining && (
+        <ExerciseInfoSheet
+          catalog={catalog}
+          exerciseId={explaining.exerciseId}
+          modalityId={explaining.modalityId}
+          rowNote={explaining.notes}
+          onClose={() => setExplaining(null)}
         />
       )}
     </div>

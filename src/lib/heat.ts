@@ -1,61 +1,26 @@
 import { muscleById } from "./data/muscles";
 import type { MuscleCoverage } from "./coverage";
-import type { MuscleVolume } from "./queries";
 import type { MuscleId } from "./types";
 
 /**
- * Intensity math for the muscle heat map. Everything is normalized against a
- * SHARED max across every period on screen — that is what makes week-vs-week
- * or program-vs-program comparison honest. Loaded (lbs) and ordinal (band
- * reps) work stay on separate scales; ordinal never fakes pounds.
+ * Intensity math for the body heat map — prescribed coverage (weighted sets
+ * per week) and single-exercise score previews. Intensity is normalized to
+ * the screen's own max so the hottest muscle sits at the top of the ramp.
  */
 
 export type HeatValue = {
-  /** 0..1 on the shared scale for the metric this mode uses. */
+  /** 0..1 on the screen's scale. Zero renders outline-only. */
   intensity: number;
-  /** Human line for the detail row, in the value's own honest units. */
+  /** Human line for the detail row, in the value's own units. */
   detail: string;
-  /** True when a muscle was trained ONLY by ordinal (band) work. */
-  ordinalOnly: boolean;
 };
 
-export type HeatInputs =
-  | { volumes: MuscleVolume[] }
-  | { coverage: ReadonlyMap<MuscleId, MuscleCoverage> };
+type Coverage = ReadonlyMap<MuscleId, MuscleCoverage>;
 
-function metricOf(inputs: HeatInputs): Map<MuscleId, number> {
-  const out = new Map<MuscleId, number>();
-  if ("volumes" in inputs) {
-    for (const v of inputs.volumes) out.set(v.muscleId, v.weightedVolumeLbs);
-  } else {
-    for (const [id, row] of inputs.coverage) out.set(id, row.weightedSets);
-  }
-  return out;
-}
-
-function ordinalOf(inputs: HeatInputs): Map<MuscleId, number> {
-  const out = new Map<MuscleId, number>();
-  if ("volumes" in inputs) {
-    for (const v of inputs.volumes) out.set(v.muscleId, v.ordinalReps);
-  }
-  return out;
-}
-
-/** Max of the mode's metric across every period being shown. */
-export function heatMax(...inputs: HeatInputs[]): number {
+/** The top of the scale: the most weighted sets any muscle gets. */
+export function coverageMax(coverage: Coverage): number {
   let max = 0;
-  for (const input of inputs) {
-    for (const value of metricOf(input).values()) max = Math.max(max, value);
-  }
-  return max;
-}
-
-/** Same, for the separate ordinal scale. */
-export function ordinalMax(...inputs: HeatInputs[]): number {
-  let max = 0;
-  for (const input of inputs) {
-    for (const value of ordinalOf(input).values()) max = Math.max(max, value);
-  }
+  for (const row of coverage.values()) max = Math.max(max, row.weightedSets);
   return max;
 }
 
@@ -65,43 +30,31 @@ export function heatBin(t: number): number {
   return Math.min(12, Math.floor(t * 13));
 }
 
-export function heatValues(
-  inputs: HeatInputs,
-  sharedMax: number,
-  sharedOrdinalMax: number,
-): Map<MuscleId, HeatValue> {
-  const metric = metricOf(inputs);
-  const ordinal = ordinalOf(inputs);
+/** Weighted sets/week per muscle as heat, against `max`. */
+export function coverageHeat(coverage: Coverage, max = coverageMax(coverage)): Map<MuscleId, HeatValue> {
   const out = new Map<MuscleId, HeatValue>();
-
-  const ids = new Set<MuscleId>([...metric.keys(), ...ordinal.keys()]);
-  for (const id of ids) {
+  for (const [id, row] of coverage) {
     const name = muscleById.get(id)?.name ?? id;
-    const value = metric.get(id) ?? 0;
-    const ordinalValue = ordinal.get(id) ?? 0;
-    const ordinalOnly = value === 0 && ordinalValue > 0;
-
-    let intensity: number;
-    let detail: string;
-    if (ordinalOnly) {
-      intensity = sharedOrdinalMax > 0 ? ordinalValue / sharedOrdinalMax : 0;
-      detail = `${name} — ${Math.round(ordinalValue)} weighted reps (band, no lbs)`;
-    } else if ("volumes" in inputs) {
-      intensity = sharedMax > 0 ? value / sharedMax : 0;
-      detail =
-        value > 0
-          ? `${name} — ${Math.round(value).toLocaleString()} lb·reps` +
-            (ordinalValue > 0 ? ` + ${Math.round(ordinalValue)} band reps` : "")
-          : `${name} — not trained`;
-    } else {
-      intensity = sharedMax > 0 ? value / sharedMax : 0;
-      detail =
-        value > 0
-          ? `${name} — ${value.toFixed(1)} weighted sets/week`
-          : `${name} — not prescribed`;
-    }
-
-    out.set(id, { intensity, detail, ordinalOnly });
+    const value = row.weightedSets;
+    out.set(id, {
+      intensity: max > 0 ? value / max : 0,
+      detail: value > 0 ? `${name} — ${value.toFixed(1)} weighted sets/week` : `${name} — not prescribed`,
+    });
   }
   return out;
+}
+
+/** One exercise's muscle scores as heat — score / 10, labelled by muscle.
+ *  The exercise editor's preview. */
+export function heatFromScores(
+  rows: Iterable<{ muscleId: MuscleId; score: number }>,
+): Map<MuscleId, HeatValue> {
+  const values = new Map<MuscleId, HeatValue>();
+  for (const row of rows) {
+    values.set(row.muscleId, {
+      intensity: row.score / 10,
+      detail: `${muscleById.get(row.muscleId)?.name ?? row.muscleId} — score ${row.score}`,
+    });
+  }
+  return values;
 }

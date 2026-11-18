@@ -4,7 +4,6 @@ import {
   ownedEquipmentIds,
 } from "./data/equipment";
 import { modalityById } from "./data/modalities";
-import { muscles } from "./data/muscles";
 import { exerciseLookup, groupBy, variantKey, type ExerciseCatalog } from "./exercise-catalog";
 import { activeAssignment, type GymData } from "./gym-data";
 import { ageOnIso, currentProgramWeek, localIso, programEnded } from "./periods";
@@ -13,10 +12,8 @@ import { toBlocks, type Block } from "./set-blocks";
 import { weighInHistory } from "./weigh-ins";
 import {
   bestE1rm,
-  effectiveScores,
   implementsPerRep,
   latestBodyweight,
-  normalizedLoad,
   setLoad,
   sidesWorked,
   variantOf,
@@ -32,7 +29,6 @@ import type {
   ExerciseModality,
   HipBand,
   ModalityId,
-  MuscleId,
   Session,
   SetLog,
 } from "./types";
@@ -332,87 +328,6 @@ export function suggestedLoad(
     bandId: latest.bandId,
     bandRole: latest.bandRole,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Volume
-// ---------------------------------------------------------------------------
-
-export type MuscleVolume = {
-  muscleId: MuscleId;
-  /** Score-weighted load × reps. Only from sets with a real load. */
-  weightedVolumeLbs: number;
-  /** Score-weighted reps from sets whose load has no magnitude (hip bands).
-   *  Kept separate so ordinal work is visible without being faked as a number. */
-  ordinalReps: number;
-  /** Score-weighted reps from sets whose load is merely MISSING (a bodyweight
-   *  set before the first weigh-in, a dumbbell set with no weight entered).
-   *  Not ordinal — that track means band rank — and not pounds either. */
-  unloadedReps: number;
-  sets: number;
-  /** Highest effective score seen, i.e. how directly this muscle was trained. */
-  peakScore: number;
-};
-
-/**
- * Per-muscle training volume over a date range.
- *
- * Two accumulators on purpose. A hip-band lateral walk genuinely trains glute
- * med, but there is no lb value to multiply, so folding it into a pounds total
- * would either drop it silently (looks like you skipped the work) or count it as
- * zero weight (same thing). It lands in `ordinalReps` instead.
- *
- * Mobility work contributes nothing — `effectiveScores` returns empty for it.
- */
-export function muscleVolume(
-  data: GymData,
-  clientId: ClientId,
-  opts: { from?: string; to?: string } = {},
-): MuscleVolume[] {
-  const totals = new Map<MuscleId, MuscleVolume>();
-  for (const muscle of muscles) {
-    totals.set(muscle.id, {
-      muscleId: muscle.id,
-      weightedVolumeLbs: 0,
-      ordinalReps: 0,
-      unloadedReps: 0,
-      sets: 0,
-      peakScore: 0,
-    });
-  }
-
-  const factorCache = new Map<string, number | null>();
-  for (const set of data.setLogs) {
-    const session = data.sessionById.get(set.sessionId);
-    if (!session || session.clientId !== clientId) continue;
-    if (session.status !== "completed" || !set.completed || set.isWarmup) continue;
-    if (opts.from && session.date < opts.from) continue;
-    if (opts.to && session.date > opts.to) continue;
-
-    const scores = effectiveScores(data, set.exerciseId, set.modalityId);
-    if (scores.size === 0) continue;
-
-    const load = setLoad(data, set);
-    const normalized = normalizedLoad(data, set, factorCache);
-    const reps = load.totalReps;
-
-    for (const [muscleId, score] of scores) {
-      const row = totals.get(muscleId);
-      if (!row || score <= 0) continue;
-      const weight = score / 10;
-      row.sets += 1;
-      row.peakScore = Math.max(row.peakScore, score);
-      if (load.precision === "ordinal") {
-        row.ordinalReps += weight * reps;
-      } else if (normalized === null) {
-        row.unloadedReps += weight * reps;
-      } else {
-        row.weightedVolumeLbs += weight * reps * normalized;
-      }
-    }
-  }
-
-  return [...totals.values()];
 }
 
 // ---------------------------------------------------------------------------

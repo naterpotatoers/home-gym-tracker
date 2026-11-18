@@ -155,6 +155,9 @@ export type Muscle = {
   id: MuscleId;
   name: string;
   groupId: MuscleGroupId;
+  /** One plain sentence: what it does and where you feel it (the Library's
+   *  muscle explorer). */
+  about: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -255,6 +258,8 @@ export type Exercise = {
   pattern: MovementPattern;
   metricType: MetricType;
   isCompound: boolean;
+  /** Up to 3 short coaching cues — "Explain exercise". Absent means none. */
+  cues?: readonly string[];
 };
 
 /** Authored once per exercise. The modality adjusts these; it does not
