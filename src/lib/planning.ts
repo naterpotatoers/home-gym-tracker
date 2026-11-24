@@ -18,8 +18,7 @@ import {
   weightForReps,
   workingSets,
 } from "./modality";
-import { doubleProgression } from "./progression";
-import { latestSet, suggestedLoad } from "./queries";
+import { topOfLatestSession } from "./queries";
 import { BIKE_WARMUP_RX, wantsBikeWarmup, warmupPlan } from "./warmup";
 import { addDaysIso, currentProgramWeek, isoDow, programEnded } from "./periods";
 import type {
@@ -105,14 +104,16 @@ function nearestOwned(owned: readonly number[], lbs: number): number | null {
 
 /**
  * The prefill for a prescription, most-honest first:
- * 1. the most recent working set AT the prescribed rep range (verbatim fields
- *    — covers bands naturally) — or, when every set at that session's top
- *    load reached the top of the range, the next load step at the bottom of
- *    the range (double progression);
- * 2. else this variant's best e1RM, re-targeted to the prescribed reps;
- * 3. else a cross-modality transfer: same exercise, most recently trained
+ * 1. last time's load — the top working set (topOfLatestSession; bands:
+ *    that session's band) of, in order: the latest session of THIS routine
+ *    with the variant ("last time on this day" — survives a rep-range edit
+ *    and never mixes a heavy day into a volume day, however long ago), else
+ *    the latest session at the prescribed rep range, else the latest
+ *    session at all. Never an automatic bump or an e1RM re-target — the
+ *    lifter decides when to go heavier (the runner only flags a stall);
+ * 2. else a cross-modality transfer: same exercise, most recently trained
  *    other modality, converted through the load-factor model;
- * 4. else blank — a lift with no basis anywhere gets no number. Except
+ * 3. else blank — a lift with no basis anywhere gets no number. Except
  *    ankle-weight work: the pair you own IS the load, so it starts on the
  *    lightest one.
  */
@@ -128,45 +129,14 @@ export function smartPrefill(
 
   const own = workingSets(data, clientId, rx.exerciseId, rx.modalityId);
 
-  // 1. Most recent set inside the prescribed rep range.
-  const inRange = latestSet(
-    data,
-    own.filter((set) => set.reps !== null && set.reps >= lo && set.reps <= hi),
-  );
-  if (inRange) {
-    const step = doubleProgression(
-      rx.modalityId,
-      own.filter((set) => set.sessionId === inRange.sessionId),
-      rx,
-    );
-    if (step?.kind === "add_load") {
-      const bumped = rx.modalityId === "bodyweight"
-        ? { weightLbs: inRange.weightLbs, addedWeightLbs: step.load }
-        : { weightLbs: step.load, addedWeightLbs: inRange.addedWeightLbs };
-      return { ...bumped, bandId: inRange.bandId, bandRole: inRange.bandRole, reps: step.repMin };
-    }
-    return {
-      weightLbs: inRange.weightLbs,
-      addedWeightLbs: inRange.addedWeightLbs,
-      bandId: inRange.bandId,
-      bandRole: inRange.bandRole,
-    };
+  // 1. Last time's load (see above).
+  const sameRoutine = own.filter((set) => data.sessionById.get(set.sessionId)?.routineId === rx.routineId);
+  const inRange = own.filter((set) => set.reps !== null && set.reps >= lo && set.reps <= hi);
+  for (const pool of [sameRoutine, inRange, own]) {
+    if (pool.length > 0) return topOfLatestSession(data, pool);
   }
 
-  // 2. Any history in this modality: re-target its best e1RM to the
-  //    prescribed reps. Band-only history has no e1RM — reuse the last set.
-  if (own.length > 0) {
-    const e1rm = bestE1rm(data, own);
-    if (e1rm !== null) {
-      const predicted = roundedPrefill(
-        data, clientId, rx, weightForReps(e1rm, targetReps), date,
-      );
-      if (predicted) return predicted;
-    }
-    return suggestedLoad(data, clientId, rx.exerciseId, rx.modalityId);
-  }
-
-  // 3. Cross-modality transfer — never INTO band work (ordinal).
+  // 2. Cross-modality transfer — never INTO band work (ordinal).
   if (rx.modalityId === "band") return null;
   const byModality = groupBy(
     workingSets(data, clientId, rx.exerciseId).filter((set) => set.modalityId !== rx.modalityId),

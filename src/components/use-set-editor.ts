@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getSuggestedLoad, syncSetLogs, updateSetLog } from "@/lib/actions/workout";
+import { getLiveExtras, getSuggestedLoad, syncSetLogs, updateSetLog } from "@/lib/actions/workout";
 import { errorMessage } from "@/lib/format";
 import { randomSuffix } from "@/lib/ids";
 import type { Variant } from "@/lib/queries";
@@ -13,10 +13,24 @@ import {
   toBlocks,
   type Block,
 } from "@/lib/set-blocks";
+import type { LiveExtras } from "@/lib/live-session";
 import type { RoutineExercise, Session, SetLog } from "@/lib/types";
-import { variantKey, type ExerciseCatalog } from "@/lib/exercise-catalog";
+import { variantKey, variantSignature, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import { freshSets, swappedSet, type LoadPrefill } from "@/lib/set-templates";
 import { dropUnloggedBikeWarmups } from "@/lib/warmup";
+import { isMigrationError, parseSnapshot, sameList, serializeSnapshot, snapshotKey } from "@/lib/pending-saves";
+
+/** A failed save is followed by ONE full-list sync after this delay. */
+const RESYNC_DELAY_MS = 3000;
+/** Field edits batch their snapshot write (not one per keystroke); the
+ *  snapshot is also written at once on structural changes, failures, and
+ *  whenever the page hides. */
+const SNAPSHOT_DEBOUNCE_MS = 300;
+
+/** Snapshot timestamp — only ever called from event handlers and timers. */
+function stampNow(): number {
+  return Date.now();
+}
 
 function clientSetId(): string {
   return `sl_${randomSuffix(8)}`;
@@ -25,10 +39,18 @@ function clientSetId(): string {
 /**
  * The editing kernel shared by the solo runner and each group-board card: a
  * session's set list as optimistic local state, with debounced single-row
- * saves for field edits and whole-list syncs for structural changes.
+ * saves for field edits and whole-list syncs for structural changes. Also
+ * owns the server-derived extras (stalls, finisher options), refreshed when
+ * a sync changes which variants the session trains.
  */
-export function useSetEditor(session: Session, initialSets: SetLog[], catalog: ExerciseCatalog) {
+export function useSetEditor(
+  session: Session,
+  initialSets: SetLog[],
+  catalog: ExerciseCatalog,
+  initialExtras: LiveExtras,
+) {
   const [sets, setSets] = useState<SetLog[]>(initialSets);
+  const [extras, setExtras] = useState<LiveExtras>(initialExtras);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const saveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -37,12 +59,64 @@ export function useSetEditor(session: Session, initialSets: SetLog[], catalog: E
   /** Always the latest list — async code (post-await, flush handlers) must
    *  read this, never a `sets` closure that may predate an await or event. */
   const setsRef = useRef(initialSets);
+  /** Blocks whose swap is waiting on its prefill — shown as "Swapping…". */
+  const [swapping, setSwapping] = useState<ReadonlySet<string>>(() => new Set());
+
+  // ---- Set-list snapshot (see pending-saves.ts) ----
+  /** Set once the session is flushed for Finish or discarded: stop
+   *  snapshotting. Any later edit (finish/discard failed, work continues)
+   *  reopens it. */
+  const closed = useRef(false);
+  const resyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const snapshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The error message the pending resync would resolve — only that one is
+   *  cleared when it succeeds. */
+  const retryingFor = useRef<string | null>(null);
+  function writeSnapshot(next: readonly SetLog[] | null) {
+    try {
+      const key = snapshotKey(session.id);
+      if (next === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, serializeSnapshot(next, stampNow()));
+    } catch {
+      // Private mode / storage full: saves still go out, just unprotected.
+    }
+  }
 
   const blocks = useMemo(() => toBlocks(sets), [sets]);
 
+  /** Write the snapshot of the current list now (cancelling a pending one).
+   *  Only a session in progress has unsaved work worth protecting. */
+  function saveSnapshotNow() {
+    if (snapshotTimer.current !== null) clearTimeout(snapshotTimer.current);
+    snapshotTimer.current = null;
+    if (!closed.current && session.status === "planned") writeSnapshot(setsRef.current);
+  }
+
+  /** The only way the list changes — so the snapshot always follows it. */
   function commit(next: SetLog[]) {
+    closed.current = false;
     setsRef.current = next;
     setSets(next);
+    if (snapshotTimer.current === null) {
+      snapshotTimer.current = setTimeout(saveSnapshotNow, SNAPSHOT_DEBOUNCE_MS);
+    }
+  }
+
+  // ---- Server-derived extras (see LiveExtras) ----
+  const extrasFor = useRef(variantSignature(initialSets));
+  const extrasRequest = useRef(0);
+  /** After a successful sync of `list`: if it trains different variants than
+   *  the extras were computed for, re-derive them (latest request wins). */
+  function afterSync(list: readonly SetLog[]) {
+    const signature = variantSignature(list);
+    if (signature === extrasFor.current) return;
+    extrasFor.current = signature;
+    const request = ++extrasRequest.current;
+    getLiveExtras(session.id)
+      .then((next) => {
+        if (next && request === extrasRequest.current) setExtras(next);
+      })
+      .catch(() => {}); // cosmetic — stale chips until the next sync or load
   }
 
   function report(e: unknown) {
@@ -57,17 +131,62 @@ export function useSetEditor(session: Session, initialSets: SetLog[], catalog: E
   /** Persist every pending row NOW — the tab may be about to be evicted, so
    *  fire-and-forget; there may be no state left to report errors into. */
   function flushPending() {
+    saveSnapshotNow();
     clearTimers();
     const rows = [...pendingSaves.current.values()];
     pendingSaves.current.clear();
+    // The snapshot already holds these rows; if the page dies before the
+    // saves run, the next load re-sends them.
     for (const row of rows) void updateSetLog(row).catch(() => {});
   }
   // Latest-ref pattern (as in use-debounced-save): the once-registered
   // listeners always call the newest closure.
   const flushPendingRef = useRef(flushPending);
+  const commitRef = useRef(commit);
+  const retryLaterRef = useRef(retryLater);
+  const afterSyncRef = useRef(afterSync);
   useEffect(() => {
     flushPendingRef.current = flushPending;
+    commitRef.current = commit;
+    retryLaterRef.current = retryLater;
+    afterSyncRef.current = afterSync;
   });
+
+  // On load, adopt this device's snapshot if it differs from the server's
+  // list (saves lost to a reload or tab eviction) and persist it in one
+  // atomic sync. Only for a session still in progress — a finished one is
+  // never rewritten, and a snapshot naming a variant the catalog no longer
+  // has (merged at /exercises meanwhile) is dropped — it could never sync.
+  // Deferred a tick (state updates stay out of the effect body) and run
+  // once: `initialSets` is the mount list.
+  const restoreRef = useRef({
+    sessionId: session.id,
+    live: session.status === "planned",
+    initialSets,
+    known: new Set(catalog.exerciseModalities.map((em) => variantKey(em.exerciseId, em.modalityId))),
+  });
+  useEffect(() => {
+    const { sessionId, live, initialSets: server, known } = restoreRef.current;
+    if (!live) return;
+    const timer = setTimeout(() => {
+      let raw: string | null = null;
+      try {
+        raw = localStorage.getItem(snapshotKey(sessionId));
+      } catch {
+        return;
+      }
+      const local = parseSnapshot(raw, sessionId, stampNow());
+      if (!local || local.some((set) => !known.has(variantKey(set.exerciseId, set.modalityId)))) return;
+      // Only before any edit on this load — never clobber newer local work.
+      if (sameList(local, server) || setsRef.current !== server) return;
+      commitRef.current(local);
+      syncSetLogs(sessionId, local).then(
+        () => afterSyncRef.current(local),
+        (e) => retryLaterRef.current(e),
+      );
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Safari evicts backgrounded iPad tabs, killing debounce timers with them
   // (use-session-clock survives this via localStorage; the sets survive by
@@ -131,10 +250,47 @@ export function useSetEditor(session: Session, initialSets: SetLog[], catalog: E
           timers.delete(setId);
           const pending = pendingSaves.current.get(setId);
           pendingSaves.current.delete(setId);
-          if (pending) updateSetLog(pending).catch(report);
+          if (pending) updateSetLog(pending).catch(retryLater);
         }, 600),
       );
     }
+  }
+
+  /**
+   * A save failed — and whether it landed is unknown (a dropped connection,
+   * a server-side timeout after the write committed, the browser aborting it
+   * for a reload). Never roll back: keep the change (and its snapshot),
+   * report it, and try ONE full-list sync shortly after — it's idempotent
+   * and carries every edit. A failure there is left to Finish's flush or the
+   * next load's snapshot restore. A migration error isn't transient: it's
+   * shown and kept.
+   */
+  function retryLater(e: unknown) {
+    const message = errorMessage(e, "Save failed.");
+    setError(message);
+    saveSnapshotNow();
+    if (isMigrationError(message) || closed.current) return;
+    retryingFor.current = message;
+    if (resyncTimer.current !== null) return;
+    resyncTimer.current = setTimeout(() => {
+      resyncTimer.current = null;
+      const list = setsRef.current;
+      syncSetLogs(session.id, list).then(
+        () => {
+          const resolved = retryingFor.current;
+          retryingFor.current = null;
+          // Clear only the error this retry resolved, never a newer one.
+          setError((shown) => (shown === resolved ? null : shown));
+          afterSync(list);
+        },
+        report,
+      );
+    }, RESYNC_DELAY_MS);
+  }
+
+  function cancelResync() {
+    if (resyncTimer.current !== null) clearTimeout(resyncTimer.current);
+    resyncTimer.current = null;
   }
 
   /** Structural change: renumber locally, then sync the whole list. The sync
@@ -142,20 +298,18 @@ export function useSetEditor(session: Session, initialSets: SetLog[], catalog: E
    *  after the sync would resurrect a deleted row, so drop them first. */
   function restructure(next: SetLog[]) {
     clearTimers();
+    cancelResync(); // this sync carries everything a resync would
     pendingSaves.current.clear();
-    const previous = setsRef.current;
     const renumbered = renumber(next);
     commit(renumbered);
+    saveSnapshotNow(); // a structural change is protected immediately
     setBusy(true);
+    // No rollback on failure (see retryLater): the outcome is unknown — the
+    // browser aborts in-flight requests on reload BEFORE pagehide, and a
+    // server-side timeout may fire after the write committed. Rolling back
+    // would rewrite the snapshot and lose the change.
     syncSetLogs(session.id, renumbered)
-      .catch((e) => {
-        // Roll back so the screen matches the database — unless the list
-        // already moved on, in which case the newer change's own sync (or
-        // Finish's full flush) carries it. A failed field save needs no
-        // rollback: Finish re-syncs the whole list either way.
-        if (setsRef.current === renumbered) commit(previous);
-        report(e);
-      })
+      .then(() => afterSync(renumbered), retryLater)
       .finally(() => setBusy(false));
   }
 
@@ -214,16 +368,30 @@ export function useSetEditor(session: Session, initialSets: SetLog[], catalog: E
   /** Replace a block's exercise: incomplete sets move to the new variant with
    *  the client's last-used load; completed sets stay as performed. */
   async function swapExercise(block: Block, variant: Variant) {
-    const prefill = await fetchPrefill(variant.exerciseModality);
-    // Re-read AFTER the await — edits made while the prefill was in flight
-    // must survive the sync (which deletes rows missing from its list). A set
-    // completed during the await stays as performed.
-    const blockIds = new Set(block.sets.map((s) => s.id));
-    restructure(
-      setsRef.current.map((set) =>
-        blockIds.has(set.id) && !set.completed ? swappedSet(set, variant, prefill) : set,
-      ),
-    );
+    setSwapping((keys) => new Set(keys).add(block.key));
+    try {
+      const prefill = await fetchPrefill(variant.exerciseModality);
+      // Re-read AFTER the await — edits made while the prefill was in flight
+      // must survive the sync (which deletes rows missing from its list). A
+      // set completed during the await stays as performed; a block removed
+      // meanwhile is simply not swapped.
+      const blockIds = new Set(block.sets.map((s) => s.id));
+      const current = setsRef.current;
+      if (!current.some((set) => blockIds.has(set.id) && !set.completed)) return;
+      restructure(
+        current.map((set) =>
+          blockIds.has(set.id) && !set.completed ? swappedSet(set, variant, prefill) : set,
+        ),
+      );
+    } catch (e) {
+      report(e);
+    } finally {
+      setSwapping((keys) => {
+        const next = new Set(keys);
+        next.delete(block.key);
+        return next;
+      });
+    }
   }
 
   const fresh = (
@@ -289,7 +457,25 @@ export function useSetEditor(session: Session, initialSets: SetLog[], catalog: E
     const kept = dropUnloggedBikeWarmups(setsRef.current);
     const next = kept === setsRef.current ? kept : renumber(kept);
     if (next !== setsRef.current) commit(next);
+    cancelResync();
     await syncSetLogs(session.id, next);
+    // Everything is saved and the session is about to close. (A later edit,
+    // if finishing then fails, schedules a fresh snapshot.)
+    if (snapshotTimer.current !== null) clearTimeout(snapshotTimer.current);
+    snapshotTimer.current = null;
+    writeSnapshot(null);
+    closed.current = true;
+  }
+
+  /** Forget this device's unsaved edits (the session was discarded). */
+  function forgetUnsaved() {
+    closed.current = true;
+    clearTimers();
+    cancelResync();
+    if (snapshotTimer.current !== null) clearTimeout(snapshotTimer.current);
+    snapshotTimer.current = null;
+    pendingSaves.current.clear();
+    writeSnapshot(null);
   }
 
   return {
@@ -297,6 +483,10 @@ export function useSetEditor(session: Session, initialSets: SetLog[], catalog: E
     blocks,
     error,
     busy,
+    swapping,
+    stalls: extras.stalls,
+    finishers: extras.finishers,
+    forgetUnsaved,
     setError,
     patchSet,
     completeSet,

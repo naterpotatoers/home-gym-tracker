@@ -1,10 +1,9 @@
 import { isStrengthPattern } from "./exercise-catalog";
 import type { GymData } from "./gym-data";
-import { nextLoadStep } from "./loading";
-import type { VariantRef } from "./modality";
+import { fieldLoad, type VariantRef } from "./modality";
 import { utcDay } from "./periods";
 import { exerciseHistory } from "./progress";
-import type { ClientId, ModalityId, RoutineExercise, SetLog } from "./types";
+import type { ClientId, SetLog } from "./types";
 
 /**
  * Progressive-overload helpers: double progression (fill the rep range, then
@@ -36,11 +35,6 @@ export type Exposure = {
   e1rm: number | null;
 };
 
-export type Progression =
-  | { kind: "add_load"; load: number; repMin: number; repMax: number }
-  | { kind: "same_load"; load: number; targetReps: number; lastReps: number[] }
-  | { kind: "at_ceiling"; load: number; lastReps: number[] };
-
 export type StallHint = {
   /** Date of the last session that beat everything before it. */
   sinceDate: string;
@@ -48,34 +42,15 @@ export type StallHint = {
   days: number;
   /** Sessions since it, none better. */
   exposures: number;
-  suggestion: Progression;
 };
-
-/** The number progress is measured in, per the SetLog's own field: the
- *  weight (per implement for dumbbells), added load for bodyweight, null for
- *  bands and cardio. */
-function loadOf(set: SetLog): number | null {
-  switch (set.modalityId) {
-    case "barbell":
-    case "dumbbell":
-    case "machine":
-    case "ankle_weight":
-      return set.weightLbs;
-    case "bodyweight":
-      return set.addedWeightLbs ?? 0;
-    case "band":
-    case "cardio":
-      return null;
-  }
-}
 
 /** The sets that count (reps and a load), the heaviest load among them, and
  *  the reps done at it in order — null when none count. */
 function topLoad(sets: readonly SetLog[]): { sets: SetLog[]; top: number; topReps: number[] } | null {
-  const loaded = sets.filter((s) => (s.reps ?? 0) > 0 && loadOf(s) !== null);
+  const loaded = sets.filter((s) => (s.reps ?? 0) > 0 && fieldLoad(s) !== null);
   if (loaded.length === 0) return null;
-  const top = Math.max(...loaded.map((s) => loadOf(s)!));
-  return { sets: loaded, top, topReps: loaded.filter((s) => loadOf(s) === top).map((s) => s.reps!) };
+  const top = Math.max(...loaded.map((s) => fieldLoad(s)!));
+  return { sets: loaded, top, topReps: loaded.filter((s) => fieldLoad(s) === top).map((s) => s.reps!) };
 }
 
 /** Completed sessions of one variant on or before `asOf`, oldest first. */
@@ -122,35 +97,6 @@ export function improves(cur: Exposure, prior: Exposure): boolean {
 }
 
 /**
- * Double progression from last session's sets: if every set at the top load
- * reached the top of the rep range, take the next load step and reset to the
- * bottom of the range; otherwise stay and add reps. Null for bands/cardio
- * or nothing loggable.
- */
-export function doubleProgression(
-  modalityId: ModalityId,
-  lastSets: readonly SetLog[],
-  rx?: Pick<RoutineExercise, "repMin" | "repMax">,
-): Progression | null {
-  const loaded = topLoad(lastSets);
-  if (!loaded) return null;
-  const { top, topReps: lastReps } = loaded;
-  const repMax = rx?.repMax ?? rx?.repMin ?? null;
-  if (repMax !== null && lastReps.every((r) => r >= repMax)) {
-    const next = nextLoadStep(modalityId, top);
-    return next === null
-      ? { kind: "at_ceiling", load: top, lastReps }
-      : { kind: "add_load", load: next, repMin: rx?.repMin ?? repMax, repMax };
-  }
-  return {
-    kind: "same_load",
-    load: top,
-    targetReps: repMax ?? Math.max(...lastReps) + 1,
-    lastReps,
-  };
-}
-
-/**
  * Has this person stalled on this variant as of `asOf`? Only within a
  * continuous streak of training (no gap over MAX_GAP_DAYS, including up to
  * `asOf` — coming back from a break is never a stall): stalled when the last
@@ -161,7 +107,6 @@ export function stallFor(
   data: GymData,
   clientId: ClientId,
   ref: VariantRef,
-  rx: Pick<RoutineExercise, "repMin" | "repMax"> | undefined,
   asOf: string,
   excludeSessionId?: string,
 ): StallHint | null {
@@ -185,6 +130,5 @@ export function stallFor(
   const days = utcDay(asOf) - utcDay(streak[lastImp].date);
   if (exposures < STALL_EXPOSURES || days < STALL_DAYS) return null;
 
-  const suggestion = doubleProgression(ref.modalityId, last.sets, rx);
-  return suggestion ? { sinceDate: streak[lastImp].date, days, exposures, suggestion } : null;
+  return { sinceDate: streak[lastImp].date, days, exposures };
 }

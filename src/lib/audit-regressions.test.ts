@@ -2,14 +2,12 @@ import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
 import { buildGymData, type GymData } from "./gym-data";
 import { deriveLoadFactor, e1rm, effectiveLoadFactor, setLoad } from "./modality";
-import { nextLoadStep, weightStep } from "./loading";
-import { doubleProgression } from "./progression";
-import { stallCallout } from "./session-labels";
+import { weightStep } from "./loading";
 import { completeAsBodyweight } from "./set-blocks";
 import { normalizeSetLog } from "./validate";
 import { smartPrefill } from "./planning";
 import { describeSet, sessionVolumeLbs } from "./queries";
-import type { RoutineExercise, Session, SetLog, WeighIn } from "./types";
+import type { BandId, RoutineExercise, Session, SetLog, WeighIn } from "./types";
 
 /** Regressions from the 2026-10-24 audit: a seed client with only
  *  the sets each case needs, layered over the seed catalog. */
@@ -222,21 +220,19 @@ const rxFor = (overrides: Partial<RoutineExercise>): RoutineExercise => ({
   ...overrides,
 });
 
-describe("smart prefill honors the variant's load shape", () => {
-  it("goblet squat re-targets the ONE dumbbell, not half of it", () => {
-    // 25 × 10 → e1RM 33.3 → 28.6 at 5 reps → the 30, not the 15.
+describe("smart prefill is last time's load, never a re-target (2026-11-23)", () => {
+  it("history outside the prescribed reps pre-fills that load verbatim", () => {
+    // 25 × 10 against a 5-rep prescription: 25, not an e1RM-derived 30.
     const s = set({ exerciseId: "goblet_squat", modalityId: "dumbbell", weightLbs: 25 });
     const data = world([session("s_t1", "2026-08-01")], [s]);
-    expect(smartPrefill(data, CLIENT, rxFor({}), "2026-08-10")?.weightLbs).toBe(30);
+    expect(smartPrefill(data, CLIENT, rxFor({}), "2026-08-10")?.weightLbs).toBe(25);
   });
 
-  it("dumbbell pull-up subtracts bodyweight before picking a dumbbell", () => {
-    // (180 + 10) × (1 + 8/30) = 240.7 e1RM → 206.3 at 5 reps → 26.3 lb of
-    // dumbbell → the 25. Splitting the total would have maxed out the rack.
+  it("dumbbell pull-up keeps its dumbbell even with a weigh-in", () => {
     const s = set({ exerciseId: "pull_up", modalityId: "dumbbell", weightLbs: 10, reps: 8 });
     const data = world([session("s_t1", "2026-08-01")], [s], [bw("2026-07-01", 180)]);
     const rx = rxFor({ exerciseId: "pull_up" });
-    expect(smartPrefill(data, CLIENT, rx, "2026-08-10")?.weightLbs).toBe(25);
+    expect(smartPrefill(data, CLIENT, rx, "2026-08-10")?.weightLbs).toBe(10);
   });
 
   it("dumbbell pull-up without a weigh-in falls back to the last set, never a guess", () => {
@@ -245,7 +241,7 @@ describe("smart prefill honors the variant's load shape", () => {
     expect(smartPrefill(data, CLIENT, rxFor({ exerciseId: "pull_up" }), "2026-08-10")?.weightLbs).toBe(10);
   });
 
-  it("split squat (one dumbbell per hand) still splits the total", () => {
+  it("split squat keeps the per-hand dumbbell", () => {
     const s = set({
       exerciseId: "bulgarian_split_squat",
       modalityId: "dumbbell",
@@ -254,8 +250,71 @@ describe("smart prefill honors the variant's load shape", () => {
     });
     const data = world([session("s_t1", "2026-08-01")], [s]);
     const rx = rxFor({ exerciseId: "bulgarian_split_squat", unilateralMode: "single_side" });
-    // 50 × 10 → 66.7 → 57.1 at 5 reps → 28.6 per hand → the 30.
-    expect(smartPrefill(data, CLIENT, rx, "2026-08-10")?.weightLbs).toBe(30);
+    expect(smartPrefill(data, CLIENT, rx, "2026-08-10")?.weightLbs).toBe(25);
+  });
+});
+
+describe("pre-fill = last time's top set (review R3)", () => {
+  const sq = (sessionId: string, position: number, weightLbs: number, reps: number) =>
+    set({ sessionId, position, exerciseId: "squat", modalityId: "barbell", weightLbs, reps });
+  const rx = rxFor({ exerciseId: "squat", modalityId: "barbell", repMin: 5, repMax: 6 });
+
+  it("a drop set never pre-fills low — the session's top set wins", () => {
+    const data = world(
+      [session("s_a", "2026-08-01")],
+      [sq("s_a", 1, 100, 5), sq("s_a", 2, 100, 5), sq("s_a", 3, 80, 5)],
+    );
+    expect(smartPrefill(data, CLIENT, rx, "2026-08-08")?.weightLbs).toBe(100);
+  });
+
+  const on = (routineId: string | null, id: string, date: string) => ({ ...session(id, date), routineId });
+
+  it("last time on this routine wins after its rep range was edited", () => {
+    // Same routine: 65×5 back in May, then the range changed and it was 95×10.
+    const data = world(
+      [on("r_t", "s_old", "2026-05-01"), on("r_t", "s_new", "2026-08-01")],
+      [sq("s_old", 1, 65, 5), sq("s_new", 1, 95, 10)],
+    );
+    expect(smartPrefill(data, CLIENT, rx, "2026-08-08")?.weightLbs).toBe(95);
+  });
+
+  it("a heavy day never pre-fills a volume day, however long ago the volume day was", () => {
+    // This routine (5–6 reps) last ran 10 weeks ago at 135; another routine
+    // did 115×10 last week.
+    const data = world(
+      [on("r_t", "s_this", "2026-05-30"), on("r_other", "s_other", "2026-08-01")],
+      [sq("s_this", 1, 135, 5), sq("s_other", 1, 115, 10)],
+    );
+    expect(smartPrefill(data, CLIENT, rx, "2026-08-08")?.weightLbs).toBe(135);
+  });
+
+  it("no history on this routine: the latest in-range session, at any age", () => {
+    const data = world(
+      [on(null, "s_vol", "2026-04-01"), on(null, "s_heavy", "2026-08-01")],
+      [sq("s_vol", 1, 135, 5), sq("s_heavy", 1, 115, 10)],
+    );
+    expect(smartPrefill(data, CLIENT, rx, "2026-08-08")?.weightLbs).toBe(135);
+  });
+
+  it("weighted dips with no weigh-in: the top added weight, not the bodyweight drop set", () => {
+    const dip = (position: number, addedWeightLbs: number | null, reps: number) =>
+      set({ sessionId: "s_d", position, exerciseId: "pull_up", modalityId: "bodyweight", addedWeightLbs, reps });
+    const data = world([session("s_d", "2026-08-01")], [dip(1, 25, 8), dip(2, 25, 8), dip(3, null, 12)]);
+    const out = smartPrefill(
+      data,
+      CLIENT,
+      rxFor({ exerciseId: "pull_up", modalityId: "bodyweight", repMin: 6, repMax: 10 }),
+      "2026-08-08",
+    );
+    expect(out?.addedWeightLbs).toBe(25);
+  });
+
+  it("rated (approximate-lbs) bands: the heavier band is the top set, not the last one", () => {
+    const band = (sessionId: string, position: number, bandId: BandId) =>
+      set({ sessionId, position, exerciseId: "pallof_press", modalityId: "band", bandId, bandRole: "resistance", weightLbs: null });
+    const data = world([session("s_b", "2026-08-01")], [band("s_b", 1, "band_red"), band("s_b", 2, "band_orange")]);
+    const out = smartPrefill(data, CLIENT, rxFor({ exerciseId: "pallof_press", modalityId: "band", bandRole: "resistance", repMin: 10, repMax: 10 }), "2026-08-08");
+    expect(out?.bandId).toBe("band_red");
   });
 });
 
@@ -304,22 +363,8 @@ describe("ankle weights (2026-11)", () => {
     expect(e1rm(data, ankle)).toBeNull();
   });
 
-  it("progresses by reps with one pair: no heavier step, at_ceiling when every set tops out", () => {
-    expect(nextLoadStep("ankle_weight", 5)).toBeNull();
+  it("progresses by reps with one pair: no heavier step", () => {
     expect(weightStep("ankle_weight")).toBeNull();
-    expect(doubleProgression("ankle_weight", [ankle, { ...ankle, id: "b" }], { repMin: 10, repMax: 12 })).toMatchObject({
-      kind: "at_ceiling",
-      load: 5,
-    });
-  });
-
-  it("stall copy names the ankle weights", () => {
-    expect(
-      stallCallout(
-        { sinceDate: "2026-10-01", days: 28, exposures: 3, suggestion: { kind: "at_ceiling", load: 5, lastReps: [12, 12] } },
-        "ankle_weight",
-      ),
-    ).toContain("heaviest ankle weights");
   });
 
   it("a first ankle-weight prescription starts on the pair you own", () => {

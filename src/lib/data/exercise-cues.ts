@@ -685,6 +685,11 @@ export const SEED_EXERCISE_CUES: Readonly<Record<string, readonly string[]>> = {
     "Turn the palms down at the top.",
     "Lower slow with palms down — that's the forearm work.",
   ],
+  band_lat_pulldown: [
+    "Kneel tall under the band, arms long overhead.",
+    "Pull the elbows down to the ribs, chest up.",
+    "Let the band pull you back up slowly.",
+  ],
   hip_airplane: [
     "Balance on one leg, holding the rack.",
     "Hinge forward, then rotate the pelvis open and closed.",

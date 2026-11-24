@@ -58,6 +58,7 @@ export function NumberInput({
   size = "md",
   placeholder,
   className = "w-20",
+  ariaLabel,
 }: {
   value: number | null;
   onChange: (value: number | null) => void;
@@ -66,10 +67,13 @@ export function NumberInput({
   size?: ControlSize;
   placeholder?: string;
   className?: string;
+  /** Accessible name when no wrapping <label> provides one. */
+  ariaLabel?: string;
 }) {
   return (
     <input
       type="number"
+      aria-label={ariaLabel}
       inputMode="decimal"
       value={value ?? ""}
       min={min}
@@ -133,6 +137,7 @@ export function StepperInput({
         step={step}
         size={size}
         className={className}
+        ariaLabel={label}
       />
       <IconButton
         size={size}

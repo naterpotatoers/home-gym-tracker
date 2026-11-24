@@ -4,7 +4,6 @@ import type { GymData } from "./gym-data";
 import { recentVariantHistory, type VariantSessionSummary } from "./progress";
 import { stallFor, type StallHint } from "./progression";
 import { recentVariantKeys } from "./queries";
-import { prescriptionFor } from "./session-labels";
 import type { RoutineExercise, Session, SetLog } from "./types";
 
 /** Everything a live session view (solo runner or group-board card) needs
@@ -30,16 +29,27 @@ export type LivePerson = {
   stalls: Record<string, StallHint>;
 };
 
+/** The parts of a live view the server derives from the session's set list
+ *  — refreshed by the runner (getLiveExtras) after a swap or add changes
+ *  which variants the session trains, since set saves don't re-render. */
+export type LiveExtras = Pick<LivePerson, "finishers" | "stalls">;
+
+export function liveExtras(data: GymData, session: Session): LiveExtras {
+  return {
+    finishers: session.status === "planned" ? finisherOptions(data, session.id) : [],
+    stalls: sessionStalls(data, session),
+  };
+}
+
 /** Each working variant in a planned session that has stalled for this
  *  person, as of the session's date (the session itself excluded). */
-function sessionStalls(data: GymData, session: Session, prescriptions: readonly RoutineExercise[]) {
+function sessionStalls(data: GymData, session: Session) {
   const stalls: Record<string, StallHint> = {};
   if (session.status !== "planned") return stalls;
   for (const set of data.setsBySession.get(session.id) ?? []) {
     const key = variantKey(set.exerciseId, set.modalityId);
     if (set.isWarmup || key in stalls) continue;
-    const rx = prescriptionFor(prescriptions, set);
-    const hint = stallFor(data, session.clientId, set, rx, session.date, session.id);
+    const hint = stallFor(data, session.clientId, set, session.date, session.id);
     if (hint) stalls[key] = hint;
   }
   return stalls;
@@ -58,7 +68,6 @@ export function livePerson(data: GymData, session: Session): LivePerson {
     recentKeys: recentVariantKeys(data, session.clientId),
     history: recentVariantHistory(data, session.clientId, session.id),
     finished: session.status === "completed",
-    finishers: session.status === "planned" ? finisherOptions(data, session.id) : [],
-    stalls: sessionStalls(data, session, prescriptions),
+    ...liveExtras(data, session),
   };
 }

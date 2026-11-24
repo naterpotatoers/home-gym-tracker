@@ -332,7 +332,7 @@ copenhagen_plank = catalog ceiling.
 
 ## 2026-11 additions (ankle weights + gaps)
 
-Twenty-nine seed exercises added in November 2026. They were scored by
+Thirty seed exercises added in November 2026. They were scored by
 analogy to the reviewed movements above, not from new EMG studies, so treat
 them as anchored estimates:
 
@@ -364,6 +364,9 @@ them as anchored estimates:
     long head is shortened in the kickback.
   - Close-grip push-up moves emphasis from chest to triceps.
   - The pike push-up is a bodyweight vertical press.
+  - The band lat pulldown (kneeling under a band looped over the rack) is
+    the pull-up's regression: lats 8 vs 10. Band tension is lowest at full
+    stretch.
 
 **Orderings encoded in tests:**
 
@@ -377,6 +380,7 @@ them as anchored estimates:
 | side_delts | lateral_raise | upright_row, arnold_press |
 | triceps | tricep_extension | tricep_kickback |
 | hip_flexors | hanging_leg_raise | standing_hip_flexion |
+| lats | pull_up | band_lat_pulldown |
 
 **Sources**
 

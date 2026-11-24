@@ -21,7 +21,7 @@ import {
   blockStall,
   blockSupersetLabel,
   completedCount,
-  stallCallout,
+  stallChipLabel,
   supersetPosition,
   upcomingFoldIndex,
 } from "@/lib/session-labels";
@@ -223,6 +223,8 @@ function SessionBlock({
   const name = exercise?.name ?? block.exerciseId;
   const isBike = exercise?.pattern === "conditioning";
   const isWarmup = isBikeWarmupBlock(block);
+  const swapping = editor.swapping.has(block.key);
+  const stallChip = stall ? stallChipLabel(stall) : null;
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const done = completedCount(block.sets);
   const blockDone = done === block.sets.length;
@@ -234,9 +236,13 @@ function SessionBlock({
       {isWarmup && (
         <span className="rounded bg-current/10 px-1.5 py-0.5 text-[11px] font-semibold">warm-up</span>
       )}
-      {stall && (
-        <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[11px] font-semibold text-warning-text">
-          stalled
+      {stallChip && (
+        <span
+          title={stallChip.title}
+          className="rounded bg-warning/15 px-1.5 py-0.5 text-[11px] font-semibold text-warning-text"
+        >
+          <span aria-hidden>{stallChip.text}</span>
+          <span className="sr-only">{stallChip.title}</span>
         </span>
       )}
       {superset.starts && (
@@ -252,7 +258,11 @@ function SessionBlock({
   // the darker card surface, and the current one also gets an accent ring.
   if (!isExpanded) {
     return (
-      <li className={`rounded-lg border border-border bg-surface-alt px-2 ${supersetClass}`}>
+      <li
+        aria-label={name}
+        aria-current={isCurrent ? "step" : undefined}
+        className={`rounded-lg border border-border bg-surface-alt px-2 ${supersetClass}`}
+      >
         <button
           type="button"
           onClick={() => flow.tapBlock(block)}
@@ -273,6 +283,10 @@ function SessionBlock({
   const current = flow.current;
   return (
     <li
+      // Named + aria-current so assistive tech (and the e2e page objects)
+      // can find "the current exercise" without knowing the layout.
+      aria-label={name}
+      aria-current={isCurrent ? "step" : undefined}
       className={`rounded-lg border border-transparent bg-surface px-2 py-2 ${
         isCurrent ? "ring-1 ring-accent/40" : ""
       } ${supersetClass}`}
@@ -292,7 +306,12 @@ function SessionBlock({
           {blockDone && <span className="font-mono text-xs text-success-text">✓ done</span>}
           {!isCurrent && <span className="text-xs text-muted">▴</span>}
         </button>
-        {isCurrent && !blockDone && (
+        {swapping && (
+          <span role="status" className="shrink-0 px-2 text-xs text-muted">
+            Swapping…
+          </span>
+        )}
+        {isCurrent && !blockDone && !swapping && (
           // Visible, one tap: the warm-up just goes; a lift stays listed as
           // skipped (tap it to come back).
           <Button
@@ -312,7 +331,7 @@ function SessionBlock({
               icon: <InfoIcon size={16} />,
               onSelect: () => onExplain(isWarmup ? "" : (rx?.notes ?? "")),
             },
-            { label: "Swap exercise", icon: <SwapIcon size={16} />, onSelect: onReplace },
+            { label: "Swap exercise", icon: <SwapIcon size={16} />, onSelect: onReplace, disabled: swapping },
             {
               label: "Remove from session",
               icon: <TrashIcon size={16} />,
@@ -338,13 +357,6 @@ function SessionBlock({
       {rxLine && <p className="mt-0.5 text-xs text-muted">{rxLine}</p>}
 
       {!isWarmup && <LastTime sessions={lastSessions} />}
-
-      {stall && (
-        <p className="mt-1.5 border-l-2 border-warning pl-2 text-xs">
-          <span className="font-semibold text-warning-text">Stalled · </span>
-          {stallCallout(stall, block.modalityId)}
-        </p>
-      )}
 
       {/* Editable sets */}
       <div className="mt-1.5">

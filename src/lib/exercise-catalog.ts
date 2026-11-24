@@ -242,3 +242,13 @@ export function scoreForRole(role: ScoreRole): number {
   const entry = SCORE_ROLES.find((r) => r.role === role);
   return entry ? entry.score : 2;
 }
+
+/** The working variants a set list trains, order-free — what server-derived
+ *  per-variant data (stalls, finisher ranking) depends on. Warm-ups excluded. */
+export function variantSignature(
+  sets: readonly { exerciseId: string; modalityId: string; isWarmup: boolean }[],
+): string {
+  return [...new Set(sets.filter((s) => !s.isWarmup).map((s) => variantKey(s.exerciseId, s.modalityId)))]
+    .sort()
+    .join(",");
+}

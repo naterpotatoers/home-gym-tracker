@@ -189,6 +189,7 @@ export function useSessionFlow(
     removeSetKeepingCursor,
     removeBlockKeepingCursor,
     skipBlock,
+    unskip,
     onExerciseAdded,
   };
 }

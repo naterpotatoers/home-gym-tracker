@@ -49,8 +49,11 @@ export function GroupPersonCard({
   const pad = tight ? "p-2" : "p-2 sm:p-3";
   const bleed = tight ? "-mx-2 px-2" : "-mx-2 px-2 sm:-mx-3 sm:px-3";
   const { session, initialSets, prescriptions, clientName, routineName, color } = person;
-  const editor = useSetEditor(session, initialSets, catalog);
-  const addOns = useFinisherAddOns(person.finishers, prescriptions);
+  const editor = useSetEditor(session, initialSets, catalog, {
+    stalls: person.stalls,
+    finishers: person.finishers,
+  });
+  const addOns = useFinisherAddOns(editor.finishers, prescriptions);
   const flow = useSessionFlow(editor, addOns.allPrescriptions, now);
   const [finishing, setFinishing] = useState(false);
   const actions = useSessionActions({
@@ -104,7 +107,11 @@ export function GroupPersonCard({
 
   if (finishedAs) {
     return (
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-sm">
+      <div
+        role="region"
+        aria-label={`${clientName}'s workout`}
+        className="flex flex-wrap items-center gap-2 rounded-xl border border-success/40 bg-success/10 px-4 py-3 text-sm"
+      >
         <ColorDot color={color} size="md" />
         <span className="font-semibold">{clientName}</span>
         <span className="text-muted">done · {doneCount} sets</span>
@@ -122,6 +129,8 @@ export function GroupPersonCard({
 
   return (
     <div
+      role="region"
+      aria-label={`${clientName}'s workout`}
       className={`flex h-full flex-col rounded-xl border bg-surface ${pad} ${
         ready ? "border-accent ring-1 ring-accent" : "border-border"
       }`}
@@ -149,7 +158,7 @@ export function GroupPersonCard({
         prescriptions={addOns.allPrescriptions}
         catalog={catalog}
         history={person.history}
-        stalls={person.stalls}
+        stalls={editor.stalls}
         dense
         onReplace={actions.openReplace}
         onAdd={actions.openAdd}

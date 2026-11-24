@@ -266,18 +266,18 @@ describe("plannedSessionFromRoutine — bike warm-up", () => {
   });
 });
 
-describe("plannedSessionFromRoutine — double progression", () => {
+describe("plannedSessionFromRoutine — last time's load", () => {
   const rowFor = (routineId: string, exerciseId: string) =>
     data.exercisesByRoutine.get(routineId)!.find((r) => r.exerciseId === exerciseId)!;
   const setsFor = (clientId: string, routineId: string, exerciseId: string) =>
     plannedSessionFromRoutine(data, clientId, routineId, null, TODAY).sets.filter((s) => s.exerciseId === exerciseId);
 
-  it("every set at the top of the range last time → +5 on the bar, reps back to the bottom", () => {
-    // Gabriel rowed 95×10×3 against 8–10.
+  it("every set at the top of the range last time still pre-fills last time's load — no auto bump", () => {
+    // Gabriel rowed 95×10×3 against 8–10: going heavier is his call.
     const row = rowFor("r_upper_bb", "bent_over_row");
     expect([row.repMin, row.repMax]).toEqual([8, 10]);
     const sets = setsFor("gabriel", "r_upper_bb", "bent_over_row");
-    expect(sets.map((s) => [s.weightLbs, s.reps])).toEqual(sets.map(() => [100, 8]));
+    expect(sets.every((s) => s.weightLbs === 95)).toBe(true);
   });
 
   it("a set short of the top keeps last time's load and the top rep target", () => {

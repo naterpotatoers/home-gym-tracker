@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { supabase } from "../db/client";
 import { setLogToRow } from "../db/mappers";
 import { loadGymData } from "../db/snapshot";
+import { liveExtras, type LiveExtras } from "../live-session";
 import { suggestedLoad } from "../queries";
 import { conditioningTarget, EMPTY_TARGET } from "../conditioning";
 import type { LoadPrefill } from "../set-templates";
@@ -38,6 +39,16 @@ export async function updateSetLog(set: SetLog): Promise<void> {
   const { id, session_id, ...fields } = setLogToRow(normalizeSetLog(set));
   const { error } = await supabase.from("set_logs").update(fields).eq("id", id).eq("session_id", session_id);
   if (isMissingColumn(error) && "effort" in fields) {
+    // Save the console numbers anyway — they must never ride on the effort
+    // column existing — then say what's missing.
+    const { effort: _effort, ...withoutEffort } = fields;
+    void _effort;
+    const retry = await supabase
+      .from("set_logs")
+      .update(withoutEffort)
+      .eq("id", id)
+      .eq("session_id", session_id);
+    if (retry.error) throw new Error(`saving set: ${retry.error.message}`);
     throw new Error(
       "Saving effort needs a database update — run supabase/migrations/2026-11-23-bike-effort.sql in the Supabase SQL editor.",
     );
@@ -45,7 +56,13 @@ export async function updateSetLog(set: SetLog): Promise<void> {
   if (error) throw new Error(`saving set: ${error.message}`);
   // syncSetLogs needs no such check: before the migration, sync_set_logs'
   // jsonb_populate_recordset just ignores the unknown effort key.
-  revalidateAll();
+  //
+  // No revalidateAll() here or in syncSetLogs: the live runner/board holds
+  // the set list client-side, and a revalidation makes Next re-render the
+  // whole board inside this action's response (~1 s, ~250 KB). Actions are
+  // dispatched one at a time per client, so with four people logging that
+  // queue backed up — swaps hung and a refresh lost queued saves.
+  // finishSession / discardSession revalidate when the session ends.
 }
 
 /**
@@ -73,8 +90,16 @@ export async function syncSetLogs(
     p_session: sessionId,
     p_rows: sets.map((set) => setLogToRow(normalizeSetLog(set))),
   });
+  // No revalidateAll() — see updateSetLog.
+}
 
-  revalidateAll();
+/** Re-derive a live session's stalls and finisher options from its saved
+ *  set list — the runner calls this after a structural sync changed which
+ *  variants it trains (set saves don't revalidate). Read-only. */
+export async function getLiveExtras(sessionId: string): Promise<LiveExtras | null> {
+  const data = await loadGymData();
+  const session = data.sessionById.get(sessionId);
+  return session ? liveExtras(data, session) : null;
 }
 
 /** Prefill for a variant the client is adding or swapping to mid-session.

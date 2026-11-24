@@ -12,6 +12,7 @@ import { toBlocks, type Block } from "./set-blocks";
 import { weighInHistory } from "./weigh-ins";
 import {
   bestE1rm,
+  fieldLoad,
   implementsPerRep,
   latestBodyweight,
   setLoad,
@@ -315,22 +316,52 @@ export function recentVariantKeys(
     .map((v) => variantKey(v.exerciseId, v.modalityId));
 }
 
-/** Load fields of the most recent completed working set for a client ×
- *  variant — the prefill when a new session prescribes that variant. */
+/**
+ * The load to repeat from a set of history: the TOP working set of the most
+ * recent session among `sets` — so a drop set or back-off never pre-fills
+ * low. Band (ordinal) work has no "heavier", so it's that session's last
+ * band. Never a bump or an e1RM re-target (that's the lifter's call).
+ */
+export function topOfLatestSession(
+  data: GymData,
+  sets: readonly SetLog[],
+): Pick<SetLog, "weightLbs" | "addedWeightLbs" | "bandId" | "bandRole"> | null {
+  const latest = latestSet(data, sets);
+  if (!latest) return null;
+  // Ranked from the set's own fields (no weigh-in needed — weighted dips
+  // rank by added pounds even before a bodyweight is logged); rated bands by
+  // their approximate pounds; hip bands (ordinal) not at all.
+  const rank = (set: SetLog): number | null => {
+    if (set.modalityId !== "band") return fieldLoad(set);
+    const load = setLoad(data, set);
+    return load.precision === "ordinal" ? null : load.lbs;
+  };
+  let top = latest;
+  let topLbs: number | null = null;
+  for (const set of sets) {
+    if (set.sessionId !== latest.sessionId) continue;
+    const lbs = rank(set);
+    if (lbs !== null && (topLbs === null || lbs > topLbs)) {
+      top = set;
+      topLbs = lbs;
+    }
+  }
+  return {
+    weightLbs: top.weightLbs,
+    addedWeightLbs: top.addedWeightLbs,
+    bandId: top.bandId,
+    bandRole: top.bandRole,
+  };
+}
+
+/** Prefill for a variant swapped or added mid-session — last time's load. */
 export function suggestedLoad(
   data: GymData,
   clientId: ClientId,
   exerciseId: ExerciseId,
   modalityId: ModalityId,
 ): Pick<SetLog, "weightLbs" | "addedWeightLbs" | "bandId" | "bandRole"> | null {
-  const latest = latestSet(data, workingSets(data, clientId, exerciseId, modalityId));
-  if (!latest) return null;
-  return {
-    weightLbs: latest.weightLbs,
-    addedWeightLbs: latest.addedWeightLbs,
-    bandId: latest.bandId,
-    bandRole: latest.bandRole,
-  };
+  return topOfLatestSession(data, workingSets(data, clientId, exerciseId, modalityId));
 }
 
 // ---------------------------------------------------------------------------

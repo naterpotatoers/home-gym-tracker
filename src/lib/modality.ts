@@ -354,3 +354,25 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+
+/**
+ * The load a set was done at, straight from its fields — needs no weigh-in:
+ * implement pounds for barbell/dumbbell/machine/ankle weights, the ADDED
+ * pounds for bodyweight work (plain bodyweight = 0). Null for bands and
+ * cardio, which don't rank by pounds. For comparing sets of ONE variant
+ * (heaviest set, progress); totals and e1RMs go through setLoad.
+ */
+export function fieldLoad(set: Pick<SetLog, "modalityId" | "weightLbs" | "addedWeightLbs">): number | null {
+  switch (set.modalityId) {
+    case "barbell":
+    case "dumbbell":
+    case "machine":
+    case "ankle_weight":
+      return set.weightLbs;
+    case "bodyweight":
+      return set.addedWeightLbs ?? 0;
+    case "band":
+    case "cardio":
+      return null;
+  }
+}

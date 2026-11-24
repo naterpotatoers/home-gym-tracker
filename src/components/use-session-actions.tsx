@@ -79,7 +79,9 @@ export function useSessionActions({
           flow.onExerciseAdded(await editor.addExercise(variant));
           onBackToLogging(); // added from the check-in: back to logging
         } else {
-          editor.swapExercise(target.block, variant);
+          // An explicit swap brings a skipped exercise back into the walk.
+          flow.unskip(target.block);
+          void editor.swapExercise(target.block, variant);
         }
       }}
       onClose={() => setPicker(null)}

@@ -66,9 +66,9 @@ export function WorkoutRunner({
   /** Stalled lifts per variant key — the block's "stalled" chip/callout. */
   stalls?: Record<string, StallHint>;
 }) {
-  const editor = useSetEditor(session, initialSets, catalog);
+  const editor = useSetEditor(session, initialSets, catalog, { stalls, finishers });
   const clock = useSessionClock(session.id);
-  const addOns = useFinisherAddOns(finishers, prescriptions);
+  const addOns = useFinisherAddOns(editor.finishers, prescriptions);
   const flow = useSessionFlow(editor, addOns.allPrescriptions, clock.now);
   useWakeLock();
   /** "End early" opened the check-in before every set was logged. */
@@ -119,7 +119,12 @@ export function WorkoutRunner({
     try {
       await discardSession(session.id);
     } catch (e) {
-      rethrowAfter(e, clock.clear);
+      // Forget unsaved work only once the discard succeeded (its redirect
+      // signal) — a failed discard keeps the session fully protected.
+      rethrowAfter(e, () => {
+        editor.forgetUnsaved();
+        clock.clear();
+      });
       editor.setError(errorMessage(e, "Discard failed."));
     }
   }
@@ -150,7 +155,7 @@ export function WorkoutRunner({
           prescriptions={addOns.allPrescriptions}
           catalog={catalog}
           history={history}
-          stalls={stalls}
+          stalls={editor.stalls}
           onReplace={actions.openReplace}
           onAdd={actions.openAdd}
         />
@@ -173,6 +178,7 @@ export function WorkoutRunner({
                     min={0}
                     onChange={setDurationOverride}
                     className="w-20"
+                    ariaLabel="Duration in minutes"
                   />
                   <span className="text-muted">min</span>
                 </label>

@@ -338,48 +338,13 @@ export function upcomingFoldIndex(
   return labels.length - cut >= 2 ? cut : null;
 }
 
-/** A progression load in words — "150 lb", "BW+25 lb", "BW". */
-function progressionLoad(modalityId: ModalityId, load: number): string {
-  const bodyweight = modalityId === "bodyweight";
-  return (
-    loadLabel(
-      {
-        modalityId,
-        bandId: null,
-        bandRole: null,
-        weightLbs: bodyweight ? null : load,
-        addedWeightLbs: bodyweight && load > 0 ? load : null,
-      },
-      { verbose: true },
-    ) ?? `${load} lb`
-  );
-}
-
-/** The runner's stall callout, headline then what to do — "No progress in
- *  4 wk (3 sessions) — every set hit 10: try 150 lb × 8–10". */
-export function stallCallout(hint: StallHint, modalityId: ModalityId): string {
-  const weeks = Math.floor(hint.days / 7);
-  const head = `No progress in ${weeks} wk (${hint.exposures} sessions)`;
-  const s = hint.suggestion;
-  switch (s.kind) {
-    case "add_load": {
-      const reps = s.repMin === s.repMax ? `${s.repMax}` : `${s.repMin}–${s.repMax}`;
-      return `${head} — every set hit ${s.repMax}: try ${progressionLoad(modalityId, s.load)} × ${reps}`;
-    }
-    case "same_load":
-      return `${head} — stay at ${progressionLoad(modalityId, s.load)} and work every set up to ${s.targetReps} (last ${s.lastReps.join("/")})`;
-    case "at_ceiling": {
-      const why =
-        modalityId === "dumbbell"
-          ? "already on the heaviest dumbbells"
-          : modalityId === "ankle_weight"
-            ? "already on the heaviest ankle weights"
-            : modalityId === "bodyweight" && s.load === 0
-            ? `every set hit ${Math.min(...s.lastReps)}`
-            : "no heavier step to take";
-      const what = modalityId === "bodyweight" && s.load === 0 ? "add reps or hold a dumbbell" : "add reps or slow the tempo";
-      return `${head} — ${why}: ${what}`;
-    }
-  }
+/** The runner's "stalled" chip — "stalled 4 wk" — and its spelled-out
+ *  title for hover / screen readers. A warning only: no load suggestion. */
+export function stallChipLabel(hint: StallHint): { text: string; title: string } {
+  const weeks = Math.max(1, Math.floor(hint.days / 7));
+  return {
+    text: `stalled ${weeks} wk`,
+    title: `No progress in ${weeks} week${weeks === 1 ? "" : "s"} (${hint.exposures} session${hint.exposures === 1 ? "" : "s"})`,
+  };
 }
 

@@ -11,7 +11,7 @@ import {
   DEFAULT_REST_SECONDS,
   restAfterLog,
   loadLabel,
-  stallCallout,
+  stallChipLabel,
   nextIncomplete,
   performOrder,
   resolveCursor,
@@ -375,7 +375,6 @@ describe("open-block helpers", () => {
     sinceDate: "2026-10-20",
     days: 28,
     exposures: 3,
-    suggestion: { kind: "same_load" as const, load: 200, targetReps: 5, lastReps: [5, 4] },
   };
   const block = (completed: boolean[]) => ({
     exerciseId: "deadlift",
@@ -402,30 +401,14 @@ describe("open-block helpers", () => {
   });
 });
 
-describe("stallCallout", () => {
-  const hint = (suggestion: Parameters<typeof stallCallout>[0]["suggestion"]) => ({
-    sinceDate: "2026-10-20",
-    days: 28,
-    exposures: 3,
-    suggestion,
-  });
-  it("names the stall, then the next step", () => {
-    expect(stallCallout(hint({ kind: "add_load", load: 150, repMin: 8, repMax: 10 }), "barbell")).toBe(
-      "No progress in 4 wk (3 sessions) — every set hit 10: try 150 lb × 8–10",
-    );
-    expect(
-      stallCallout(hint({ kind: "same_load", load: 145, targetReps: 10, lastReps: [10, 9, 8] }), "barbell"),
-    ).toBe("No progress in 4 wk (3 sessions) — stay at 145 lb and work every set up to 10 (last 10/9/8)");
-    expect(stallCallout(hint({ kind: "add_load", load: 25, repMin: 8, repMax: 8 }), "bodyweight")).toBe(
-      "No progress in 4 wk (3 sessions) — every set hit 8: try BW+25 lb × 8",
-    );
-  });
-  it("at the ceiling: reps or tempo, never a made-up weight", () => {
-    expect(stallCallout(hint({ kind: "at_ceiling", load: 50, lastReps: [12, 12] }), "dumbbell")).toBe(
-      "No progress in 4 wk (3 sessions) — already on the heaviest dumbbells: add reps or slow the tempo",
-    );
-    expect(stallCallout(hint({ kind: "at_ceiling", load: 0, lastReps: [8, 8, 8] }), "bodyweight")).toBe(
-      "No progress in 4 wk (3 sessions) — every set hit 8: add reps or hold a dumbbell",
+describe("stallChipLabel", () => {
+  it("is a short chip with the detail spelled out for hover and screen readers", () => {
+    expect(stallChipLabel({ sinceDate: "2026-10-20", days: 28, exposures: 3 })).toEqual({
+      text: "stalled 4 wk",
+      title: "No progress in 4 weeks (3 sessions)",
+    });
+    expect(stallChipLabel({ sinceDate: "2026-11-01", days: 6, exposures: 1 }).title).toBe(
+      "No progress in 1 week (1 session)",
     );
   });
 });

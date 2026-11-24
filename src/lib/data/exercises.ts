@@ -188,6 +188,7 @@ const baseExercises: readonly Exercise[] = [
   { id: "close_grip_push_up", name: "Close-Grip Push-Up", aliases: ["Diamond Push-Up"], pattern: "push_h", metricType: "reps", isCompound: true },
   { id: "pike_push_up", name: "Pike Push-Up", pattern: "push_v", metricType: "reps", isCompound: true },
   { id: "zottman_curl", name: "Zottman Curl", pattern: "isolation", metricType: "reps", isCompound: false },
+  { id: "band_lat_pulldown", name: "Band Lat Pulldown", aliases: ["Kneeling Band Pulldown"], pattern: "pull_v", metricType: "reps", isCompound: true },
   // Core / PT
   { id: "hip_airplane", name: "Hip Airplane", pattern: "core", metricType: "reps", isCompound: false },
   { id: "reverse_crunch", name: "Reverse Crunch", pattern: "core", metricType: "reps", isCompound: false },
@@ -619,6 +620,11 @@ export const exerciseMuscleScores: readonly ExerciseMuscleScore[] = [
   s("pike_push_up", "front_delts", 9), s("pike_push_up", "triceps", 7), s("pike_push_up", "upper_chest", 3),
   s("pike_push_up", "serratus", 3), s("pike_push_up", "traps", 3),
   s("zottman_curl", "biceps", 9), s("zottman_curl", "forearms", 8),
+  // Band pulldown: the pull-up's path with ascending band tension — easiest
+  // where the lats are longest, so it trails the pull-up (lats 8 vs 10).
+  s("band_lat_pulldown", "lats", 8), s("band_lat_pulldown", "rhomboids", 4),
+  s("band_lat_pulldown", "rear_delts", 4), s("band_lat_pulldown", "biceps", 4),
+  s("band_lat_pulldown", "traps", 3), s("band_lat_pulldown", "forearms", 2),
   // Core / PT
   s("hip_airplane", "glute_med", 7), s("hip_airplane", "glutes", 5), s("hip_airplane", "hamstrings", 3),
   s("hip_airplane", "obliques", 3), s("hip_airplane", "adductors", 2),
@@ -856,6 +862,7 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("close_grip_push_up", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
   em("pike_push_up", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
   em("zottman_curl", "dumbbell", { isDefault: true, requiredEquipment: ["dumbbells"] }),
+  em("band_lat_pulldown", "band", { isDefault: true, bandRoles: ["resistance"], requiredEquipment: ["monster_bands", "rack"], notes: "Loop the band over the top of the rack; kneel far enough back that it's taut at arm's length." }),
   em("hip_airplane", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["rack"], notes: "Hold the rack for balance until it's steady." }),
   em("reverse_crunch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
   em("flutter_kick", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),

@@ -5,20 +5,7 @@ import {
   exercises,
 } from "./data/exercises";
 import { muscles } from "./data/muscles";
-import {
-  exerciseLookup,
-  findNameCollision,
-  isStrengthPattern,
-  MAX_ALIASES,
-  MAX_PRIMARY_MUSCLES,
-  MAX_SCORED_MUSCLES,
-  roleForScore,
-  scoreForRole,
-  buildItSuggestions,
-  exercisesForMuscle,
-  missingSeedVariants,
-  variantKey,
-} from "./exercise-catalog";
+import { buildItSuggestions, exerciseLookup, exercisesForMuscle, findNameCollision, isStrengthPattern, MAX_ALIASES, MAX_PRIMARY_MUSCLES, MAX_SCORED_MUSCLES, missingSeedVariants, roleForScore, scoreForRole, variantKey, variantSignature } from "./exercise-catalog";
 import { nameKey } from "./names";
 
 const catalog = { exercises, exerciseMuscleScores, exerciseModalities };
@@ -169,6 +156,8 @@ describe("cross-variant score orderings (EMG literature)", () => {
     ["side_delts", "lateral_raise", "arnold_press"],
     // Overhead extension's stretched long head beats the kickback.
     ["triceps", "tricep_extension", "tricep_kickback"],
+    // The band pulldown is the pull-up's regression.
+    ["lats", "pull_up", "band_lat_pulldown"],
     // Hanging straight-leg raise is the hip-flexor ceiling.
     ["hip_flexors", "hanging_leg_raise", "standing_hip_flexion"],
   ];
@@ -316,5 +305,17 @@ describe("missingSeedVariants (Re-sync's add-only variant step)", () => {
     const out = missingSeedVariants(seed, present(withoutSquat), new Set(["squat"]));
     expect(out.length).toBeGreaterThan(0);
     expect(out.some((v) => v.isDefault)).toBe(false);
+  });
+});
+
+describe("variantSignature", () => {
+  const row = (exerciseId: string, modalityId: string, isWarmup = false) => ({ exerciseId, modalityId, isWarmup });
+  it("is order-free, de-duplicated, and ignores warm-ups", () => {
+    expect(variantSignature([row("squat", "barbell"), row("bench_press", "barbell"), row("squat", "barbell")])).toBe(
+      variantSignature([row("bench_press", "barbell"), row("squat", "barbell"), row("echo_bike", "cardio", true)]),
+    );
+  });
+  it("changes when a swap changes the variant", () => {
+    expect(variantSignature([row("squat", "barbell")])).not.toBe(variantSignature([row("goblet_squat", "dumbbell")]));
   });
 });
