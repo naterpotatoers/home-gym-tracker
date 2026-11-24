@@ -4,7 +4,7 @@ import {
   EMPTY_TARGET,
   pieceSeconds,
 } from "./conditioning";
-import { dumbbells } from "./data/equipment";
+import { ankleWeights, dumbbells } from "./data/equipment";
 import { groupBy } from "./exercise-catalog";
 import { activeAssignment, type GymData } from "./gym-data";
 import { newId } from "./ids";
@@ -20,7 +20,7 @@ import {
 } from "./modality";
 import { doubleProgression } from "./progression";
 import { latestSet, suggestedLoad } from "./queries";
-import { BIKE_WARMUP_RX, wantsBikeWarmup } from "./warmup";
+import { BIKE_WARMUP_RX, wantsBikeWarmup, warmupPlan } from "./warmup";
 import { addDaysIso, currentProgramWeek, isoDow, programEnded } from "./periods";
 import type {
   Assignment,
@@ -69,14 +69,8 @@ function roundedPrefill(
         if (dumbbellLbs <= 0) return null;
       }
       const per = dumbbellLbs / implementsPerRep(data, rx);
-      const owned = dumbbells.map((d) => d.weightLbs);
-      if (owned.length === 0) return null;
-      const nearest = owned.reduce((a, b) =>
-        Math.abs(b - per) < Math.abs(a - per) || (Math.abs(b - per) === Math.abs(a - per) && b < a)
-          ? b
-          : a,
-      );
-      return { ...empty, weightLbs: nearest };
+      const nearest = nearestOwned(dumbbells.map((d) => d.weightLbs), per);
+      return nearest === null ? null : { ...empty, weightLbs: nearest };
     }
     case "machine": {
       const step = weightStep("machine")!;
@@ -94,7 +88,19 @@ function roundedPrefill(
     case "cardio":
       // Watts and RPM, never pounds (conditioningTarget handles these).
       return null;
+    case "ankle_weight":
+      // No e1RM or load factor ever reaches here (fixed-weight lever work);
+      // snap to an owned pair anyway so the switch stays total.
+      return { ...empty, weightLbs: nearestOwned(ankleWeights.map((a) => a.weightLbs), totalLbs) };
   }
+}
+
+/** The owned weight closest to `lbs` (the lighter one on a tie). */
+function nearestOwned(owned: readonly number[], lbs: number): number | null {
+  if (owned.length === 0) return null;
+  return owned.reduce((a, b) =>
+    Math.abs(b - lbs) < Math.abs(a - lbs) || (Math.abs(b - lbs) === Math.abs(a - lbs) && b < a) ? b : a,
+  );
 }
 
 /**
@@ -106,7 +112,9 @@ function roundedPrefill(
  * 2. else this variant's best e1RM, re-targeted to the prescribed reps;
  * 3. else a cross-modality transfer: same exercise, most recently trained
  *    other modality, converted through the load-factor model;
- * 4. else blank — a lift with no basis anywhere gets no number.
+ * 4. else blank — a lift with no basis anywhere gets no number. Except
+ *    ankle-weight work: the pair you own IS the load, so it starts on the
+ *    lightest one.
  */
 export function smartPrefill(
   data: GymData,
@@ -188,14 +196,20 @@ export function smartPrefill(
     }
   }
 
+  if (rx.modalityId === "ankle_weight") {
+    const lightest = Math.min(...ankleWeights.map((a) => a.weightLbs));
+    if (Number.isFinite(lightest)) {
+      return { weightLbs: lightest, addedWeightLbs: null, bandId: null, bandRole: rx.bandRole };
+    }
+  }
   return null;
 }
 
 /**
  * Build a planned session from a routine: one editable SetLog per prescribed
  * set, prefilled via `smartPrefill`. With `bikeWarmup`, a lifting routine
- * opens with the 5-minute Echo Bike warm-up (BIKE_WARMUP_RX, flagged
- * isWarmup). Pure — the start action inserts what this returns. Throws on a
+ * opens with the Echo Bike warm-up (BIKE_WARMUP_RX, flagged isWarmup),
+ * picked up from the person's last one (warmupPlan). Pure — the start action inserts what this returns. Throws on a
  * missing routine or an assignment that isn't this person's (ids arrive
  * from forms).
  */
@@ -227,15 +241,17 @@ export function plannedSessionFromRoutine(
     notes: "",
   };
 
-  const rows =
-    bikeWarmup && wantsBikeWarmup(data, routineId) ? [BIKE_WARMUP_RX, ...prescriptions] : prescriptions;
+  const withWarmup = bikeWarmup && wantsBikeWarmup(data, routineId);
+  const rows = withWarmup ? [BIKE_WARMUP_RX, ...prescriptions] : prescriptions;
+  // The warm-up picks up from this person's last warm-up — never from their
+  // finisher pieces' targets.
+  const warm = withWarmup ? warmupPlan(data, clientId) : null;
   const sets: SetLog[] = [];
   for (const rx of rows) {
     const warmup = rx === BIKE_WARMUP_RX;
     // A bike piece: the person's own target, no pounds, timed by the piece.
-    // The warm-up is just easy — no target carried over from finisher pieces.
-    const conditioning = warmup
-      ? { ...EMPTY_CONDITIONING }
+    const conditioning = warmup && warm
+      ? { ...EMPTY_CONDITIONING, ...warm.target }
       : data.exerciseById.get(rx.exerciseId)?.pattern === "conditioning"
         ? { ...EMPTY_CONDITIONING, ...conditioningTarget(data, clientId, rx.exerciseId, rx.conditioning ?? EMPTY_TARGET) }
         : null;
@@ -255,7 +271,7 @@ export function plannedSessionFromRoutine(
         addedWeightLbs: prefill?.addedWeightLbs ?? null,
         bandId: prefill?.bandId ?? null,
         bandRole: prefill?.bandRole ?? rx.bandRole,
-        durationSeconds: conditioning ? pieceSeconds(rx) : rx.durationSeconds,
+        durationSeconds: warmup && warm ? warm.durationSeconds : conditioning ? pieceSeconds(rx) : rx.durationSeconds,
         distanceFeet: null,
         rir: null,
         isWarmup: warmup,

@@ -181,6 +181,7 @@ export function setLogProblem(set: SetLog): string | null {
     if (!isCount(c.avgWatts, 3000) || !isCount(c.maxWatts, 3000)) return "Watts must be 0–3000.";
     if (!isCount(c.avgRpm, 300)) return "RPM must be 0–300.";
     if (!isCount(c.calories, 5000)) return "Calories must be 0–5000.";
+    if (c.effort != null && (!isCount(c.effort, 10) || c.effort < 1)) return "Effort must be 1–10.";
   }
   return null;
 }
@@ -237,8 +238,15 @@ export function setListProblem(sets: readonly Pick<SetLog, "id" | "position">[])
 
 /** Band work never carries pounds: its load comes from the band (a tension
  *  range, or rank only for hip bands). Strip any stray weight a modality swap
- *  left behind so ordinal work can't acquire a lbs value at write time. */
+ *  left behind so ordinal work can't acquire a lbs value at write time.
+ *  Ankle-weight work is the mirror case: the strapped weight is the load, so
+ *  a stray band or added weight is dropped. */
 export function normalizeSetLog(set: SetLog): SetLog {
+  if (set.modalityId === "ankle_weight") {
+    // The ankle weight IS the load: no band, no "added" weight on top.
+    if (set.bandId === null && set.addedWeightLbs === null) return set;
+    return { ...set, bandId: null, bandRole: null, addedWeightLbs: null };
+  }
   if (set.modalityId !== "band") return set;
   if (set.weightLbs === null && set.addedWeightLbs === null) return set;
   return { ...set, weightLbs: null, addedWeightLbs: null };

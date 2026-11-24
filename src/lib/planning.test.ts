@@ -186,7 +186,7 @@ describe("plannedSessionFromRoutine — conditioning rows", () => {
 });
 
 describe("plannedSessionFromRoutine — bike warm-up", () => {
-  it("opens a lifting routine with one easy Echo Bike warm-up piece", () => {
+  it("opens a lifting routine with one Echo Bike warm-up — a first one is the 20/10 preset, no target", () => {
     const prescriptions = data.exercisesByRoutine.get("r_full_a") ?? [];
     const expected = prescriptions.reduce((n, p) => n + p.sets, 0) + 1;
     const { sets } = plannedSessionFromRoutine(data, "nate", "r_full_a", null, TODAY, { bikeWarmup: true });
@@ -196,10 +196,10 @@ describe("plannedSessionFromRoutine — bike warm-up", () => {
       modalityId: "cardio",
       isWarmup: true,
       position: 1,
-      durationSeconds: 300,
+      durationSeconds: 240,
       reps: null,
       weightLbs: null,
-      conditioning: { intervalScheme: null, targetWatts: null, targetRpm: null, avgWatts: null },
+      conditioning: { intervalScheme: "8x20/10", targetWatts: null, targetRpm: null, avgWatts: null },
     });
     expect(sets.slice(1).every((s) => !s.isWarmup)).toBe(true);
     expect(sets.map((s) => s.position)).toEqual(sets.map((_, i) => i + 1));
@@ -227,6 +227,35 @@ describe("plannedSessionFromRoutine — bike warm-up", () => {
     });
     const { sets } = plannedSessionFromRoutine(withPiece, "nate", "r_full_a", null, TODAY, { bikeWarmup: true });
     expect(sets[0].conditioning?.targetWatts).toBeNull();
+  });
+
+  it("picks up the person's last warm-up: its piece and target", () => {
+    const session = data.sessions.find((s) => s.clientId === "nate" && s.status === "completed")!;
+    const template = data.setsBySession.get(session.id)![0];
+    const withWarmup = buildGymData({
+      ...data,
+      setLogs: [
+        ...data.setLogs,
+        {
+          ...template,
+          id: "sl_warm_prior",
+          exerciseId: "echo_bike",
+          modalityId: "cardio",
+          reps: null,
+          weightLbs: null,
+          durationSeconds: 300,
+          completed: true,
+          isWarmup: true,
+          conditioning: { intervalScheme: null, targetWatts: 150, targetRpm: null, avgWatts: 140, maxWatts: null, avgRpm: null, calories: null },
+        },
+      ],
+    });
+    const { sets } = plannedSessionFromRoutine(withWarmup, "nate", "r_full_a", null, TODAY, { bikeWarmup: true });
+    expect(sets[0]).toMatchObject({
+      isWarmup: true,
+      durationSeconds: 300,
+      conditioning: { intervalScheme: null, targetWatts: 150, avgWatts: null },
+    });
   });
 
   it("skips care routines and leaves the default off", () => {

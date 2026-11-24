@@ -122,6 +122,10 @@ create table set_logs (
   max_watts int,
   avg_rpm int,
   calories int,
+  -- How hard the piece felt, 1–10 (self-report). Same watts at a lower
+  -- effort over the weeks is the "getting fitter" signal.
+  effort int,
+  constraint set_logs_effort_check check (effort is null or effort between 1 and 10),
   constraint set_logs_conditioning_check check (
     (interval_scheme is null or interval_scheme ~ '^\d{1,2}x\d{1,3}/\d{1,3}$')
     and (target_watts is null or target_watts between 1 and 2000)
@@ -390,7 +394,8 @@ begin
     avg_watts = excluded.avg_watts,
     max_watts = excluded.max_watts,
     avg_rpm = excluded.avg_rpm,
-    calories = excluded.calories;
+    calories = excluded.calories,
+    effort = excluded.effort;
 end $$;
 
 -- An exercise's basics, cues, muscle scores, and variants together. An

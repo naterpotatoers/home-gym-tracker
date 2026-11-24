@@ -574,4 +574,150 @@ export const SEED_EXERCISE_CUES: Readonly<Record<string, readonly string[]>> = {
     "Hinge forward from the hips with a flat back.",
     "Walk the hands forward; breathe into the inner thighs.",
   ],
+  // ---- 2026-11 additions ----
+  standing_leg_curl: [
+    "Hold the rack; knees side by side, thigh stays still.",
+    "Curl the heel toward the glute, squeeze, lower slow.",
+    "Don't arch the back to swing the leg up.",
+  ],
+  prone_leg_curl: [
+    "Lie face down, hips pressed into the floor.",
+    "Curl the heel to the glute without the hips lifting.",
+    "Lower slow — the way down is half the work.",
+  ],
+  standing_glute_kickback: [
+    "Hold the rack, brace, slight bend in the standing knee.",
+    "Push the leg straight back from the glute.",
+    "Stop before the low back arches.",
+  ],
+  standing_hip_abduction: [
+    "Stand tall holding the rack, toes pointing forward.",
+    "Lift the leg out to the side from the hip.",
+    "No leaning — the torso stays upright.",
+  ],
+  side_lying_hip_adduction: [
+    "Lie on your side, top foot planted in front.",
+    "Lift the bottom leg straight up, inner thigh first.",
+    "Small, slow range; no rolling back.",
+  ],
+  standing_hip_flexion: [
+    "Stand tall holding the rack.",
+    "Drive the knee up to hip height, pause.",
+    "Lower with control; don't lean back.",
+  ],
+  seated_leg_extension: [
+    "Sit tall on the bench edge, hands on the sides.",
+    "Straighten the knee fully and squeeze the quad.",
+    "Lower slow; stop short of pain behind the kneecap.",
+  ],
+  straight_leg_raise: [
+    "Lie down, other knee bent, low back flat.",
+    "Lock the knee straight, then lift to the other knee's height.",
+    "Lower slow without the knee bending.",
+  ],
+  reverse_lunge: [
+    "Step back long; front shin stays near vertical.",
+    "Drop the back knee straight down.",
+    "Drive through the front heel to stand.",
+  ],
+  curtsy_lunge: [
+    "Step back and across, like a curtsy.",
+    "Hips stay square; front knee tracks over the toes.",
+    "Feel the outside of the front hip working.",
+  ],
+  split_squat: [
+    "Long stance, back heel up, torso tall.",
+    "Drop straight down until the back knee nearly touches.",
+    "Drive through the front foot; don't bounce.",
+  ],
+  cossack_squat: [
+    "Wide stance; sit into one hip, other leg straight.",
+    "Heel of the working foot stays down.",
+    "Only go as deep as you can keep the chest up.",
+  ],
+  step_down: [
+    "Stand on the step, hips level.",
+    "Lower the free heel slow until it taps the floor.",
+    "Knee tracks over the toes, not caving in.",
+  ],
+  sumo_deadlift: [
+    "Wide stance, toes out, hands inside the knees.",
+    "Push the floor apart and keep the chest up.",
+    "Hips and shoulders rise together; lock out with the glutes.",
+  ],
+  rear_delt_fly: [
+    "Hinge forward, flat back, slight bend in the elbows.",
+    "Sweep the weights out wide, leading with the pinkies.",
+    "Light weight, no swinging; feel the back of the shoulder.",
+  ],
+  upright_row: [
+    "Wider grip; pull the elbows up and out.",
+    "Stop at chest height, elbows just above the wrists.",
+    "Skip it if the shoulder pinches.",
+  ],
+  pullover: [
+    "Lie across the bench, one dumbbell over the chest.",
+    "Lower it back behind the head with soft elbows.",
+    "Pull it back over with the lats, ribs down.",
+  ],
+  arnold_press: [
+    "Start palms facing you at chin height.",
+    "Rotate the palms out as you press overhead.",
+    "Reverse it on the way down, under control.",
+  ],
+  tricep_kickback: [
+    "Hinge forward, upper arm pinned to the side.",
+    "Straighten the elbow fully and squeeze.",
+    "Only the forearm moves — no swinging.",
+  ],
+  close_grip_push_up: [
+    "Hands under the shoulders, elbows brushing the ribs.",
+    "Body in one straight line, glutes tight.",
+    "Lower the chest to the hands, press out through the triceps.",
+  ],
+  pike_push_up: [
+    "Hips high, hands shoulder-width, head between the arms.",
+    "Lower the head toward the floor in front of the hands.",
+    "Press back up through the shoulders.",
+  ],
+  zottman_curl: [
+    "Curl up with palms facing up.",
+    "Turn the palms down at the top.",
+    "Lower slow with palms down — that's the forearm work.",
+  ],
+  hip_airplane: [
+    "Balance on one leg, holding the rack.",
+    "Hinge forward, then rotate the pelvis open and closed.",
+    "Slow and controlled; the standing hip does the work.",
+  ],
+  reverse_crunch: [
+    "Lie down, knees bent, low back flat.",
+    "Curl the hips off the floor, knees toward the chest.",
+    "Lower slow; don't swing the legs.",
+  ],
+  flutter_kick: [
+    "Low back pressed flat into the floor.",
+    "Legs straight, small fast kicks just off the floor.",
+    "Raise the legs higher if the back starts to arch.",
+  ],
+  side_plank_hip_dip: [
+    "Side plank on the elbow, body in a straight line.",
+    "Lower the hip toward the floor, then lift it high.",
+    "Elbow stays under the shoulder.",
+  ],
+  deep_squat_hold: [
+    "Hold the rack and sink between the heels.",
+    "Heels down, chest tall, knees out over the toes.",
+    "Breathe and relax into the bottom.",
+  ],
+  band_pass_through: [
+    "Hold a light band wide, arms straight.",
+    "Lift it overhead and behind, then back in front.",
+    "Go wider if the shoulders pinch or the elbows bend.",
+  ],
+  hip_cars: [
+    "Stand tall holding the rack, brace the trunk.",
+    "Draw the biggest slow circle the hip allows.",
+    "Only the hip moves — no pelvis twisting.",
+  ],
 };

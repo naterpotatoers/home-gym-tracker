@@ -70,6 +70,9 @@ type ConditioningLogColumns = ConditioningTargetColumns & {
   max_watts?: number | null;
   avg_rpm?: number | null;
   calories?: number | null;
+  /** 2026-11-23-bike-effort.sql. Read when present, written only when the
+   *  set carries an `effort` key (see ConditioningLog.effort). */
+  effort?: number | null;
 };
 
 function rowToTarget(r: ConditioningTargetColumns): ConditioningTarget {
@@ -429,6 +432,7 @@ export function rowToSetLog(r: SetLogRow): SetLog {
       maxWatts: r.max_watts ?? null,
       avgRpm: r.avg_rpm ?? null,
       calories: r.calories ?? null,
+      ...(r.effort !== undefined && r.effort !== null ? { effort: r.effort } : {}),
     }),
   };
 }
@@ -461,6 +465,7 @@ export function setLogToRow(s: SetLog): SetLogRow {
           max_watts: s.conditioning.maxWatts,
           avg_rpm: s.conditioning.avgRpm,
           calories: s.conditioning.calories,
+          ...(s.conditioning.effort !== undefined ? { effort: s.conditioning.effort } : {}),
         }
       : {}),
   };

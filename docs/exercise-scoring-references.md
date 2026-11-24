@@ -329,3 +329,55 @@ copenhagen_plank = catalog ceiling.
 - [Boren et al. 2011, *Int J Sports Phys Ther* — glute med/max rehab EMG](https://pubmed.ncbi.nlm.nih.gov/22163090/)
 - [Oliva-Lozano & Muyor 2020, *IJERPH* — core EMG systematic review](https://pubmed.ncbi.nlm.nih.gov/32560185/)
 - [Copenhagen adduction systematic review, *Int J Sports Phys Ther* 2021](https://ijspt.scholasticahq.com/article/27975)
+
+## 2026-11 additions (ankle weights + gaps)
+
+Twenty-nine seed exercises added in November 2026. They were scored by
+analogy to the reviewed movements above, not from new EMG studies, so treat
+them as anchored estimates:
+
+- **Ankle-weight isolation** (standing/prone leg curl, standing glute
+  kickback, standing hip abduction and flexion, side-lying hip adduction,
+  seated leg extension, straight-leg raise). A few pounds on a long lever
+  isolates the target muscle, but it stays well under the loaded ceilings.
+  Hamstring curls are 7, below Nordic and RDL at 10 (Bourne 2017). Standing
+  abduction is 8, below side-lying at 10 (Distefano 2009: side-lying has the
+  highest glute-med EMG). Standing hip adduction is left out on purpose,
+  because gravity doesn't resist it when you're standing. The `ankle_weight`
+  modality is exact pounds per ankle, but it never gets an e1RM or a
+  cross-modality transfer; progress is by reps.
+- **Lunge family**:
+  - Reverse lunge is scored like the forward lunge.
+  - Split squat is quads 9, below the rear-foot-elevated version at 10
+    (McCurdy 2010).
+  - Curtsy lunge raises glute med.
+  - Cossack squat sits in side-lunge range for the adductors (Copenhagen
+    plank stays the only 10).
+  - Step-down is the PT quad and glute-med control drill.
+- **Sumo deadlift** (Escamilla 2002): more quads and adductors than
+  conventional (7 vs 6), less erector (6 vs 8).
+- **Upper body**:
+  - The rear-delt fly is scored like the face pull.
+  - Upright row and Arnold press both stay below the lateral raise for side
+    delts (Botton 2020).
+  - Tricep kickback (9) stays below the overhead extension (10), since the
+    long head is shortened in the kickback.
+  - Close-grip push-up moves emphasis from chest to triceps.
+  - The pike push-up is a bodyweight vertical press.
+
+**Orderings encoded in tests:**
+
+| Muscle | Higher | Lower |
+|---|---|---|
+| hamstrings | nordic_curl, romanian_deadlift | standing_leg_curl |
+| glute_med | side_lying_hip_abduction | standing_hip_abduction |
+| quads | bulgarian_split_squat | split_squat |
+| quads | sumo_deadlift | deadlift |
+| lower_back | deadlift | sumo_deadlift |
+| side_delts | lateral_raise | upright_row, arnold_press |
+| triceps | tricep_extension | tricep_kickback |
+| hip_flexors | hanging_leg_raise | standing_hip_flexion |
+
+**Sources**
+
+- [Escamilla et al. 2002, *Med Sci Sports Exerc* — sumo vs conventional deadlift EMG](https://pubmed.ncbi.nlm.nih.gov/11932581/)

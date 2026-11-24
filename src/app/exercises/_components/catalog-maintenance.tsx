@@ -31,16 +31,17 @@ export function CatalogMaintenance({ catalogEmpty }: { catalogEmpty: boolean }) 
           <>
             <h2 className="mb-2 font-semibold">Re-sync the built-ins</h2>
             <p className="mb-3 text-sm text-muted">
-              Adds any built-in exercises missing from your catalog, then overwrites muscle scores, alternative
-              names and coaching cues for all {count} built-ins with the app&apos;s current versions — use after
-              the app ships corrections. Edits you made to those on built-ins are discarded; custom exercises,
-              names and equipment variants are untouched.
+              Adds any built-in exercises and equipment options (like ankle weights) missing from your catalog —
+              a built-in option you removed comes back — then overwrites muscle scores, alternative names and
+              coaching cues for all {count} built-ins with the app&apos;s current versions. Use after the app
+              ships new exercises or corrections. Score, name and cue edits you made on built-ins are discarded;
+              custom exercises, exercise names and existing equipment options are untouched.
             </p>
             <form action={resyncSeedCatalogScores}>
               <MaintenanceSubmit
-                label="Re-sync built-in scores, aliases & cues"
+                label="Re-sync built-ins"
                 pendingLabel="Re-syncing…"
-                confirmText={`Overwrite muscle scores, alternative names and coaching cues for all ${count} built-in exercises with the app's current versions? Edits you made to those will be lost.`}
+                confirmText={`Add missing built-in exercises and equipment options, and overwrite muscle scores, alternative names and coaching cues for all ${count} built-in exercises with the app's current versions? Edits you made to those will be lost.`}
               />
             </form>
           </>

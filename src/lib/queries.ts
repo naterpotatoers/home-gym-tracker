@@ -4,7 +4,7 @@ import {
   ownedEquipmentIds,
 } from "./data/equipment";
 import { modalityById } from "./data/modalities";
-import { exerciseLookup, groupBy, variantKey, type ExerciseCatalog } from "./exercise-catalog";
+import { exerciseLookup, groupBy, isStrengthPattern, variantKey, type ExerciseCatalog } from "./exercise-catalog";
 import { activeAssignment, type GymData } from "./gym-data";
 import { ageOnIso, currentProgramWeek, localIso, programEnded } from "./periods";
 import { conditioningSetLabel, loadLabel } from "./session-labels";
@@ -142,11 +142,12 @@ export function blocksFor(data: GymData, sessionId: string): SetBlock[] {
   return toBlocks(setsFor(data, sessionId));
 }
 
-/** Total honest pounds moved in a session's completed working sets. Warmups
- *  and ordinal (band-rank) work stay out — no fake numbers in a lbs total. */
+/** Total honest pounds moved in a session's completed working sets. Warmups,
+ *  ordinal (band-rank) work and non-strength work (stretches, bike pieces)
+ *  stay out — no fake numbers in a lbs total. */
 export function sessionVolumeLbs(data: GymData, sessionId: string): number {
   return setsFor(data, sessionId)
-    .filter((s) => s.completed && !s.isWarmup)
+    .filter((s) => s.completed && !s.isWarmup && isStrengthPattern(data.exerciseById.get(s.exerciseId)?.pattern))
     .reduce((sum, set) => {
       const load = setLoad(data, set);
       return load.lbs === null ? sum : sum + load.lbs * load.totalReps;
@@ -175,6 +176,8 @@ export function describeSet(data: GymData, set: SetLog): string {
         ? `${set.weightLbs} lb${each} (${total} total)`
         : `${set.weightLbs} lb${each}`,
     );
+  } else if (set.modalityId === "ankle_weight") {
+    if (set.weightLbs !== null) parts.push(`${set.weightLbs} lb ankle weight`);
   } else {
     const load = loadLabel(set, { verbose: true });
     if (load && load !== "BW") parts.push(load);

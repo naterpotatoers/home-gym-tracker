@@ -13,7 +13,6 @@ import { discardSession } from "@/lib/actions/workout";
 import { type LauncherRow, startLabel, warmupApplies } from "@/lib/launcher";
 import { shortDayLabel } from "@/lib/periods";
 import { BIKE_WARMUP_FIELD } from "@/lib/validate";
-import { WARMUP_MINUTES } from "@/lib/warmup";
 
 /** Consecutive runs of options sharing a group label, in order. */
 function grouped(options: LauncherRow["options"]) {
@@ -142,7 +141,7 @@ export function WorkoutLauncher({ rows }: { rows: LauncherRow[] }) {
               checked={bikeWarmup}
               onChange={(e) => setBikeWarmup(e.target.checked)}
             />
-            Bike warm-up <span className="text-muted">{WARMUP_MINUTES} min easy</span>
+            Bike warm-up <span className="text-muted">picks up each person&apos;s last one</span>
           </label>
         )}
       </div>

@@ -174,6 +174,14 @@ describe("setLogProblem (conditioning)", () => {
     expect(setLogProblem({ ...base, conditioning: { ...log, calories: 1.5 } })).not.toBeNull();
     expect(setLogProblem({ ...base, conditioning: { ...log, intervalScheme: "bad" } })).not.toBeNull();
   });
+  it("takes an effort of 1–10, or none", () => {
+    for (const effort of [undefined, null, 1, 10]) {
+      expect(setLogProblem({ ...base, conditioning: { ...log, effort } }), String(effort)).toBeNull();
+    }
+    for (const effort of [0, 11, 5.5]) {
+      expect(setLogProblem({ ...base, conditioning: { ...log, effort } }), String(effort)).not.toBeNull();
+    }
+  });
 });
 
 describe("parseRunForm", () => {

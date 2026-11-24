@@ -8,6 +8,7 @@ import { localDayLabel } from "@/lib/periods";
 import { loadGymData } from "@/lib/db/snapshot";
 import { availableVariants, sessionRecap } from "@/lib/queries";
 import { lbs } from "@/lib/format";
+import { isBikeWarmupBlock } from "@/lib/warmup";
 import { SetRecap } from "@/components/set-recap";
 
 export default async function SessionPage({
@@ -72,7 +73,7 @@ export default async function SessionPage({
                 session.durationMinutes !== null ? `${session.durationMinutes} min` : "—"
               }
             />
-            <Stat label="Exercises" value={String(blocks.length)} />
+            <Stat label="Exercises" value={String(blocks.filter((b) => !isBikeWarmupBlock(b)).length)} />
           </dl>
 
 
@@ -88,6 +89,9 @@ export default async function SessionPage({
                       {data.exerciseById.get(block.exerciseId)?.name ?? block.exerciseId}
                     </h2>
                     <ModalityChip modalityId={block.modalityId} />
+                    {isBikeWarmupBlock(block) && (
+                      <span className="rounded bg-current/10 px-1.5 py-0.5 text-[11px] font-semibold">warm-up</span>
+                    )}
                     {block.sets[0].bandRole === "assistance" && (
                       <span className="text-xs text-muted">assisted</span>
                     )}

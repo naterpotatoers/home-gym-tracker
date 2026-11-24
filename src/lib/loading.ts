@@ -1,4 +1,4 @@
-import { barById, dumbbells, plates } from "./data/equipment";
+import { ankleWeights, barById, dumbbells, plates } from "./data/equipment";
 import type { Bar, ModalityId } from "./types";
 
 /**
@@ -130,7 +130,9 @@ export function weightStep(modalityId: ModalityId): number | null {
     case "dumbbell":
     case "bodyweight":
       return 2.5;
-    default:
+    case "band":
+    case "cardio":
+    case "ankle_weight":
       return null;
   }
 }
@@ -145,7 +147,8 @@ const BAR_IDS: readonly BarId[] = ["ohio_bar", "bella_bar"];
  * stepper step — 5 lb, 2.5 a side — up on that bar's plate grid), dumbbell =
  * the next pair you own, machine = one stepper step,
  * bodyweight = the next dumbbell to hold or belt on (null at plain
- * bodyweight — that progresses by reps). Null when there's no heavier step,
+ * bodyweight — that progresses by reps), ankle weight = the next pair you
+ * own (none above the heaviest — reps, then). Null when there's no heavier step,
  * or for bands (rank) and cardio (watts).
  */
 export function nextLoadStep(modalityId: ModalityId, weightLbs: number): number | null {
@@ -166,7 +169,15 @@ export function nextLoadStep(modalityId: ModalityId, weightLbs: number): number 
       return weightLbs + weightStep("machine")!;
     case "bodyweight":
       return weightLbs > 0 ? ownedAbove(weightLbs) : null;
-    default:
+    case "ankle_weight":
+      return (
+        ankleWeights
+          .map((a) => a.weightLbs)
+          .sort((a, b) => a - b)
+          .find((w) => w > weightLbs) ?? null
+      );
+    case "band":
+    case "cardio":
       return null;
   }
 }

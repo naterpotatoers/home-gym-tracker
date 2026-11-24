@@ -4,9 +4,11 @@ import { TARGET_RESULT_LABELS, type ConditioningSummary } from "@/lib/conditioni
 import { shortDayLabel } from "@/lib/periods";
 
 /**
- * One person's bike work on their Progress tab: best average watts per day
- * as a line (only when there are two or more days to compare), then the last
- * few pieces with target, readout and how they compared. Kept apart from
+ * One person's bike work on their Progress tab, one block per series
+ * (finisher pieces, then warm-ups): an "at the same effort" fitness line when
+ * there's a fair comparison, best average watts per day as a line (only with
+ * two or more days to compare), then the last few pieces with target,
+ * readout, effort and how they compared. Kept apart from
  * Lifts — conditioning never enters a strength number.
  */
 export function ConditioningSection({
@@ -21,8 +23,9 @@ export function ConditioningSection({
     <Section title="Conditioning">
       <div className="space-y-6">
         {summaries.map((s) => (
-          <div key={s.exerciseId}>
+          <div key={s.key}>
             <h3 className="text-sm font-semibold">{s.name}</h3>
+            {s.fitness && <p className="mt-0.5 font-mono text-xs">{s.fitness}</p>}
             {s.points.length >= 2 && (
               <div className="mt-2">
                 <ProgressChart points={s.points} label={`${s.name} average watts over time`} unit="W" />
@@ -35,6 +38,7 @@ export function ConditioningSection({
                   <span className="font-mono">{p.piece}</span>
                   {p.target && <span className="text-xs text-muted">target {p.target}</span>}
                   {p.readout && <span className="font-mono">{p.readout}</span>}
+                  {p.effort !== null && <span className="text-xs text-muted">effort {p.effort}</span>}
                   {p.result && (
                     <span
                       className={`text-xs ${

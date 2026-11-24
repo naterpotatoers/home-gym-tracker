@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
 import { buildGymData, type GymData } from "./gym-data";
-import { deriveLoadFactor, effectiveLoadFactor, setLoad } from "./modality";
+import { deriveLoadFactor, e1rm, effectiveLoadFactor, setLoad } from "./modality";
+import { nextLoadStep, weightStep } from "./loading";
+import { doubleProgression } from "./progression";
+import { stallCallout } from "./session-labels";
+import { completeAsBodyweight } from "./set-blocks";
+import { normalizeSetLog } from "./validate";
 import { smartPrefill } from "./planning";
-import { describeSet } from "./queries";
+import { describeSet, sessionVolumeLbs } from "./queries";
 import type { RoutineExercise, Session, SetLog, WeighIn } from "./types";
 
 /** Regressions from the 2026-10-24 audit: a seed client with only
@@ -272,5 +277,74 @@ describe("describeSet dumbbell totals", () => {
     const s = set({ exerciseId: "bicep_curl", modalityId: "dumbbell", weightLbs: 25 });
     const data = world([session("s_t1", "2026-08-01")], [s]);
     expect(describeSet(data, s)).toContain("25 lb ea (50 total)");
+  });
+});
+
+describe("ankle weights (2026-11)", () => {
+  const data = seedSnapshot();
+  const session = data.sessions.find((s) => s.clientId === "lidia")!;
+  const base = data.setsBySession.get(session.id)![0];
+  const ankle = {
+    ...base,
+    id: "sl_ankle",
+    exerciseId: "standing_leg_curl",
+    modalityId: "ankle_weight" as const,
+    unilateralMode: "single_side" as const,
+    weightLbs: 5,
+    addedWeightLbs: null,
+    bandId: null,
+    bandRole: null,
+    reps: 12,
+    completed: true,
+    isWarmup: false,
+  };
+
+  it("is exact pounds per ankle (one weight on the working leg), never an e1RM", () => {
+    expect(setLoad(data, ankle)).toEqual({ lbs: 5, precision: "exact", totalReps: 24 });
+    expect(e1rm(data, ankle)).toBeNull();
+  });
+
+  it("progresses by reps with one pair: no heavier step, at_ceiling when every set tops out", () => {
+    expect(nextLoadStep("ankle_weight", 5)).toBeNull();
+    expect(weightStep("ankle_weight")).toBeNull();
+    expect(doubleProgression("ankle_weight", [ankle, { ...ankle, id: "b" }], { repMin: 10, repMax: 12 })).toMatchObject({
+      kind: "at_ceiling",
+      load: 5,
+    });
+  });
+
+  it("stall copy names the ankle weights", () => {
+    expect(
+      stallCallout(
+        { sinceDate: "2026-10-01", days: 28, exposures: 3, suggestion: { kind: "at_ceiling", load: 5, lastReps: [12, 12] } },
+        "ankle_weight",
+      ),
+    ).toContain("heaviest ankle weights");
+  });
+
+  it("a first ankle-weight prescription starts on the pair you own", () => {
+    const rx = { ...data.routineExercises[0], exerciseId: "standing_leg_curl", modalityId: "ankle_weight" as const, repMin: 10, repMax: 12, durationSeconds: null };
+    expect(smartPrefill(data, "lidia", rx, "2026-11-23")).toMatchObject({ weightLbs: 5, addedWeightLbs: null });
+  });
+
+  it("LOG with 'none' (0 lb) becomes the bodyweight variant", () => {
+    const out = completeAsBodyweight([{ ...ankle, weightLbs: 0, completed: false }], "sl_ankle", () => true);
+    expect(out?.[0]).toMatchObject({ modalityId: "bodyweight", weightLbs: null, completed: true });
+  });
+
+  it("normalize drops a stray band or added weight", () => {
+    expect(normalizeSetLog({ ...ankle, bandId: "band_red", bandRole: "resistance", addedWeightLbs: 10 })).toMatchObject({
+      bandId: null,
+      bandRole: null,
+      addedWeightLbs: null,
+      weightLbs: 5,
+    });
+  });
+
+  it("a mobility drill logged with reps adds no volume and no e1RM", () => {
+    const stretch = { ...base, id: "sl_mob", exerciseId: "band_pass_through", modalityId: "band" as const, bandId: "band_orange" as const, bandRole: "resistance" as const, weightLbs: null, reps: 10, completed: true, isWarmup: false };
+    expect(e1rm(data, stretch)).toBeNull();
+    const withStretch = buildGymData({ ...data, setLogs: [...data.setLogs, { ...stretch, sessionId: session.id, position: 999 }] });
+    expect(sessionVolumeLbs(withStretch, session.id)).toBe(sessionVolumeLbs(data, session.id));
   });
 });

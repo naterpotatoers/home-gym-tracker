@@ -34,8 +34,13 @@ export function exerciseInfo(
     .filter(([, score]) => score > 0)
     .sort((a, b) => b[1] - a[1]);
   const nameOf = (id: MuscleId) => muscleById.get(id)?.name ?? id;
+  // "Dumbbell Lateral Raise", but "Standing Leg Curl ankle weights" (the
+  // implement reads better after the move for strap-on weights).
   const implement =
-    modalityId === "bodyweight" || modalityId === "cardio" ? "" : `${modalityById.get(modalityId)?.name ?? ""} `;
+    modalityId === "bodyweight" || modalityId === "cardio" || modalityId === "ankle_weight"
+      ? ""
+      : `${modalityById.get(modalityId)?.name ?? ""} `;
+  const suffix = modalityId === "ankle_weight" ? " ankle weights" : "";
   return {
     name: exercise.name,
     modalityId,
@@ -45,7 +50,7 @@ export function exerciseInfo(
     primary: scores.filter(([, s]) => roleForScore(s) === "primary").map(([id]) => nameOf(id)),
     secondary: scores.filter(([, s]) => roleForScore(s) === "secondary").map(([id]) => nameOf(id)),
     demoUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(
-      `${implement}${exercise.name} proper form`.trim(),
+      `${implement}${exercise.name}${suffix} proper form`.trim(),
     )}`,
   };
 }

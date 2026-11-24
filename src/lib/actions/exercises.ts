@@ -13,7 +13,7 @@ import {
   exerciseMuscleScoreToRow,
   exerciseToRow,
 } from "../db/mappers";
-import { findNameCollision, type NamedExercise } from "../exercise-catalog";
+import { findNameCollision, missingSeedVariants, type NamedExercise } from "../exercise-catalog";
 import { slugId } from "../ids";
 import { nameKey, normalizeName } from "../names";
 import {
@@ -219,11 +219,14 @@ const CUES_MIGRATION_MESSAGE =
  * Make the DB's built-in exercises match the CURRENT seed: first the same
  * add-only import as importSeedExercises (so built-ins added to the seed
  * after the first import — or ones you deleted — come back with their scores
- * and variants), then an overwrite of muscle scores, aliases and coaching
- * cues for every built-in. The explicit opt-in counterpart to importSeedExercises'
- * never-overwrite contract, for when the seed data itself gets corrected
- * (e.g. after a literature review). Deliberately narrow: names, patterns,
- * variants, and custom (non-seed-id) exercises are untouched.
+ * and variants), then any seed equipment variants the built-ins are missing
+ * (insert-only — an existing variant's settings and default are never
+ * touched; one you deleted comes back), then an overwrite of muscle scores,
+ * aliases and coaching cues for every built-in. The explicit opt-in
+ * counterpart to importSeedExercises' never-overwrite contract, for when the
+ * seed data itself gets corrected (e.g. after a literature review).
+ * Deliberately narrow: names, patterns, existing variants, and custom
+ * (non-seed-id) exercises are untouched.
  */
 export async function resyncSeedCatalogScores(): Promise<void> {
   // Restore/add any missing built-ins first. This is what makes the button
@@ -231,6 +234,27 @@ export async function resyncSeedCatalogScores(): Promise<void> {
   // while the exercises table is EMPTY, so an already-imported DB has no
   // other way to receive newly added seed exercises.
   const seedIds = await importMissingSeedExercises();
+
+  // New equipment options on existing built-ins (e.g. ankle weights).
+  // ignoreDuplicates makes it insert-only even if a row appears meanwhile.
+  const presentVariants = await run(
+    "adding seed variants",
+    supabase.from("exercise_modalities").select("exercise_id, modality_id").in("exercise_id", [...seedIds]),
+  );
+  const newVariants = missingSeedVariants(
+    seedExerciseModalities,
+    new Set((presentVariants ?? []).map((row) => `${row.exercise_id}|${row.modality_id}`)),
+    seedIds,
+  );
+  if (newVariants.length > 0) {
+    await run(
+      "adding seed variants",
+      supabase.from("exercise_modalities").upsert(newVariants.map(exerciseModalityToRow), {
+        onConflict: "exercise_id,modality_id",
+        ignoreDuplicates: true,
+      }),
+    );
+  }
 
   // Upsert the seed scores, then drop muscles the seed no longer lists —
   // never delete-all-then-insert, which would leave every built-in with no

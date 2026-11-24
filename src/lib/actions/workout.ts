@@ -17,8 +17,8 @@ import {
   setListProblem,
   setLogProblem,
 } from "../validate";
-import { assertExerciseIds } from "../db/guards";
-import { revalidateAll, run, runMatched, rpc } from "./_helpers";
+import { assertExerciseIds, isMissingColumn } from "../db/guards";
+import { revalidateAll, runMatched, rpc } from "./_helpers";
 
 /** Set ids are slugs (clientSetId / newId) — anything else could break out of
  *  the quoted `not in` filter below. */
@@ -36,10 +36,15 @@ export async function updateSetLog(set: SetLog): Promise<void> {
   await assertExerciseIds([set.exerciseId]);
   assertSetLog(set);
   const { id, session_id, ...fields } = setLogToRow(normalizeSetLog(set));
-  await run(
-    "saving set",
-    supabase.from("set_logs").update(fields).eq("id", id).eq("session_id", session_id),
-  );
+  const { error } = await supabase.from("set_logs").update(fields).eq("id", id).eq("session_id", session_id);
+  if (isMissingColumn(error) && "effort" in fields) {
+    throw new Error(
+      "Saving effort needs a database update — run supabase/migrations/2026-11-23-bike-effort.sql in the Supabase SQL editor.",
+    );
+  }
+  if (error) throw new Error(`saving set: ${error.message}`);
+  // syncSetLogs needs no such check: before the migration, sync_set_logs'
+  // jsonb_populate_recordset just ignores the unknown effort key.
   revalidateAll();
 }
 

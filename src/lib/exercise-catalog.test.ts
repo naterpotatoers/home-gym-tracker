@@ -16,6 +16,8 @@ import {
   scoreForRole,
   buildItSuggestions,
   exercisesForMuscle,
+  missingSeedVariants,
+  variantKey,
 } from "./exercise-catalog";
 import { nameKey } from "./names";
 
@@ -151,6 +153,24 @@ describe("cross-variant score orderings (EMG literature)", () => {
     ["abs", "sit_up", "mcgill_curl_up"],
     // Band TKE's load ceiling sits under the isometric wall sit.
     ["quads", "wall_sit", "band_tke"],
+    // 2026-11 additions. A few pounds at the ankle is targeted work, not a
+    // loaded hinge or Nordic (Bourne 2017).
+    ["hamstrings", "nordic_curl", "standing_leg_curl"],
+    ["hamstrings", "romanian_deadlift", "standing_leg_curl"],
+    // Distefano 2009: side-lying abduction is the glute-med ceiling.
+    ["glute_med", "side_lying_hip_abduction", "standing_hip_abduction"],
+    // McCurdy 2010: elevating the rear foot loads the front leg more.
+    ["quads", "bulgarian_split_squat", "split_squat"],
+    // Escamilla 2002: sumo = more quad, less erector than conventional.
+    ["quads", "sumo_deadlift", "deadlift"],
+    ["lower_back", "deadlift", "sumo_deadlift"],
+    // Botton 2020: the lateral raise stays the side-delt exercise.
+    ["side_delts", "lateral_raise", "upright_row"],
+    ["side_delts", "lateral_raise", "arnold_press"],
+    // Overhead extension's stretched long head beats the kickback.
+    ["triceps", "tricep_extension", "tricep_kickback"],
+    // Hanging straight-leg raise is the hip-flexor ceiling.
+    ["hip_flexors", "hanging_leg_raise", "standing_hip_flexion"],
   ];
 
   it.each(orderings)("%s: %s > %s", (muscle, higher, lower) => {
@@ -273,3 +293,28 @@ describe("exercisesForMuscle", () => {
   });
 });
 
+
+describe("missingSeedVariants (Re-sync's add-only variant step)", () => {
+  const seed = exerciseModalities;
+  const present = (rows: readonly { exerciseId: string; modalityId: string }[]) =>
+    new Set(rows.map((r) => variantKey(r.exerciseId, r.modalityId)));
+
+  it("nothing to add when every seed variant is present", () => {
+    expect(missingSeedVariants(seed, present(seed), new Set(seed.map((v) => v.exerciseId)))).toEqual([]);
+  });
+
+  it("adds only the missing ones for built-ins in the DB, never as the default", () => {
+    const before = seed.filter((v) => !(v.exerciseId === "donkey_kick" && v.modalityId === "ankle_weight"));
+    const out = missingSeedVariants(seed, present(before), new Set(["donkey_kick", "squat"]));
+    expect(out.map((v) => variantKey(v.exerciseId, v.modalityId))).toEqual(["donkey_kick|ankle_weight"]);
+    expect(out.every((v) => !v.isDefault)).toBe(true);
+  });
+
+  it("ignores exercises that aren't built-ins in the DB, and a missing default stays non-default", () => {
+    const withoutSquat = seed.filter((v) => v.exerciseId !== "squat");
+    expect(missingSeedVariants(seed, present(withoutSquat), new Set(["donkey_kick"]))).toEqual([]);
+    const out = missingSeedVariants(seed, present(withoutSquat), new Set(["squat"]));
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.some((v) => v.isDefault)).toBe(false);
+  });
+});

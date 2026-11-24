@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { useSetEditor } from "@/components/use-set-editor";
 import {
   advanceCursor,
+  cursorOrder,
   performOrder,
   resolveCursor,
   restAfterLog,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/session-labels";
 import type { Block } from "@/lib/set-blocks";
 import type { RoutineExercise, SetLog } from "@/lib/types";
+import { isBikeWarmupBlock } from "@/lib/warmup";
 
 export type SetEditor = ReturnType<typeof useSetEditor>;
 
@@ -45,10 +47,14 @@ export function useSessionFlow(
   /** Block explicitly opened by tap; null = follow the current block. */
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [restUntil, setRestUntil] = useState<number | null>(null);
+  /** Sets passed over with Skip this visit — the cursor walks around them
+   *  (so a superset partner still comes up) until the block is tapped. */
+  const [skipped, setSkipped] = useState<ReadonlySet<string>>(() => new Set());
+  const walk = useMemo(() => cursorOrder(ordered, skipped), [ordered, skipped]);
 
   // Id-based cursor: survives restructures (add/remove/swap rebuild the sets
   // array) and only ever resolves FORWARD — a skipped exercise stays skipped.
-  const current = resolveCursor(ordered, cursorId) ?? undefined;
+  const current = resolveCursor(walk, cursorId) ?? undefined;
   const currentBlock = current
     ? editor.blocks.find((b) => b.sets.some((s) => s.id === current.id))
     : undefined;
@@ -69,8 +75,8 @@ export function useSessionFlow(
     // advanceCursor looks strictly after `current`, so computing it before the
     // patch lands is safe. With nothing ahead the cursor parks on the logged
     // set itself, which self-recovers if more sets get appended later.
-    const nextId = advanceCursor(ordered, current.id);
-    const next = nextId !== null ? ordered.find((s) => s.id === nextId) : undefined;
+    const nextId = advanceCursor(walk, current.id);
+    const next = nextId !== null ? walk.find((s) => s.id === nextId) : undefined;
     editor.completeSet(current.id);
     startRest(restAfterLog(current, next, prescriptions, supersets));
     setCursorId(nextId ?? current.id);
@@ -98,12 +104,13 @@ export function useSessionFlow(
   }
 
   function tapBlock(block: Block) {
-    // Upcoming block: move the workout there. Finished block: just open it
-    // for edits without touching the LOG cursor. (There is no explicit
-    // "skip" — tapping the next exercise IS the skip; unchecked sets never
-    // count toward anything.)
+    // Upcoming (or skipped) block: move the workout there. Finished block:
+    // just open it for edits without touching the LOG cursor. Tapping a
+    // later exercise still works as a skip; unchecked sets never count
+    // toward anything.
     const firstIncomplete = block.sets.find((s) => !s.completed);
     if (firstIncomplete) {
+      unskip(block);
       setCursorId(firstIncomplete.id);
       setExpandedKey(null); // it becomes the current block, which auto-expands
     } else {
@@ -115,20 +122,44 @@ export function useSessionFlow(
   // (parked); re-aim it at the next incomplete survivor ahead first.
   function removeSetKeepingCursor(setId: string) {
     if (current && setId === current.id) {
-      setCursorId(advanceCursor(ordered, current.id));
+      setCursorId(advanceCursor(walk, current.id));
     }
     editor.removeSet(setId);
   }
 
   function removeBlockKeepingCursor(block: Block) {
     if (current && block.sets.some((s) => s.id === current.id)) {
-      const at = ordered.findIndex((s) => s.id === current.id);
-      const survivor = ordered.find(
-        (s, i) => i > at && !s.completed && !block.sets.some((b) => b.id === s.id),
-      );
-      setCursorId(survivor?.id ?? null);
+      setCursorId(survivorAfter(current.id, walk, new Set(block.sets.map((s) => s.id))));
     }
     editor.removeBlock(block);
+  }
+
+  /** The next incomplete set after `fromId` in `order` that isn't in
+   *  `excluded` — where the cursor goes when its own block leaves. */
+  function survivorAfter(fromId: string, order: readonly SetLog[], excluded: ReadonlySet<string>) {
+    const at = order.findIndex((s) => s.id === fromId);
+    return order.find((s, i) => i > at && !s.completed && !excluded.has(s.id))?.id ?? null;
+  }
+
+  function unskip(block: Block) {
+    if (!block.sets.some((s) => skipped.has(s.id))) return;
+    setSkipped((prev) => new Set([...prev].filter((id) => !block.sets.some((s) => s.id === id))));
+  }
+
+  /** Skip the current exercise. The bike warm-up just goes (an unlogged
+   *  warm-up is nothing worth keeping); anything else stays in the list,
+   *  unlogged, and the cursor moves on — tap it to come back. */
+  function skipBlock(block: Block) {
+    if (isBikeWarmupBlock(block)) {
+      removeBlockKeepingCursor(block);
+      return;
+    }
+    const ids = new Set(block.sets.filter((s) => !s.completed).map((s) => s.id));
+    if (current && ids.has(current.id)) {
+      setCursorId(survivorAfter(current.id, ordered, new Set([...skipped, ...ids])));
+    }
+    setSkipped((prev) => new Set([...prev, ...ids]));
+    setExpandedKey(null);
   }
 
   /** A parked cursor (nothing ahead) jumps to freshly appended work; an
@@ -157,6 +188,7 @@ export function useSessionFlow(
     collapseExpanded,
     removeSetKeepingCursor,
     removeBlockKeepingCursor,
+    skipBlock,
     onExerciseAdded,
   };
 }

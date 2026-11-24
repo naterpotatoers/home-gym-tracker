@@ -1,3 +1,4 @@
+import { setLoad } from "@/lib/modality";
 import Link from "next/link";
 import { ProgressChart } from "@/components/progress-chart";
 import { Caret, Note, summaryClass } from "@/components/ui";
@@ -32,8 +33,13 @@ export function LiftHistory({
   const exerciseName = data.exerciseById.get(exerciseId)?.name ?? exerciseId;
   const modalityName = modalityById.get(modalityId)?.name ?? modalityId;
   const history = exerciseHistory(data, client, exerciseId, modalityId);
-  const ordinalOnly = history.length > 0 && history.every((p) => p.bestE1rmLbs === null);
-  const trend = ordinalOnly ? null : e1rmTrend(history);
+  // No line to draw when nothing here has an estimated max — say why, by the
+  // actual reason (hip-band rank, ankle weights, holds/bodyweight), never
+  // "ordinal" for work that isn't.
+  const noLine = history.length > 0 && history.every((p) => p.bestE1rmLbs === null);
+  const ordinal =
+    noLine && history.some((p) => p.sets.some((set) => setLoad(data, set).precision === "ordinal"));
+  const trend = noLine ? null : e1rmTrend(history);
   const newestFirst = [...history].reverse();
 
   let best: ExerciseHistoryPoint | null = null;
@@ -100,7 +106,7 @@ export function LiftHistory({
         <Note>No logged sets for {personName} on this variant.</Note>
       ) : (
         <>
-          {ordinalOnly ? (
+          {ordinal ? (
             <Note>
               Hip-band work is ordinal — band rank and reps, never pounds — so
               there is no line to draw. Progress here is moving down the ladder:{" "}
@@ -108,6 +114,12 @@ export function LiftHistory({
                 .map(({ band, rank }) => `${rank}. ${band.label}`)
                 .join(" · ")}
               . Smaller is harder.
+            </Note>
+          ) : noLine ? (
+            <Note>
+              {modalityId === "ankle_weight"
+                ? "Fixed-weight ankle work has no estimated max — progress is more reps and sets at the same weight (then a heavier pair)."
+                : "No estimated max for this work (a hold, bodyweight without a weigh-in, or a mobility drill) — progress is the reps and time below."}
             </Note>
           ) : (
             points.length > 0 && (

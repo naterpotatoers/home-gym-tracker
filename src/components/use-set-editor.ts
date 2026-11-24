@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getSuggestedLoad, syncSetLogs, updateSetLog } from "@/lib/actions/workout";
 import { errorMessage } from "@/lib/format";
 import { randomSuffix } from "@/lib/ids";
-import { DEFAULT_STEADY_SECONDS, EMPTY_CONDITIONING } from "@/lib/conditioning";
 import type { Variant } from "@/lib/queries";
 import {
   cascadePatch,
@@ -16,7 +15,8 @@ import {
 } from "@/lib/set-blocks";
 import type { RoutineExercise, Session, SetLog } from "@/lib/types";
 import { variantKey, type ExerciseCatalog } from "@/lib/exercise-catalog";
-import { freshSets, type LoadPrefill } from "@/lib/set-templates";
+import { freshSets, swappedSet, type LoadPrefill } from "@/lib/set-templates";
+import { dropUnloggedBikeWarmups } from "@/lib/warmup";
 
 function clientSetId(): string {
   return `sl_${randomSuffix(8)}`;
@@ -214,28 +214,14 @@ export function useSetEditor(session: Session, initialSets: SetLog[], catalog: E
   /** Replace a block's exercise: incomplete sets move to the new variant with
    *  the client's last-used load; completed sets stay as performed. */
   async function swapExercise(block: Block, variant: Variant) {
-    const em = variant.exerciseModality;
-    const { target, ...load } = await fetchPrefill(em);
-    const toBike = variant.pattern === "conditioning";
+    const prefill = await fetchPrefill(variant.exerciseModality);
     // Re-read AFTER the await — edits made while the prefill was in flight
     // must survive the sync (which deletes rows missing from its list). A set
     // completed during the await stays as performed.
     const blockIds = new Set(block.sets.map((s) => s.id));
     restructure(
       setsRef.current.map((set) =>
-        blockIds.has(set.id) && !set.completed
-          ? {
-              ...set,
-              exerciseId: em.exerciseId,
-              modalityId: em.modalityId,
-              unilateralMode: em.defaultUnilateralMode,
-              ...load,
-              conditioning: toBike ? { ...EMPTY_CONDITIONING, ...target } : null,
-              ...(toBike
-                ? { reps: null, durationSeconds: set.durationSeconds ?? DEFAULT_STEADY_SECONDS }
-                : {}),
-            }
-          : set,
+        blockIds.has(set.id) && !set.completed ? swappedSet(set, variant, prefill) : set,
       ),
     );
   }
@@ -294,11 +280,16 @@ export function useSetEditor(session: Session, initialSets: SetLog[], catalog: E
   }
 
   /** Cancel pending debounced saves and persist the current list — call
-   *  before finishing the session. */
+   *  before finishing the session. An unlogged bike warm-up is dropped here
+   *  (it didn't happen); the sync is one transaction, so the delete and the
+   *  renumber land together. */
   async function flush() {
     clearTimers();
     pendingSaves.current.clear();
-    await syncSetLogs(session.id, setsRef.current);
+    const kept = dropUnloggedBikeWarmups(setsRef.current);
+    const next = kept === setsRef.current ? kept : renumber(kept);
+    if (next !== setsRef.current) commit(next);
+    await syncSetLogs(session.id, next);
   }
 
   return {

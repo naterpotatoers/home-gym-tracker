@@ -1,4 +1,5 @@
 import type {
+  AnkleWeightPair,
   Band,
   Bar,
   DumbbellPair,
@@ -24,6 +25,7 @@ export const equipment: readonly Equipment[] = [
   { id: "hip_bands", name: "Rogue Hip Bands", owned: true },
   { id: "floor", name: "Floor / Mat", owned: true },
   { id: "echo_bike", name: "Rogue Echo Bike", owned: true },
+  { id: "ankle_weights", name: "Ankle Weights (pair)", owned: true },
 ];
 
 export const bars: readonly Bar[] = [
@@ -70,6 +72,11 @@ export const dumbbells: readonly DumbbellPair[] = [
   { weightLbs: 45 },
   { weightLbs: 50 },
 ];
+
+/** Strap-on ankle weights, one per leg. Fixed pairs like the dumbbells; the
+ *  set's weightLbs is ONE ankle weight (the working leg's load). Buying a
+ *  heavier pair is a one-line edit here — progression then steps to it. */
+export const ankleWeights: readonly AnkleWeightPair[] = [{ weightLbs: 5 }];
 
 /** Full-length loop bands. Tension is a range because it rises with stretch —
  *  a single number would overstate the precision. Doubles as an assisted

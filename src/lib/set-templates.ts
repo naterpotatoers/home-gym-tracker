@@ -1,6 +1,7 @@
 import { DEFAULT_STEADY_SECONDS, EMPTY_CONDITIONING, pieceSeconds } from "./conditioning";
 import type { Variant } from "./queries";
 import type { ConditioningTarget, RoutineExercise, SetLog } from "./types";
+import { isBikeWarmupSet } from "./warmup";
 
 /**
  * Starting shapes for new rows — pure and client-safe (types only), so the
@@ -99,4 +100,51 @@ export function freshSets({
     notes: "",
     conditioning,
   }));
+}
+
+/**
+ * One not-yet-done set moved to another variant (Swap exercise). The load is
+ * the person's last-used one for the new variant; the metric fields follow
+ * the new exercise — a bike piece gets its target and length, a lift loses
+ * the piece's time/distance/readout, a hold gets a time instead of reps.
+ * Only the bike warm-up's flag is dropped: whatever it's swapped to is real
+ * work now (a squat warm-up swapped to front squat is still a warm-up).
+ */
+export function swappedSet(
+  set: SetLog,
+  variant: Variant,
+  prefill: LoadPrefill,
+  rx?: RoutineExercise,
+): SetLog {
+  const em = variant.exerciseModality;
+  const { target, ...load } = prefill;
+  const toBike = variant.pattern === "conditioning";
+  const fromBike = set.conditioning !== null || isBikeWarmupSet(set);
+  const timed = variant.metricType === "time";
+  const base: SetLog = {
+    ...set,
+    exerciseId: em.exerciseId,
+    modalityId: em.modalityId,
+    unilateralMode: em.defaultUnilateralMode,
+    side: null,
+    ...load,
+    isWarmup: isBikeWarmupSet(set) ? false : set.isWarmup,
+  };
+  if (toBike) {
+    return {
+      ...base,
+      reps: null,
+      distanceFeet: null,
+      conditioning: { ...EMPTY_CONDITIONING, ...target },
+      durationSeconds: fromBike ? (set.durationSeconds ?? DEFAULT_STEADY_SECONDS) : DEFAULT_STEADY_SECONDS,
+    };
+  }
+  const wasTimed = set.reps === null && set.durationSeconds !== null && !fromBike;
+  return {
+    ...base,
+    conditioning: null,
+    distanceFeet: null,
+    reps: timed ? null : fromBike || wasTimed || set.reps === null ? (rx?.repMax ?? 10) : set.reps,
+    durationSeconds: timed ? (wasTimed ? set.durationSeconds : (rx?.durationSeconds ?? 30)) : null,
+  };
 }

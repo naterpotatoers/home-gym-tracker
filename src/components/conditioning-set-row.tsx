@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { EffortScale } from "@/components/effort-picker";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { TrashIcon } from "@/components/icons";
 import { NumberInput, Select, StepperInput } from "@/components/ui";
@@ -8,6 +9,7 @@ import {
   CONSOLE_PRESETS,
   conditioningOf,
   DEFAULT_STEADY_SECONDS,
+  effortLabel,
   feetToMiles,
   milesToFeet,
   parseIntervalScheme,
@@ -19,6 +21,7 @@ import {
   TARGET_RESULT_LABELS,
   type TargetResult,
 } from "@/lib/conditioning";
+import { mmss } from "@/lib/periods";
 import { conditioningSetLabel } from "@/lib/session-labels";
 import type { ConditioningLog, SetLog } from "@/lib/types";
 import { WARMUP_EFFORT } from "@/lib/warmup";
@@ -59,7 +62,13 @@ export function ConditioningSetRow({
   const target = targetLabel(log);
   // The block header already names the piece; the row leads with the numbers.
   const readout = readoutLabel(log, set.distanceFeet);
-  const compactText = readout ?? (target ? `target ${target}` : pieceLabel(log.intervalScheme, set.durationSeconds));
+  const effort = effortLabel(log);
+  const compactText =
+    readout !== null
+      ? [readout, effort].filter((p) => p !== null).join(" · ")
+      : target
+        ? `target ${target}`
+        : pieceLabel(log.intervalScheme, set.durationSeconds);
 
   function edit(changes: Partial<SetLog>) {
     if (set.completed) {
@@ -190,18 +199,45 @@ export function ConditioningSetRow({
         </p>
       )}
 
-      {/* The console's frozen screen after STOP */}
-      <div className="grid grid-cols-3 gap-2 @min-[27rem]:grid-cols-5">
-        <Readout caption="avg W" value={log.avgWatts} onChange={(v) => editLog({ avgWatts: whole(v) })} size={size} />
-        <Readout caption="max W" value={log.maxWatts} onChange={(v) => editLog({ maxWatts: whole(v) })} size={size} />
-        <Readout caption="avg rpm" value={log.avgRpm} onChange={(v) => editLog({ avgRpm: whole(v) })} size={size} />
-        <Readout caption="cal" value={log.calories} onChange={(v) => editLog({ calories: whole(v) })} size={size} />
+      {/* The console's frozen screen after STOP, laid out like the Echo's:
+          WATTS (avg, then max — the AVG/MAX toggle) and CADENCE on top;
+          DISTANCE · TIME · CALORIES underneath. Speed is skipped (it's
+          derived from watts). */}
+      <div className="grid grid-cols-3 gap-2" role="group" aria-label="Console readout">
+        <Readout caption="avg watts" value={log.avgWatts} onChange={(v) => editLog({ avgWatts: whole(v) })} size={size} />
+        <Readout caption="max watts" value={log.maxWatts} onChange={(v) => editLog({ maxWatts: whole(v) })} size={size} />
+        <Readout caption="avg cadence" value={log.avgRpm} onChange={(v) => editLog({ avgRpm: whole(v) })} size={size} />
         <Readout
-          caption="miles"
+          caption="distance mi"
           step={0.01}
           value={set.distanceFeet === null ? null : Number(feetToMiles(set.distanceFeet).toFixed(2))}
           onChange={(v) => edit({ distanceFeet: v === null ? null : milesToFeet(v) })}
           size={size}
+        />
+        {/* Time is the piece's length — shown so the grid matches the
+            console, not typed (change the piece above). */}
+        <div className="flex min-w-0 flex-col">
+          <span
+            className={`flex items-center justify-center rounded-md border border-dashed border-border font-mono text-muted ${
+              size === "sm" ? "min-h-9 pointer-coarse:min-h-11 text-sm" : "min-h-11 text-base"
+            }`}
+          >
+            {set.durationSeconds !== null ? mmss(set.durationSeconds) : "—"}
+          </span>
+          <span className="mt-0.5 text-center text-[10px] leading-none text-muted">time</span>
+        </div>
+        <Readout caption="calories" value={log.calories} onChange={(v) => editLog({ calories: whole(v) })} size={size} />
+      </div>
+
+      {/* How hard it felt — a self-report, not a console number, so picking
+          one doesn't un-log the piece. */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted">How hard did it feel? (1 easy – 10 all-out)</p>
+        <EffortScale
+          value={log.effort ?? null}
+          onChange={(value) => onChange({ conditioning: { ...log, effort: value } })}
+          label="Piece effort"
+          grid={dense}
         />
       </div>
 

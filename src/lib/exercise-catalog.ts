@@ -97,6 +97,23 @@ export function variantKey(exerciseId: string, modalityId: string): string {
   return `${exerciseId}|${modalityId}`;
 }
 
+/**
+ * Seed variants a database that already holds the built-ins is missing — a
+ * new equipment option shipped for an existing exercise (e.g. ankle weights
+ * on the donkey kick). Only built-ins (`builtInIds`, the seed ids present in
+ * the DB) are considered, and never as the default: the exercise already has
+ * one, and the DB allows exactly one.
+ */
+export function missingSeedVariants(
+  seed: readonly ExerciseModality[],
+  presentKeys: ReadonlySet<string>,
+  builtInIds: ReadonlySet<string>,
+): ExerciseModality[] {
+  return seed
+    .filter((em) => builtInIds.has(em.exerciseId) && !presentKeys.has(variantKey(em.exerciseId, em.modalityId)))
+    .map((em) => ({ ...em, isDefault: false }));
+}
+
 export function groupBy<T, K>(rows: readonly T[], key: (row: T) => K): Map<K, T[]> {
   const out = new Map<K, T[]>();
   for (const row of rows) {

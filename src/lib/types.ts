@@ -56,7 +56,8 @@ export type ModalityId =
   | "bodyweight"
   | "band"
   | "machine"
-  | "cardio";
+  | "cardio"
+  | "ankle_weight";
 
 export type EquipmentId =
   | "rack"
@@ -73,7 +74,8 @@ export type EquipmentId =
   | "monster_bands"
   | "hip_bands"
   | "floor"
-  | "echo_bike";
+  | "echo_bike"
+  | "ankle_weights";
 
 export type BandId =
   | "band_orange"
@@ -185,6 +187,11 @@ export type PlatePair = {
 
 export type DumbbellPair = {
   /** Weight of a single dumbbell. Total moved is this times implements used. */
+  weightLbs: number;
+};
+
+export type AnkleWeightPair = {
+  /** Weight of ONE ankle weight — the load on the working leg. */
   weightLbs: number;
 };
 
@@ -493,12 +500,19 @@ export type ConditioningTarget = {
   targetRpm: number | null;
 };
 
-/** What the console shows after STOP (distance lives in SetLog.distanceFeet). */
+/** What the console shows after STOP (distance lives in SetLog.distanceFeet),
+ *  plus how hard the piece felt. */
 export type ConditioningLog = ConditioningTarget & {
   avgWatts: number | null;
   maxWatts: number | null;
   avgRpm: number | null;
   calories: number | null;
+  /** Self-reported effort, 1–10 — "more watts at the same effort" is the
+   *  fitness signal. Absent (undefined) until someone picks one, or while
+   *  the 2026-11-23-bike-effort migration hasn't run: an absent key is never
+   *  written, so an un-migrated table keeps accepting bike rows. Null =
+   *  explicitly cleared. */
+  effort?: number | null;
 };
 
 // ---------------------------------------------------------------------------

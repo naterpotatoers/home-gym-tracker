@@ -109,6 +109,24 @@ describe("mapper round-trips (row ↔ type symmetry)", () => {
     expect(rowToRoutineExercise(routineExerciseToRow(rx))).toEqual(rx);
   });
 
+  it("effort: written only when set (un-migrated DBs), round-trips, cleared → null on the wire", () => {
+    const bike = {
+      ...setLogs[0],
+      exerciseId: "echo_bike",
+      modalityId: "cardio" as const,
+      conditioning: { intervalScheme: "8x20/10", targetWatts: 120, targetRpm: null, avgWatts: 116, maxWatts: 136, avgRpm: 45, calories: 20 },
+    };
+    // No effort key → no effort column in the write.
+    expect(Object.keys(setLogToRow(bike))).not.toContain("effort");
+    const rated = { ...bike, conditioning: { ...bike.conditioning, effort: 6 } };
+    expect(setLogToRow(rated)).toMatchObject({ effort: 6 });
+    expect(rowToSetLog(setLogToRow(rated))).toEqual(rated);
+    // Clearing sends null (so the old value is overwritten) and reads back as no effort.
+    const cleared = { ...bike, conditioning: { ...bike.conditioning, effort: null } };
+    expect(setLogToRow(cleared)).toMatchObject({ effort: null });
+    expect(rowToSetLog(setLogToRow(cleared))).toEqual(bike);
+  });
+
   it("clients and weigh-ins", () => {
     for (const c of clients) expect(rowToClient(clientToRow(c))).toEqual(c);
     for (const w of weighIns) expect(rowToWeighIn(weighInToRow(w))).toEqual(w);

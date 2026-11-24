@@ -98,17 +98,35 @@ export function sidesWorked(set: Pick<SetLog, "unilateralMode">): number {
 }
 
 /**
- * What a set actually loaded. Handles the five load shapes:
- * plates, dumbbells (per-implement), bodyweight ± added weight, band
- * resistance (approximate range), and band assistance (subtracts).
+ * What a set actually loaded. Handles every load shape: plates, dumbbells
+ * (per-implement), an ankle weight (one, on the working leg), bodyweight ±
+ * added weight, band resistance (approximate range), band assistance
+ * (subtracts) — and cardio, which has no pounds at all. Exhaustive: a new
+ * modality is a compile error here, never a silent fall into the band math.
  */
 export function setLoad(data: GymData, set: SetLog): SetLoad {
   const totalReps = (set.reps ?? 0) * sidesWorked(set);
-  const bodyweight = bodyweightOn(data, set);
-
-  if (set.modalityId === "barbell" || set.modalityId === "machine") {
-    return { lbs: set.weightLbs, precision: "exact", totalReps };
+  switch (set.modalityId) {
+    case "barbell":
+    case "machine":
+    case "ankle_weight":
+      return { lbs: set.weightLbs, precision: "exact", totalReps };
+    case "cardio":
+      // Watts and RPM live in SetLog.conditioning — never a pound value.
+      return { lbs: null, precision: "exact", totalReps };
+    case "dumbbell":
+    case "bodyweight":
+    case "band":
+      return liftedLoad(data, set, totalReps);
+    default: {
+      const unhandled: never = set.modalityId;
+      throw new Error(`setLoad: unhandled modality ${String(unhandled)}`);
+    }
   }
+}
+
+function liftedLoad(data: GymData, set: SetLog, totalReps: number): SetLoad {
+  const bodyweight = bodyweightOn(data, set);
 
   if (set.modalityId === "dumbbell") {
     if (set.weightLbs === null) return { lbs: null, precision: "exact", totalReps };
@@ -188,9 +206,14 @@ function epleyFactor(reps: number): number {
 
 /**
  * Epley estimated 1RM. Returns null for anything without a real load — a hip
- * band set has no magnitude, so there is nothing to extrapolate from.
+ * band set has no magnitude, so there is nothing to extrapolate from — for
+ * ankle-weight work (a 5 lb lever load says nothing about a max; it
+ * progresses by reps), and for non-strength exercises (a stretch or bike
+ * piece logged with reps is not a lift).
  */
 export function e1rm(data: GymData, set: SetLog): number | null {
+  if (set.modalityId === "ankle_weight") return null;
+  if (!isStrengthPattern(data.exerciseById.get(set.exerciseId)?.pattern)) return null;
   const load = setLoad(data, set);
   if (load.precision === "ordinal") return null;
   if (load.lbs === null || set.reps === null || set.reps <= 0) return null;

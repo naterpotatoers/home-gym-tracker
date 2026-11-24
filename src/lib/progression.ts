@@ -59,10 +59,12 @@ function loadOf(set: SetLog): number | null {
     case "barbell":
     case "dumbbell":
     case "machine":
+    case "ankle_weight":
       return set.weightLbs;
     case "bodyweight":
       return set.addedWeightLbs ?? 0;
-    default:
+    case "band":
+    case "cardio":
       return null;
   }
 }

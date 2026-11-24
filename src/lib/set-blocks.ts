@@ -1,4 +1,5 @@
 import type { SetLog } from "./types";
+import { isBikeWarmupSet } from "./warmup";
 
 /** A consecutive run of sets on the same exercise × modality, in performed
  *  order — the client-side counterpart of queries.ts `blocksFor`. */
@@ -9,11 +10,25 @@ export type Block = {
   sets: SetLog[];
 };
 
+type BlockFields = Pick<SetLog, "exerciseId" | "modalityId" | "isWarmup">;
+
+/** Whether two adjacent sets belong to one block: same exercise × modality,
+ *  and both or neither the bike warm-up — so the warm-up never merges with
+ *  an Echo Bike piece right after it (its own tag, rx line and Skip/Remove).
+ *  A strength set toggled to warm-up stays in its exercise's block. */
+export function sameBlock(a: BlockFields, b: BlockFields): boolean {
+  return (
+    a.exerciseId === b.exerciseId &&
+    a.modalityId === b.modalityId &&
+    isBikeWarmupSet(a) === isBikeWarmupSet(b)
+  );
+}
+
 export function toBlocks(sets: readonly SetLog[]): Block[] {
   const out: Block[] = [];
   for (const set of sets) {
     const last = out.at(-1);
-    if (last && last.exerciseId === set.exerciseId && last.modalityId === set.modalityId) {
+    if (last && sameBlock(last.sets.at(-1)!, set)) {
       last.sets.push(set);
     } else {
       out.push({
@@ -36,10 +51,7 @@ export function renumber(sets: SetLog[]): SetLog[] {
   let setNumber = 0;
   return sets.map((set, index) => {
     const prev = sets[index - 1];
-    setNumber =
-      prev && prev.exerciseId === set.exerciseId && prev.modalityId === set.modalityId
-        ? setNumber + 1
-        : 1;
+    setNumber = prev && sameBlock(prev, set) ? setNumber + 1 : 1;
     return { ...set, position: index + 1, setNumber };
   });
 }
@@ -93,12 +105,15 @@ export function cascadePatch(changes: Partial<SetLog>): Partial<SetLog> {
 }
 
 /**
- * LOG for a dumbbell/barbell set entered at 0 lb: that's bodyweight work, so
+ * LOG for a dumbbell/barbell/ankle-weight set entered at 0 lb (ankle: "none")
+ * — that's bodyweight work, so
  * it's recorded as the exercise's bodyweight variant (weights cleared). The
  * block's other 0 lb sets switch with it, so it stays one block. Null when
  * the rule doesn't apply — not 0 lb, or the exercise has no bodyweight
  * variant (`hasBodyweight`) — and the caller just marks the set done.
  */
+const ZERO_IS_BODYWEIGHT: ReadonlySet<SetLog["modalityId"]> = new Set(["dumbbell", "barbell", "ankle_weight"]);
+
 export function completeAsBodyweight(
   sets: readonly SetLog[],
   setId: string,
@@ -108,7 +123,7 @@ export function completeAsBodyweight(
   if (
     !target ||
     target.weightLbs !== 0 ||
-    (target.modalityId !== "dumbbell" && target.modalityId !== "barbell") ||
+    !ZERO_IS_BODYWEIGHT.has(target.modalityId) ||
     !hasBodyweight(target.exerciseId)
   ) {
     return null;

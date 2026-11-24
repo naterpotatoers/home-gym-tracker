@@ -161,6 +161,42 @@ const baseExercises: readonly Exercise[] = [
   { id: "lizard_pose", name: "Lizard Pose (Hips)", pattern: "mobility", metricType: "time", isCompound: false },
   { id: "triangle_pose", name: "Triangle Pose (Hamstrings/Side)", pattern: "mobility", metricType: "time", isCompound: false },
   { id: "pancake_stretch", name: "Seated Straddle (Pancake)", pattern: "mobility", metricType: "time", isCompound: false },
+  // ---- 2026-11 additions: ankle weights + gaps with owned gear ----
+  // Ankle-weight moves (the strap-on 5 lb pair). Standing hip ADDuction is
+  // deliberately absent: standing, gravity doesn't resist it.
+  { id: "standing_leg_curl", name: "Standing Leg Curl", aliases: ["Standing Hamstring Curl"], pattern: "isolation", metricType: "reps", isCompound: false },
+  { id: "prone_leg_curl", name: "Prone Leg Curl", aliases: ["Lying Leg Curl"], pattern: "isolation", metricType: "reps", isCompound: false },
+  { id: "standing_glute_kickback", name: "Standing Glute Kickback", aliases: ["Standing Hip Extension"], pattern: "hinge", metricType: "reps", isCompound: false },
+  { id: "standing_hip_abduction", name: "Standing Hip Abduction", aliases: ["Standing Side Leg Raise"], pattern: "core", metricType: "reps", isCompound: false },
+  { id: "side_lying_hip_adduction", name: "Side-Lying Hip Adduction", aliases: ["Inner Thigh Lift"], pattern: "core", metricType: "reps", isCompound: false },
+  { id: "standing_hip_flexion", name: "Standing Hip Flexion", aliases: ["Standing March", "Standing Knee Drive"], pattern: "core", metricType: "reps", isCompound: false },
+  { id: "seated_leg_extension", name: "Seated Leg Extension", aliases: ["Seated Knee Extension"], pattern: "isolation", metricType: "reps", isCompound: false },
+  { id: "straight_leg_raise", name: "Straight-Leg Raise", aliases: ["SLR"], pattern: "isolation", metricType: "reps", isCompound: false },
+  // Lower body
+  { id: "reverse_lunge", name: "Reverse Lunge", aliases: ["Backward Lunge", "Step-Back Lunge"], pattern: "lunge", metricType: "reps", isCompound: true },
+  { id: "curtsy_lunge", name: "Curtsy Lunge", aliases: ["Crossover Lunge"], pattern: "lunge", metricType: "reps", isCompound: true },
+  { id: "split_squat", name: "Split Squat", aliases: ["Static Lunge", "Stationary Lunge"], pattern: "squat", metricType: "reps", isCompound: true },
+  { id: "cossack_squat", name: "Cossack Squat", pattern: "lunge", metricType: "reps", isCompound: true },
+  { id: "step_down", name: "Step-Down", aliases: ["Lateral Step-Down", "Eccentric Step-Down"], pattern: "lunge", metricType: "reps", isCompound: true },
+  { id: "sumo_deadlift", name: "Sumo Deadlift", aliases: ["Sumo Pull"], pattern: "hinge", metricType: "reps", isCompound: true },
+  // Upper body
+  { id: "rear_delt_fly", name: "Rear Delt Fly", aliases: ["Reverse Fly", "Rear Delt Raise"], pattern: "pull_h", metricType: "reps", isCompound: false },
+  { id: "upright_row", name: "Upright Row", pattern: "pull_v", metricType: "reps", isCompound: true },
+  { id: "pullover", name: "Pullover", aliases: ["Dumbbell Pullover"], pattern: "pull_v", metricType: "reps", isCompound: false },
+  { id: "arnold_press", name: "Arnold Press", pattern: "push_v", metricType: "reps", isCompound: true },
+  { id: "tricep_kickback", name: "Tricep Kickback", aliases: ["Triceps Kickback"], pattern: "isolation", metricType: "reps", isCompound: false },
+  { id: "close_grip_push_up", name: "Close-Grip Push-Up", aliases: ["Diamond Push-Up"], pattern: "push_h", metricType: "reps", isCompound: true },
+  { id: "pike_push_up", name: "Pike Push-Up", pattern: "push_v", metricType: "reps", isCompound: true },
+  { id: "zottman_curl", name: "Zottman Curl", pattern: "isolation", metricType: "reps", isCompound: false },
+  // Core / PT
+  { id: "hip_airplane", name: "Hip Airplane", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "reverse_crunch", name: "Reverse Crunch", pattern: "core", metricType: "reps", isCompound: false },
+  { id: "flutter_kick", name: "Flutter Kicks", aliases: ["Flutter Kick"], pattern: "core", metricType: "time", isCompound: false },
+  { id: "side_plank_hip_dip", name: "Side Plank Hip Dip", aliases: ["Side Plank Dip"], pattern: "core", metricType: "reps", isCompound: false },
+  // Mobility
+  { id: "deep_squat_hold", name: "Deep Squat Hold (Hips/Ankles)", pattern: "mobility", metricType: "time", isCompound: false },
+  { id: "band_pass_through", name: "Band Pass-Through (Shoulders)", aliases: ["Shoulder Dislocate"], pattern: "mobility", metricType: "reps", isCompound: false },
+  { id: "hip_cars", name: "Hip CARs (Hips)", aliases: ["Hip Circles", "Hip Controlled Articular Rotations"], pattern: "mobility", metricType: "time", isCompound: false },
   // ---- conditioning ---- (no muscle scores: it never feeds the heat map)
   { id: "echo_bike", name: "Echo Bike", aliases: ["Assault Bike", "Air Bike", "Fan Bike"], pattern: "conditioning", metricType: "time", isCompound: true },
 ];
@@ -529,6 +565,68 @@ export const exerciseMuscleScores: readonly ExerciseMuscleScore[] = [
   s("bear_crawl", "hip_flexors", 5), s("bear_crawl", "serratus", 4),
   s("bear_crawl", "obliques", 4), s("bear_crawl", "triceps", 3),
 
+  // ---- 2026-11 additions (docs/exercise-scoring-references.md, "2026-11
+  // additions"). Ankle-weight isolation: a few pounds on a long lever —
+  // targeted but far below the loaded hinge/Nordic ceilings (Bourne 2017
+  // hamstrings; Distefano 2009 side-lying > standing for glute med).
+  s("standing_leg_curl", "hamstrings", 7), s("standing_leg_curl", "calves", 2),
+  s("standing_leg_curl", "glute_med", 2),
+  s("prone_leg_curl", "hamstrings", 7), s("prone_leg_curl", "calves", 2),
+  s("standing_glute_kickback", "glutes", 6), s("standing_glute_kickback", "hamstrings", 4),
+  s("standing_glute_kickback", "glute_med", 3), s("standing_glute_kickback", "lower_back", 2),
+  s("standing_hip_abduction", "glute_med", 8), s("standing_hip_abduction", "glutes", 3),
+  s("standing_hip_abduction", "obliques", 2),
+  s("side_lying_hip_adduction", "adductors", 8), s("side_lying_hip_adduction", "obliques", 2),
+  s("standing_hip_flexion", "hip_flexors", 8), s("standing_hip_flexion", "abs", 3),
+  s("standing_hip_flexion", "glute_med", 2),
+  s("seated_leg_extension", "quads", 7),
+  s("straight_leg_raise", "hip_flexors", 7), s("straight_leg_raise", "quads", 6),
+  s("straight_leg_raise", "abs", 2),
+  // Lunge family — reverse lunge ≈ forward lunge with less knee shear;
+  // curtsy adds glute med; split squat sits just under the rear-foot-elevated
+  // version (McCurdy 2010); Cossack lives in the side-lunge adductor range.
+  s("reverse_lunge", "quads", 8), s("reverse_lunge", "glutes", 8),
+  s("reverse_lunge", "hamstrings", 4), s("reverse_lunge", "glute_med", 4),
+  s("reverse_lunge", "adductors", 3), s("reverse_lunge", "abs", 2), s("reverse_lunge", "calves", 2),
+  s("curtsy_lunge", "quads", 8), s("curtsy_lunge", "glutes", 7), s("curtsy_lunge", "glute_med", 6),
+  s("curtsy_lunge", "adductors", 4), s("curtsy_lunge", "hamstrings", 2),
+  s("split_squat", "quads", 9), s("split_squat", "glutes", 7), s("split_squat", "glute_med", 4),
+  s("split_squat", "adductors", 4), s("split_squat", "hamstrings", 3), s("split_squat", "abs", 2),
+  s("cossack_squat", "adductors", 7), s("cossack_squat", "quads", 7), s("cossack_squat", "glutes", 6),
+  s("cossack_squat", "glute_med", 4), s("cossack_squat", "hamstrings", 2),
+  s("step_down", "quads", 8), s("step_down", "glute_med", 6), s("step_down", "glutes", 5),
+  s("step_down", "adductors", 2), s("step_down", "calves", 2),
+  // Sumo vs conventional (Escamilla 2002): more quad and adductor, less
+  // erector demand from the upright torso.
+  s("sumo_deadlift", "glutes", 10), s("sumo_deadlift", "quads", 7), s("sumo_deadlift", "adductors", 7),
+  s("sumo_deadlift", "hamstrings", 6), s("sumo_deadlift", "lower_back", 6), s("sumo_deadlift", "traps", 5),
+  s("sumo_deadlift", "forearms", 5), s("sumo_deadlift", "abs", 3),
+  // Upper body. Rear-delt fly is the dumbbell face pull (rear delts own it);
+  // upright row and Arnold press both trail the lateral raise for the side
+  // delt (Botton 2020); kickback trails the overhead extension (long head).
+  s("rear_delt_fly", "rear_delts", 10), s("rear_delt_fly", "rhomboids", 6),
+  s("rear_delt_fly", "traps", 5), s("rear_delt_fly", "rotator_cuff", 4),
+  s("upright_row", "side_delts", 9), s("upright_row", "traps", 9), s("upright_row", "front_delts", 4),
+  s("upright_row", "biceps", 3), s("upright_row", "forearms", 3),
+  s("pullover", "lats", 7), s("pullover", "mid_chest", 7), s("pullover", "triceps", 4),
+  s("pullover", "serratus", 4), s("pullover", "abs", 2),
+  s("arnold_press", "front_delts", 10), s("arnold_press", "side_delts", 7), s("arnold_press", "triceps", 6),
+  s("arnold_press", "upper_chest", 3), s("arnold_press", "rotator_cuff", 3), s("arnold_press", "traps", 3),
+  s("tricep_kickback", "triceps", 9), s("tricep_kickback", "rear_delts", 2),
+  s("close_grip_push_up", "triceps", 9), s("close_grip_push_up", "mid_chest", 8),
+  s("close_grip_push_up", "front_delts", 5), s("close_grip_push_up", "abs", 3),
+  s("close_grip_push_up", "serratus", 2),
+  s("pike_push_up", "front_delts", 9), s("pike_push_up", "triceps", 7), s("pike_push_up", "upper_chest", 3),
+  s("pike_push_up", "serratus", 3), s("pike_push_up", "traps", 3),
+  s("zottman_curl", "biceps", 9), s("zottman_curl", "forearms", 8),
+  // Core / PT
+  s("hip_airplane", "glute_med", 7), s("hip_airplane", "glutes", 5), s("hip_airplane", "hamstrings", 3),
+  s("hip_airplane", "obliques", 3), s("hip_airplane", "adductors", 2),
+  s("reverse_crunch", "abs", 9), s("reverse_crunch", "hip_flexors", 4), s("reverse_crunch", "obliques", 3),
+  s("flutter_kick", "hip_flexors", 8), s("flutter_kick", "abs", 7), s("flutter_kick", "quads", 2),
+  s("side_plank_hip_dip", "obliques", 10), s("side_plank_hip_dip", "glute_med", 6),
+  s("side_plank_hip_dip", "abs", 5), s("side_plank_hip_dip", "side_delts", 2),
+
   // Mobility (stretch/*_stretch/poses): intentionally none — the whole
   // pattern is excluded from volume math; see `pattern: 'mobility'`.
 ];
@@ -715,6 +813,60 @@ export const exerciseModalities: readonly ExerciseModality[] = [
   em("lizard_pose", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
   em("triangle_pose", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
   em("pancake_stretch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  // ---- 2026-11 additions ----
+  em("standing_leg_curl", "ankle_weight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["ankle_weights"], notes: "Hold the rack or a chair. Thigh stays still; curl the heel to the glute." }),
+  em("standing_leg_curl", "bodyweight", { defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("prone_leg_curl", "ankle_weight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["ankle_weights", "floor"] }),
+  em("standing_glute_kickback", "ankle_weight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["ankle_weights"] }),
+  em("standing_glute_kickback", "band", { bandRoles: ["resistance"], defaultUnilateralMode: "single_side", requiredEquipment: ["hip_bands"] }),
+  em("standing_glute_kickback", "bodyweight", { defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("standing_hip_abduction", "ankle_weight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["ankle_weights"] }),
+  em("standing_hip_abduction", "band", { bandRoles: ["resistance"], defaultUnilateralMode: "single_side", requiredEquipment: ["hip_bands"] }),
+  em("standing_hip_abduction", "bodyweight", { defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("side_lying_hip_adduction", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("side_lying_hip_adduction", "ankle_weight", { defaultUnilateralMode: "single_side", requiredEquipment: ["ankle_weights", "floor"] }),
+  em("standing_hip_flexion", "ankle_weight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["ankle_weights"] }),
+  em("standing_hip_flexion", "bodyweight", { defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("seated_leg_extension", "ankle_weight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["ankle_weights", "bench"], notes: "Sit tall on the bench edge; straighten the knee fully, pause, lower slow." }),
+  em("straight_leg_raise", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("straight_leg_raise", "ankle_weight", { defaultUnilateralMode: "single_side", requiredEquipment: ["ankle_weights", "floor"] }),
+  em("reverse_lunge", "dumbbell", { isDefault: true, defaultUnilateralMode: "alternating", implements: 2, requiredEquipment: ["dumbbells"] }),
+  em("reverse_lunge", "bodyweight", { defaultUnilateralMode: "alternating", requiredEquipment: ["floor"] }),
+  em("reverse_lunge", "barbell", { defaultUnilateralMode: "alternating", requiredEquipment: ["ohio_bar", "plates", "rack"] }),
+  em("curtsy_lunge", "bodyweight", { isDefault: true, defaultUnilateralMode: "alternating", requiredEquipment: ["floor"] }),
+  em("curtsy_lunge", "dumbbell", { defaultUnilateralMode: "alternating", implements: 2, requiredEquipment: ["dumbbells"] }),
+  em("split_squat", "dumbbell", { isDefault: true, defaultUnilateralMode: "single_side", implements: 2, requiredEquipment: ["dumbbells"] }),
+  em("split_squat", "bodyweight", { defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("split_squat", "barbell", { defaultUnilateralMode: "single_side", requiredEquipment: ["ohio_bar", "plates", "rack"] }),
+  em("cossack_squat", "bodyweight", { isDefault: true, defaultUnilateralMode: "alternating", requiredEquipment: ["floor"] }),
+  em("cossack_squat", "dumbbell", { defaultUnilateralMode: "alternating", implements: 1, requiredEquipment: ["dumbbells"], notes: "One dumbbell held goblet-style." }),
+  em("step_down", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"], notes: "Off a 4–8 in step or plate stack; tap the heel, don't sit." }),
+  em("step_down", "dumbbell", { defaultUnilateralMode: "single_side", implements: 2, requiredEquipment: ["dumbbells"] }),
+  em("sumo_deadlift", "barbell", { isDefault: true, requiredEquipment: ["ohio_bar", "plates"] }),
+  em("sumo_deadlift", "dumbbell", { implements: 1, requiredEquipment: ["dumbbells"], notes: "One heavy dumbbell held between the legs." }),
+  em("rear_delt_fly", "dumbbell", { isDefault: true, requiredEquipment: ["dumbbells"] }),
+  em("rear_delt_fly", "band", { bandRoles: ["resistance"], requiredEquipment: ["monster_bands", "rack"] }),
+  em("upright_row", "dumbbell", { isDefault: true, requiredEquipment: ["dumbbells"] }),
+  em("upright_row", "barbell", { requiredEquipment: ["ohio_bar", "plates"] }),
+  em("upright_row", "band", { bandRoles: ["resistance"], requiredEquipment: ["monster_bands"] }),
+  em("pullover", "dumbbell", { isDefault: true, implements: 1, requiredEquipment: ["dumbbells", "bench"] }),
+  em("arnold_press", "dumbbell", { isDefault: true, requiredEquipment: ["dumbbells"] }),
+  em("tricep_kickback", "dumbbell", { isDefault: true, requiredEquipment: ["dumbbells"] }),
+  em("tricep_kickback", "band", { bandRoles: ["resistance"], requiredEquipment: ["monster_bands", "rack"] }),
+  em("close_grip_push_up", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("pike_push_up", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("zottman_curl", "dumbbell", { isDefault: true, requiredEquipment: ["dumbbells"] }),
+  em("hip_airplane", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["rack"], notes: "Hold the rack for balance until it's steady." }),
+  em("reverse_crunch", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("flutter_kick", "bodyweight", { isDefault: true, requiredEquipment: ["floor"] }),
+  em("side_plank_hip_dip", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  em("deep_squat_hold", "bodyweight", { isDefault: true, requiredEquipment: ["rack"], notes: "Hold the rack uprights and sink between the heels." }),
+  em("band_pass_through", "band", { isDefault: true, bandRoles: ["resistance"], requiredEquipment: ["monster_bands"] }),
+  em("hip_cars", "bodyweight", { isDefault: true, defaultUnilateralMode: "single_side", requiredEquipment: ["floor"] }),
+  // Ankle-weight versions of existing glute/hip drills
+  em("donkey_kick", "ankle_weight", { defaultUnilateralMode: "single_side", requiredEquipment: ["ankle_weights", "floor"] }),
+  em("fire_hydrant", "ankle_weight", { defaultUnilateralMode: "single_side", requiredEquipment: ["ankle_weights", "floor"] }),
+  em("side_lying_hip_abduction", "ankle_weight", { defaultUnilateralMode: "single_side", requiredEquipment: ["ankle_weights", "floor"] }),
   em("echo_bike", "cardio", { isDefault: true, requiredEquipment: ["echo_bike"], notes: "Arms and legs together. Targets are watts or RPM from the console." }),
 ];
 

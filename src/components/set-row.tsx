@@ -4,7 +4,7 @@ import { useState } from "react";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { TrashIcon } from "@/components/icons";
 import { Select, StepperInput } from "@/components/ui";
-import { bands } from "@/lib/data/equipment";
+import { ankleWeights, bands } from "@/lib/data/equipment";
 import { describePlates, formatPlates, weightStep } from "@/lib/loading";
 import { loadLabel } from "@/lib/session-labels";
 import type { BandId, BandRole, MetricType, SetLog } from "@/lib/types";
@@ -181,6 +181,26 @@ export function SetRow({
             </Select>
           )}
         </span>
+      ) : set.modalityId === "ankle_weight" ? (
+        // Fixed pairs: pick the one strapped on (one per ankle). "none" →
+        // logged as the bodyweight variant (completeAsBodyweight).
+        <Captioned caption="lb / ankle">
+          <Select
+            size={controlSize}
+            value={set.weightLbs === null ? "" : String(set.weightLbs)}
+            onChange={(e) => edit({ weightLbs: e.target.value === "" ? null : Number(e.target.value) })}
+            aria-label="Ankle weight"
+            className="w-20"
+          >
+            <option value="">—</option>
+            <option value="0">none</option>
+            {ankleWeights.map((a) => (
+              <option key={a.weightLbs} value={a.weightLbs}>
+                {a.weightLbs} lb
+              </option>
+            ))}
+          </Select>
+        </Captioned>
       ) : set.modalityId === "bodyweight" ? (
         <Captioned caption="BW + lb">
           <StepperInput
@@ -304,7 +324,9 @@ function summary(set: SetLog, timed: boolean, distance: boolean): string {
         : "— lb"
       : set.modalityId === "dumbbell"
         ? `${entered} ea`
-        : entered;
+        : set.modalityId === "ankle_weight"
+          ? `${entered} ankle`
+          : entered;
   const amount = timed
     ? `${set.durationSeconds ?? "—"}s`
     : distance

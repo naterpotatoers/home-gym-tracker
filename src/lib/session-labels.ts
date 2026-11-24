@@ -1,11 +1,10 @@
-import { EMPTY_TARGET, pieceLabel, readoutLabel, targetLabel } from "./conditioning";
+import { effortLabel, EMPTY_TARGET, pieceLabel, readoutLabel, targetLabel } from "./conditioning";
 import { bandById } from "./data/equipment";
 import { variantKey } from "./exercise-catalog";
-import { mmss } from "./periods";
 import type { StallHint } from "./progression";
-import { toBlocks } from "./set-blocks";
+import { toBlocks, type Block } from "./set-blocks";
 import type { ModalityId, RoutineExercise, SetLog } from "./types";
-import { BIKE_WARMUP_RX, isBikeWarmupBlock, isBikeWarmupSet, WARMUP_EFFORT, WARMUP_MINUTES } from "./warmup";
+import { BIKE_WARMUP_RX, isBikeWarmupBlock, isBikeWarmupSet, WARMUP_EFFORT } from "./warmup";
 
 /** Pure label + cursor helpers for the live session cards — extracted so the
  *  self-healing cursor logic is unit-testable outside the client component. */
@@ -70,7 +69,7 @@ export function conditioningSetLabel(set: SetLog): string {
   if (!log) return piece;
   const result = readoutLabel(log, set.distanceFeet);
   const target = targetLabel(log);
-  return [piece, result ?? (target ? `target ${target}` : null)].filter(Boolean).join(" · ");
+  return [piece, result ?? (target ? `target ${target}` : null), effortLabel(log)].filter(Boolean).join(" · ");
 }
 
 /** "3×10", "3×8–12", or "1×30s" — the high-level scheme, no RIR/rest. A bike
@@ -132,6 +131,13 @@ export function advanceCursor(sets: readonly SetLog[], fromId: string): string |
   return next === -1 ? null : sets[next].id;
 }
 
+/** The sets the cursor walks: performance order minus the ones the person
+ *  skipped this visit (Skip on a block), so LOG never lands back on them.
+ *  Identity (same array) when nothing is skipped. */
+export function cursorOrder(ordered: readonly SetLog[], skipped: ReadonlySet<string>): readonly SetLog[] {
+  return skipped.size === 0 ? ordered : ordered.filter((s) => !skipped.has(s.id));
+}
+
 type VariantFields = Pick<SetLog, "exerciseId" | "modalityId"> &
   Partial<Pick<SetLog, "isWarmup">>;
 
@@ -163,9 +169,15 @@ export function blockPrescription(
   return prescriptionFor(prescriptions, { exerciseId: block.exerciseId, modalityId: block.modalityId });
 }
 
-/** "5:00 steady · easy, RPE 3–4 · rest 60s" — the warm-up's rx line. */
-export function warmupRxLabel(rx: Pick<RoutineExercise, "durationSeconds" | "restSeconds">): string {
-  return `${mmss(rx.durationSeconds ?? WARMUP_MINUTES * 60)} steady · easy, ${WARMUP_EFFORT} · rest ${rx.restSeconds}s`;
+/** "8 × 20/10 · warm-up, RPE 3–4 · rest 60s" — the warm-up's rx line, from
+ *  the warm-up set itself (each person's piece rolls forward, so the shape
+ *  isn't fixed); the prescription supplies the rest. */
+export function warmupRxLabel(
+  rx: Pick<RoutineExercise, "restSeconds">,
+  piece: Pick<SetLog, "conditioning" | "durationSeconds">,
+): string {
+  const shape = pieceLabel(piece.conditioning?.intervalScheme ?? null, piece.durationSeconds);
+  return `${shape} · warm-up, ${WARMUP_EFFORT} · rest ${rx.restSeconds}s`;
 }
 
 type BlockFields = {
@@ -184,7 +196,7 @@ export function blockRxLine(
   isBike: boolean,
 ): string | null {
   if (!rx) return null;
-  if (isBikeWarmupBlock(block)) return warmupRxLabel(rx);
+  if (isBikeWarmupBlock(block)) return warmupRxLabel(rx, block.sets[0]);
   if (isBike) {
     return `${pieceLabel(rx.conditioning?.intervalScheme ?? null, rx.durationSeconds)} · rest ${rx.restSeconds}s`;
   }
@@ -229,7 +241,8 @@ export function restAfterLog(
   supersets: ReadonlyMap<string, string>,
 ): number | null {
   const key = variantKey(logged.exerciseId, logged.modalityId);
-  const label = supersets.get(key);
+  const warmup = logged.isWarmup !== undefined && isBikeWarmupSet({ ...logged, isWarmup: logged.isWarmup });
+  const label = warmup ? undefined : supersets.get(key);
   if (next && label !== undefined) {
     const nextKey = variantKey(next.exerciseId, next.modalityId);
     if (nextKey !== key && supersets.get(nextKey) === label) return null;
@@ -250,6 +263,16 @@ export function supersetGroups(
   return out;
 }
 
+/** A block's superset label — never the bike warm-up's, even when an Echo
+ *  Bike routine row is in a superset (the warm-up isn't that row). */
+export function blockSupersetLabel(
+  groups: ReadonlyMap<string, string>,
+  block: Pick<Block, "exerciseId" | "modalityId" | "sets">,
+): string | undefined {
+  if (isBikeWarmupBlock(block)) return undefined;
+  return groups.get(variantKey(block.exerciseId, block.modalityId));
+}
+
 /**
  * The session's sets in intended PERFORMANCE order: adjacent blocks sharing a
  * superset label interleave round by round (A1 B1 A2 B2 A3 — unequal set
@@ -263,10 +286,11 @@ export function performOrder(
 ): SetLog[] {
   if (groups.size === 0) return [...sets];
   const blocks = toBlocks(sets);
+  const labelOf = (block: Block) => blockSupersetLabel(groups, block);
   const out: SetLog[] = [];
   let i = 0;
   while (i < blocks.length) {
-    const label = groups.get(variantKey(blocks[i].exerciseId, blocks[i].modalityId));
+    const label = labelOf(blocks[i]);
     if (label === undefined) {
       out.push(...blocks[i].sets);
       i++;
@@ -276,7 +300,7 @@ export function performOrder(
     let j = i;
     while (
       j < blocks.length &&
-      groups.get(variantKey(blocks[j].exerciseId, blocks[j].modalityId)) === label
+      labelOf(blocks[j]) === label
     ) {
       j++;
     }
@@ -348,7 +372,9 @@ export function stallCallout(hint: StallHint, modalityId: ModalityId): string {
       const why =
         modalityId === "dumbbell"
           ? "already on the heaviest dumbbells"
-          : modalityId === "bodyweight" && s.load === 0
+          : modalityId === "ankle_weight"
+            ? "already on the heaviest ankle weights"
+            : modalityId === "bodyweight" && s.load === 0
             ? `every set hit ${Math.min(...s.lastReps)}`
             : "no heavier step to take";
       const what = modalityId === "bodyweight" && s.load === 0 ? "add reps or hold a dumbbell" : "add reps or slow the tempo";

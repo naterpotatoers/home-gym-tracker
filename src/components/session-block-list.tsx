@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ExerciseInfoSheet } from "@/components/exercise-info-sheet";
 import { InfoIcon, PlusIcon, SwapIcon, TrashIcon } from "@/components/icons";
 import { ModalityChip } from "@/components/modality-chip";
@@ -18,6 +19,7 @@ import {
   blockPrescription,
   blockRxLine,
   blockStall,
+  blockSupersetLabel,
   completedCount,
   stallCallout,
   supersetPosition,
@@ -89,7 +91,7 @@ export function SessionBlockList({
   const [explaining, setExplaining] = useState<{ block: Block; rowNote: string } | null>(null);
 
   const blocks = editor.blocks;
-  const supersetLabels = blocks.map((b) => supersets.get(keyOf(b)));
+  const supersetLabels = blocks.map((b) => blockSupersetLabel(supersets, b));
   const foldAt = showLater
     ? null
     : upcomingFoldIndex(
@@ -221,6 +223,7 @@ function SessionBlock({
   const name = exercise?.name ?? block.exerciseId;
   const isBike = exercise?.pattern === "conditioning";
   const isWarmup = isBikeWarmupBlock(block);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const done = completedCount(block.sets);
   const blockDone = done === block.sets.length;
   const rxLine = blockRxLine(rx, block, isBike);
@@ -289,6 +292,18 @@ function SessionBlock({
           {blockDone && <span className="font-mono text-xs text-success-text">✓ done</span>}
           {!isCurrent && <span className="text-xs text-muted">▴</span>}
         </button>
+        {isCurrent && !blockDone && (
+          // Visible, one tap: the warm-up just goes; a lift stays listed as
+          // skipped (tap it to come back).
+          <Button
+            variant="ghost"
+            onClick={() => flow.skipBlock(block)}
+            aria-label={isWarmup ? "Skip warm-up" : `Skip ${name}`}
+            className="shrink-0 px-3"
+          >
+            {isWarmup ? "Skip warm-up" : "Skip"}
+          </Button>
+        )}
         <OverflowMenu
           label={`${exercise?.name ?? "Exercise"} actions`}
           items={[
@@ -302,15 +317,24 @@ function SessionBlock({
               label: "Remove from session",
               icon: <TrashIcon size={16} />,
               danger: true,
-              onSelect: () => {
-                if (confirm(`Remove ${exercise?.name ?? "this exercise"} from the session?`)) {
-                  flow.removeBlockKeepingCursor(block);
-                }
-              },
+              onSelect: () => setConfirmingRemove(true),
             },
           ]}
         />
       </div>
+      {confirmingRemove && (
+        <ConfirmDialog
+          title={`Remove ${name}${isWarmup ? " warm-up" : ""}?`}
+          body={
+            done > 0
+              ? `Its ${done} logged ${done === 1 ? "set is" : "sets are"} deleted too.`
+              : "It comes out of this session only — the routine is unchanged."
+          }
+          confirmLabel="Remove"
+          onConfirm={() => flow.removeBlockKeepingCursor(block)}
+          onClose={() => setConfirmingRemove(false)}
+        />
+      )}
       {rxLine && <p className="mt-0.5 text-xs text-muted">{rxLine}</p>}
 
       {!isWarmup && <LastTime sessions={lastSessions} />}

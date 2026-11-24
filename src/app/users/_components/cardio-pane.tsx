@@ -1,15 +1,16 @@
 import { ConditioningSection } from "@/components/conditioning-section";
 import { RunningSection } from "@/components/running-section";
-import { conditioningSummaries } from "@/lib/conditioning";
+import { conditioningSummaries, warmupSummary } from "@/lib/conditioning";
 import type { GymData } from "@/lib/gym-data";
 import { runLog, runnerSummary } from "@/lib/running";
 import type { ClientId, RunSource } from "@/lib/types";
-import { WARMUP_MINUTES } from "@/lib/warmup";
+import { BIKE_WARMUP_RX } from "@/lib/warmup";
 
 /**
  * Clients › Cardio: every run (synced from Strava/Garmin or logged by hand)
- * with twelve weeks of mileage, then Echo Bike pieces. Kept apart from
- * Lifts — cardio never enters a strength number.
+ * with twelve weeks of mileage, then Echo Bike pieces — finishers, then the
+ * warm-ups as their own series. Kept apart from Lifts — cardio never enters
+ * a strength number.
  */
 export function CardioPane({
   data,
@@ -24,7 +25,8 @@ export function CardioPane({
    *  server-only, so the page decides). */
   runSyncSources: RunSource[];
 }) {
-  const bike = conditioningSummaries(data, client);
+  const warmups = warmupSummary(data, client, BIKE_WARMUP_RX.exerciseId);
+  const bike = [...conditioningSummaries(data, client), ...(warmups ? [warmups] : [])];
   return (
     <>
       {data.runsSource === "missing" ? (
@@ -44,8 +46,7 @@ export function CardioPane({
         <ConditioningSection summaries={bike} today={today} />
       ) : (
         <p className="mt-8 text-sm text-muted">
-          No Echo Bike pieces yet. Logged bike finishers show up here; the {WARMUP_MINUTES}-minute
-          warm-up doesn&apos;t count.
+          No Echo Bike pieces yet. Logged bike warm-ups and finishers show up here.
         </p>
       )}
     </>
