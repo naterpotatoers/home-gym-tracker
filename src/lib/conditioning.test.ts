@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  bikePast,
   bumpTarget,
   conditioningPieceDates,
   conditioningSummaries,
   conditioningTarget,
   EMPTY_CONDITIONING,
   formatIntervalScheme,
+  lastComparable,
+  lastRideLabel,
   milesToFeet,
   parseIntervalScheme,
   pieceLabel,
@@ -14,6 +17,7 @@ import {
   schemeSeconds,
   targetLabel,
   targetResult,
+  vsLastLabel,
   warmupFitnessLine,
   warmupSummary,
 } from "./conditioning";
@@ -78,6 +82,9 @@ function withPieces(pieces: { date: string; log: Partial<ConditioningLog>; extra
 }
 
 const ROW = { intervalScheme: "8x20/10", targetWatts: 200, targetRpm: null };
+/** A steady row — the only kind whose target can be checked, so the only
+ *  kind that steps up by itself. */
+const STEADY_ROW = { intervalScheme: null, targetWatts: null, targetRpm: 55 };
 
 describe("interval schemes", () => {
   it("parses and formats the console presets", () => {
@@ -131,6 +138,10 @@ describe("targetResult", () => {
     expect(targetResult(log({ targetWatts: 200 }))).toBeNull();
     expect(targetResult(log({ avgWatts: 200 }))).toBeNull();
   });
+  it("never judges an interval piece: its target is for the work bouts, the average runs through the rests", () => {
+    expect(targetResult(log({ intervalScheme: "8x20/10", targetWatts: 200, avgWatts: 169 }))).toBeNull();
+    expect(targetResult(log({ intervalScheme: "10x30/30", targetWatts: 200, avgWatts: 260 }))).toBeNull();
+  });
 });
 
 describe("bumpTarget", () => {
@@ -160,25 +171,33 @@ describe("conditioningTarget", () => {
     expect(conditioningTarget(data, "nate", "echo_bike", ROW)).toEqual(ROW);
   });
 
-  it("met twice in a row at the same target → bumped once", () => {
+  it("a steady target met twice in a row → bumped once", () => {
     const data = withPieces([
-      { date: "2026-11-10", log: { targetRpm: 55, avgRpm: 56 } },
-      { date: "2026-11-12", log: { targetRpm: 55, avgRpm: 58 } },
+      { date: "2026-11-10", log: { intervalScheme: null, targetRpm: 55, avgRpm: 56 } },
+      { date: "2026-11-12", log: { intervalScheme: null, targetRpm: 55, avgRpm: 58 } },
     ]);
-    expect(conditioningTarget(data, "nate", "echo_bike", ROW).targetRpm).toBe(57);
+    expect(conditioningTarget(data, "nate", "echo_bike", STEADY_ROW).targetRpm).toBe(57);
+  });
+
+  it("an interval target never bumps itself — it carries over until raised by hand", () => {
+    const data = withPieces([
+      { date: "2026-11-10", log: { targetWatts: 200, avgWatts: 230 } },
+      { date: "2026-11-12", log: { targetWatts: 200, avgWatts: 240 } },
+    ]);
+    expect(conditioningTarget(data, "nate", "echo_bike", ROW).targetWatts).toBe(200);
   });
 
   it("a miss, or a target change in between, holds it", () => {
     const missed = withPieces([
-      { date: "2026-11-10", log: { targetRpm: 55, avgRpm: 50 } },
-      { date: "2026-11-12", log: { targetRpm: 55, avgRpm: 58 } },
+      { date: "2026-11-10", log: { intervalScheme: null, targetRpm: 55, avgRpm: 50 } },
+      { date: "2026-11-12", log: { intervalScheme: null, targetRpm: 55, avgRpm: 58 } },
     ]);
-    expect(conditioningTarget(missed, "nate", "echo_bike", ROW).targetRpm).toBe(55);
+    expect(conditioningTarget(missed, "nate", "echo_bike", STEADY_ROW).targetRpm).toBe(55);
     const changed = withPieces([
-      { date: "2026-11-10", log: { targetRpm: 55, avgRpm: 56 } },
-      { date: "2026-11-12", log: { targetRpm: 57, avgRpm: 58 } },
+      { date: "2026-11-10", log: { intervalScheme: null, targetRpm: 55, avgRpm: 56 } },
+      { date: "2026-11-12", log: { intervalScheme: null, targetRpm: 57, avgRpm: 58 } },
     ]);
-    expect(conditioningTarget(changed, "nate", "echo_bike", ROW).targetRpm).toBe(57);
+    expect(conditioningTarget(changed, "nate", "echo_bike", STEADY_ROW).targetRpm).toBe(57);
   });
 
   it("ignores other people, warm-ups and pieces never logged", () => {
@@ -244,7 +263,8 @@ describe("kept out of strength math", () => {
     const [summary] = conditioningSummaries(data, "nate");
     expect(summary.exerciseId).toBe("echo_bike");
     expect(summary.points.map((p) => p.y)).toEqual([210]);
-    expect(summary.recent[0]).toMatchObject({ piece: "8 × 20/10", target: "200 W", result: "met" });
+    // An interval piece is never judged against its work-bout target.
+    expect(summary.recent[0]).toMatchObject({ piece: "8 × 20/10", target: "200 W", result: null });
     expect(conditioningSummaries(data, "lidia")).toEqual([]);
   });
 });
@@ -281,13 +301,21 @@ describe("bike warm-ups roll forward per person (warmupPlan)", () => {
     });
   });
 
-  it("two hits in a row at the target → bumped once", () => {
+  it("a steady warm-up hit twice in a row at the target → bumped once", () => {
+    const data = withPieces([
+      warm("2026-11-16", { intervalScheme: null, targetWatts: 120, avgWatts: 121 }),
+      warm("2026-11-18", { intervalScheme: null, targetWatts: 120, avgWatts: 125 }),
+    ]);
+    expect(warmupPlan(data, "lidia").target.targetWatts).toBeNull(); // someone else's history
+    expect(warmupPlan(data, "nate").target.targetWatts).toBe(125); // +5%, rounded to 5
+  });
+
+  it("a 20/10 warm-up's target just carries over", () => {
     const data = withPieces([
       warm("2026-11-16", { targetWatts: 120, avgWatts: 121 }),
       warm("2026-11-18", { targetWatts: 120, avgWatts: 125 }),
     ]);
-    expect(warmupPlan(data, "lidia").target.targetWatts).toBeNull(); // someone else's history
-    expect(warmupPlan(data, "nate").target.targetWatts).toBe(125); // +5%, rounded to 5
+    expect(warmupPlan(data, "nate").target.targetWatts).toBe(120);
   });
 
   it("a steady warm-up stays steady at its length", () => {
@@ -366,5 +394,59 @@ describe("effort in labels", () => {
     const set = piece("sl", "s", { avgWatts: 116, effort: 4 });
     expect(compactSet(set)).toContain("effort 4");
     expect(compactSet(piece("sl", "s", { avgWatts: 116 }))).not.toContain("effort");
+  });
+});
+
+describe("the live card's last ride (bikePast / lastComparable)", () => {
+  const data = withPieces([
+    { date: "2026-11-09", log: { avgWatts: 150, effort: 6 }, extra: { isWarmup: true } },
+    { date: "2026-11-16", log: { avgWatts: 169, effort: 8 }, extra: { isWarmup: true } },
+    { date: "2026-11-17", log: { intervalScheme: null, avgWatts: 110 }, extra: { isWarmup: true, durationSeconds: 300 } },
+    { date: "2026-11-18", log: { avgWatts: 210 } },
+    { date: "2026-11-19", log: { targetWatts: 200 } }, // logged without an average
+    { date: "2026-11-20", log: { avgWatts: 300 }, extra: { completed: false } },
+  ]);
+  const history = bikePast(data, "nate");
+  const set = (extra: Partial<SetLog> = {}, log: Partial<ConditioningLog> = {}) => piece("now", "s_now", log, extra);
+
+  it("lists rides that have an average, newest first, and can leave a session out", () => {
+    expect(history.map((p) => p.date)).toEqual(["2026-11-18", "2026-11-17", "2026-11-16", "2026-11-09"]);
+    expect(bikePast(data, "nate", "s_bike_3").map((p) => p.date)).toEqual(["2026-11-17", "2026-11-16", "2026-11-09"]);
+    expect(bikePast(data, "lidia")).toEqual([]);
+  });
+
+  it("compares like with like: same shape, warm-up with warm-up", () => {
+    expect(lastComparable(history, set({ isWarmup: true }))).toMatchObject({ date: "2026-11-16", avgWatts: 169, effort: 8 });
+    expect(lastComparable(history, set())).toMatchObject({ date: "2026-11-18", avgWatts: 210 });
+    expect(lastComparable(history, set({ isWarmup: true, durationSeconds: 300 }, { intervalScheme: null }))).toMatchObject({
+      date: "2026-11-17",
+    });
+    expect(lastComparable(history, set({}, { intervalScheme: "10x30/30" }))).toBeNull();
+  });
+
+  it("on a day of several pieces, piece 2 is held against last time's piece 2", () => {
+    const day = buildGymData({
+      ...seed,
+      sessions: [...seed.sessions, session("s_day", "2026-11-18")],
+      setLogs: [
+        ...seed.setLogs,
+        piece("d1", "s_day", { avgWatts: 220 }, { position: 1, setNumber: 1 }),
+        piece("d2", "s_day", { avgWatts: 205 }, { position: 2, setNumber: 2 }),
+        piece("d3", "s_day", { avgWatts: 190 }, { position: 3, setNumber: 3 }),
+      ],
+    });
+    const past = bikePast(day, "nate");
+    expect(lastComparable(past, set({ setNumber: 2 }))?.avgWatts).toBe(205);
+    // A piece number last time didn't reach falls back to its newest piece.
+    expect(lastComparable(past, set({ setNumber: 5 }))?.avgWatts).toBe(190);
+  });
+
+  it("labels: the last ride, and today against it in words", () => {
+    const last = lastComparable(history, set({ isWarmup: true }))!;
+    expect(lastRideLabel(last)).toBe("Last · Nov 16 · 169 W avg · effort 8");
+    expect(lastRideLabel({ ...last, effort: null })).toBe("Last · Nov 16 · 169 W avg");
+    expect(vsLastLabel(181, last)).toBe("+12 W vs Nov 16");
+    expect(vsLastLabel(161, last)).toBe("−8 W vs Nov 16");
+    expect(vsLastLabel(169, last)).toBe("same as Nov 16");
   });
 });

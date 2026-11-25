@@ -23,7 +23,8 @@ export const routines: readonly Routine[] = [
 export const routineExercises: readonly RoutineExercise[] = [
   // ---- Full Body A (beginner) ----
   // Barbell squat for a beginner is now the right call: with change plates it
-  // steps 2.5 lb, versus 10 lb total for the fixed dumbbells.
+  // steps 5 lb (2.5 once a 1.25 lb pair is in), versus 10 lb total for the fixed
+  // dumbbells.
   re("r_full_a", 1, "squat", "barbell", { sets: 3, repMin: 8, repMax: 10, restSeconds: 150, targetRir: 3 }),
   re("r_full_a", 2, "bench_press", "dumbbell", { sets: 3, repMin: 10, repMax: 12, restSeconds: 120, targetRir: 2 }),
   re("r_full_a", 3, "pull_up", "band", { sets: 3, repMin: 5, repMax: 8, restSeconds: 120, targetRir: 1, bandRole: "assistance", notes: "Lightest band that allows the rep range." }),

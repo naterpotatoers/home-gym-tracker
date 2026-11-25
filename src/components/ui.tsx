@@ -49,6 +49,20 @@ export function Input({
   );
 }
 
+/** Multi-line text — notes and cues. One line tall when empty, like an
+ *  Input, and grows with what's typed (`field-sizing: content`) up to a
+ *  scrolling cap; a browser without it gets two fixed rows and a drag
+ *  handle. */
+export function Textarea({ className = "", rows = 2, ...props }: React.ComponentProps<"textarea">) {
+  return (
+    <textarea
+      rows={rows}
+      {...props}
+      className={`${inputClass} field-sizing-content max-h-60 min-h-11 resize-y px-3 py-2.5 leading-snug supports-[field-sizing:content]:resize-none ${className}`}
+    />
+  );
+}
+
 /** Numeric field: null-safe value/onChange, decimal keypad on touch. */
 export function NumberInput({
   value,
@@ -489,7 +503,13 @@ export function Note({ children }: { children: React.ReactNode }) {
  *  Renders nothing without a message, so call sites can pass `error` as is. */
 export function ErrorText({ children }: { children: React.ReactNode }) {
   if (children === null || children === undefined || children === "") return null;
-  return <span className="text-xs font-semibold text-danger-text">{children}</span>;
+  // role="alert": a failure that appears after a tap is announced, not just
+  // painted.
+  return (
+    <span role="alert" className="text-xs font-semibold text-danger-text">
+      {children}
+    </span>
+  );
 }
 
 /** Small inline tag — modality names, statuses, "trainer". */

@@ -26,15 +26,16 @@ import type { ClientId, ConditioningTarget, RoutineExercise, SetLog } from "./ty
  * INT 20/10 (4:00). This synthetic prescription gives the runner its rx line
  * and rest. Not a routine row — routines stay as authored.
  */
-/** The default warm-up's effort — every label that describes it (the bike
- *  row's hint, the runner's rx line) reads this. */
-export const WARMUP_EFFORT = "RPE 3–4";
+/** The warm-up's effort — every label that describes it (the bike row's
+ *  hint, the runner's rx line) reads this. The household rides it brisk
+ *  (logged efforts 5–8): hard enough to be warm, not a test. */
+export const WARMUP_EFFORT = "RPE 5–6";
 
 export const BIKE_WARMUP_RX: RoutineExercise = re("__warmup", 0, "echo_bike", "cardio", {
   sets: 1,
   durationSeconds: schemeSeconds(parseIntervalScheme(DEFAULT_WARMUP_SCHEME)!),
   restSeconds: 60,
-  notes: `Easy, ${WARMUP_EFFORT} — build into it; don't race the console.`,
+  notes: `Brisk, ${WARMUP_EFFORT} — get warm, don't empty the tank.`,
   conditioning: { intervalScheme: DEFAULT_WARMUP_SCHEME, targetWatts: null, targetRpm: null },
 });
 
@@ -43,9 +44,10 @@ export const WARMUP_MINUTES = (BIKE_WARMUP_RX.durationSeconds ?? 0) / 60;
 
 /**
  * This person's next warm-up: their last one's piece (scheme, or a steady
- * piece's length) and target, bumped once after two hits in a row at that
- * target (rollForward) — only same-shape warm-ups count. No warm-ups yet →
- * the default 20/10 with no target.
+ * piece's length) and target. A steady target is bumped once after two hits
+ * in a row (rollForward); an interval target only changes by hand. Only
+ * same-shape warm-ups count. No warm-ups yet → the default 20/10 with no
+ * target.
  */
 export function warmupPlan(
   data: GymData,

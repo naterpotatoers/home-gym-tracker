@@ -19,7 +19,9 @@ import type {
  *
  * Targets are per person. A routine row holds the default; after someone's
  * first piece their own last target rolls forward (Nate tweaks it on their
- * card), and it nudges up once they've met it twice in a row.
+ * card). A STEADY target nudges up once they've met it twice in a row; an
+ * interval target (watts in the work bouts) can't be checked against the
+ * console's whole-ride average, so it only ever changes by hand.
  */
 
 export type IntervalScheme = { rounds: number; workSeconds: number; restSeconds: number };
@@ -131,13 +133,19 @@ export function milesToFeet(miles: number): number {
   return Math.round(miles * FEET_PER_MILE);
 }
 
-/** How a logged piece compared with its target. `well_above` (>15% over) is
- *  the "are they pushing too hard?" flag. Null when nothing is comparable. */
+/** How a logged STEADY piece compared with its target. `well_above` (>15%
+ *  over) is the "are they pushing too hard?" flag. Null when nothing is
+ *  comparable — and always for an interval piece: its target is the watts
+ *  (or RPM) to hold in the work bouts, while the console's average runs
+ *  through the rests too, so 250 W bouts read ~170 W. Interval pieces are
+ *  compared with the person's last ride of the same shape instead
+ *  (lastComparable / vsLastLabel). */
 export type TargetResult = "met" | "below" | "well_above";
 
 const WELL_ABOVE = 1.15;
 
 export function targetResult(log: ConditioningLog): TargetResult | null {
+  if (parseIntervalScheme(log.intervalScheme)) return null;
   const pairs = [
     [log.avgWatts, log.targetWatts],
     [log.avgRpm, log.targetRpm],
@@ -241,13 +249,83 @@ export function conditioningTarget(
 
 /** `base`, bumped once when the two newest pieces in `history` (newest
  *  first) were both done at exactly this target — same scheme too — and met
- *  or beat it. A piece of another scheme at the same watts never counts. */
+ *  or beat it. A piece of another scheme at the same watts never counts, and
+ *  interval pieces never count at all (targetResult is null for them), so
+ *  only steady targets step up by themselves. */
 export function rollForward(history: readonly ConditioningLog[], base: ConditioningTarget): ConditioningTarget {
   const beaten = (log: ConditioningLog) => {
     const result = targetResult(log);
     return sameTarget(log, base) && (result === "met" || result === "well_above");
   };
   return history.length >= 2 && beaten(history[0]) && beaten(history[1]) ? bumpTarget(base) : base;
+}
+
+/** One past ride, as plain data for the live card's "Last" line. */
+export type BikePast = {
+  sessionId: string;
+  setNumber: number;
+  /** pieceShape — only like-for-like rides are compared. */
+  shape: string;
+  warmup: boolean;
+  date: string;
+  avgWatts: number;
+  effort: number | null;
+};
+
+/** Every completed bike piece of this person that has an average, warm-ups
+ *  included (flagged), newest first — the session being run left out. */
+export function bikePast(data: GymData, clientId: ClientId, excludeSessionId?: string): BikePast[] {
+  const date = (set: SetLog) => data.sessionById.get(set.sessionId)?.date ?? "";
+  return data.setLogs
+    .filter(
+      (set) =>
+        set.completed &&
+        set.sessionId !== excludeSessionId &&
+        set.conditioning !== null &&
+        set.conditioning.avgWatts !== null &&
+        data.sessionById.get(set.sessionId)?.clientId === clientId,
+    )
+    .sort((a, b) => date(b).localeCompare(date(a)) || b.position - a.position)
+    .map((set) => ({
+      sessionId: set.sessionId,
+      setNumber: set.setNumber,
+      shape: pieceShape(set),
+      warmup: set.isWarmup,
+      date: date(set),
+      avgWatts: set.conditioning!.avgWatts!,
+      effort: set.conditioning!.effort ?? null,
+    }));
+}
+
+/** The ride to compare this piece with: the newest session that has a piece
+ *  of the same shape and kind (warm-up vs not) — and within it the piece
+ *  with the same number, so piece 4 of 5 is held against last time's piece
+ *  4, not its tired piece 5. `history` newest first (bikePast). */
+export function lastComparable(
+  history: readonly BikePast[],
+  set: Pick<SetLog, "conditioning" | "durationSeconds" | "isWarmup" | "setNumber">,
+): BikePast | null {
+  const shape = pieceShape(set);
+  const alike = history.filter((p) => p.shape === shape && p.warmup === set.isWarmup);
+  const newest = alike[0];
+  if (!newest) return null;
+  return alike.find((p) => p.sessionId === newest.sessionId && p.setNumber === set.setNumber) ?? newest;
+}
+
+/** "Last · Nov 23 · 169 W avg · effort 8". */
+export function lastRideLabel(last: BikePast, todayIso?: string): string {
+  return [`Last · ${shortDayLabel(last.date, todayIso)}`, `${last.avgWatts} W avg`, effortLabel(last)]
+    .filter((p) => p !== null)
+    .join(" · ");
+}
+
+/** "+12 W vs Nov 23", "−8 W vs Nov 23", "same as Nov 23" — the sign and the
+ *  words carry it; never color alone. */
+export function vsLastLabel(avgWatts: number, last: BikePast, todayIso?: string): string {
+  const delta = avgWatts - last.avgWatts;
+  const day = shortDayLabel(last.date, todayIso);
+  if (delta === 0) return `same as ${day}`;
+  return `${delta > 0 ? "+" : "−"}${Math.abs(delta)} W vs ${day}`;
 }
 
 /** "effort 6" — null when no effort was picked. */

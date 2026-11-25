@@ -5,7 +5,7 @@ import { OverflowMenu } from "@/components/overflow-menu";
 import { TrashIcon } from "@/components/icons";
 import { Select, StepperInput } from "@/components/ui";
 import { ankleWeights, bands } from "@/lib/data/equipment";
-import { describePlates, formatPlates, weightStep } from "@/lib/loading";
+import { describePlates, platesFor, weightStep } from "@/lib/loading";
 import { loadLabel } from "@/lib/session-labels";
 import type { BandId, BandRole, MetricType, SetLog } from "@/lib/types";
 
@@ -134,7 +134,7 @@ export function SetRow({
 
   const step = weightStep(set.modalityId);
   const plates =
-    set.modalityId === "barbell" && set.weightLbs !== null ? formatPlates(set.weightLbs) : null;
+    set.modalityId === "barbell" && set.weightLbs !== null ? platesFor(set.weightLbs) : null;
   const plateHint = plates ? describePlates(plates) : null;
   const roles = set.modalityId === "band" ? bandRoles : [];
 

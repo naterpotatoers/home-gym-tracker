@@ -70,3 +70,37 @@ describe("livePerson stalls", () => {
     expect(livePerson(warm, warm.sessionById.get("s_today")!).stalls).toEqual({});
   });
 });
+
+describe("livePerson bike history", () => {
+  it("carries the person's past bike pieces, this session's left out", () => {
+    const bike = (sessionId: string, avgWatts: number): SetLog => ({
+      ...deadlift(sessionId, 1),
+      id: `sl_bike_${sessionId}`,
+      exerciseId: "echo_bike",
+      modalityId: "cardio",
+      reps: null,
+      weightLbs: null,
+      rir: null,
+      durationSeconds: 240,
+      isWarmup: true,
+      conditioning: {
+        intervalScheme: "8x20/10",
+        targetWatts: null,
+        targetRpm: null,
+        avgWatts,
+        maxWatts: null,
+        avgRpm: null,
+        calories: null,
+        effort: 6,
+      },
+    });
+    const data = buildGymData({
+      ...seed,
+      sessions: [...seed.sessions, session("s_then", "2026-11-10", "completed"), session("s_now", "2026-11-17", "planned")],
+      setLogs: [...seed.setLogs, bike("s_then", 150), bike("s_now", 160)],
+    });
+    expect(livePerson(data, data.sessionById.get("s_now")!).bikeHistory).toEqual([
+      { sessionId: "s_then", setNumber: 1, shape: "8x20/10", warmup: true, date: "2026-11-10", avgWatts: 150, effort: 6 },
+    ]);
+  });
+});

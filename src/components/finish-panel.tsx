@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { EffortPicker } from "@/components/effort-picker";
 import { CheckIcon } from "@/components/icons";
-import { Button, ErrorText, Input } from "@/components/ui";
+import { Button, ErrorText, Textarea } from "@/components/ui";
 import type { SessionCondition } from "@/lib/types";
 
 export type FinishPayload = {
@@ -51,15 +51,15 @@ export function FinishPanel({
           if (patch.condition !== undefined) setCondition(patch.condition);
         }}
       />
+      <Textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Notes — how it went, anything that hurt"
+        aria-label="Session notes"
+        className="w-full"
+      />
       <div className="flex flex-wrap items-center gap-2">
         {durationSlot}
-        <Input
-          type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notes"
-          className="min-w-48 flex-1"
-        />
         <Button
           variant="primary"
           onClick={() => onFinish({ rpe, condition, notes })}

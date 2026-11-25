@@ -3,6 +3,7 @@ import { isCareRoutine } from "./data/care-routines";
 import { isCoreRoutine } from "./data/core-routines";
 import { activeAssignment, type GymData } from "./gym-data";
 import { programEnded, shortDayLabel } from "./periods";
+import { programWeekStatus } from "./planning";
 import { routineForDay } from "./queries";
 import { wantsBikeWarmup } from "./warmup";
 import type { ClientId, Routine } from "./types";
@@ -67,9 +68,13 @@ export function routineGroup(routine: Pick<Routine, "id" | "name">): string {
 /**
  * Everyone's launcher row for `today` (`dow` 1 = Monday). Options lead with
  * unfinished sessions to resume, then today's program day, the rest of the
- * program, other routines, and care then core work last (both are also
- * offered as finishers). Anyone with something to resume or a program day starts
- * checked; otherwise the default is what they did last.
+ * program (the next not-done day of this program week first), other
+ * routines, and care then core work last (both are also offered as
+ * finishers). Anyone with something to resume, or a program day today they
+ * haven't done yet, starts checked. On a day off the default is what's next
+ * in their program — the first day of this program week not yet done, so a
+ * missed Monday comes before Friday — and only without a program is it the
+ * routine they did last.
  */
 export function launcherRows(data: GymData, today: string, dow: number): LauncherRow[] {
   const routines = [...data.routines].sort((a, b) => a.name.localeCompare(b.name));
@@ -83,6 +88,21 @@ export function launcherRows(data: GymData, today: string, dow: number): Launche
     const program = assignment ? data.programById.get(assignment.programId) : undefined;
     const ended = !!assignment && !!program && programEnded(assignment, program, today);
     const todaysRoutine = routineForDay(data, client.id, dow, today);
+    // Already trained today's program day: it stays listed, but the person
+    // isn't pre-checked for a second go.
+    const doneToday =
+      todaysRoutine !== null &&
+      data.sessions.some(
+        (s) =>
+          s.clientId === client.id &&
+          s.status === "completed" &&
+          s.date === today &&
+          s.routineId === todaysRoutine.routineId,
+      );
+    const upNextId =
+      !ended && (todaysRoutine === null || doneToday)
+        ? (programWeekStatus(data, client.id, today)?.days.find((d) => !d.done && !d.isToday)?.routineId ?? null)
+        : null;
 
     const programGroup = program && !ended ? program.name : null;
     const programRoutineIds = new Set(
@@ -104,7 +124,7 @@ export function launcherRows(data: GymData, today: string, dow: number): Launche
         ? [
             {
               value: start(todaysRoutine.routineId, assignment?.id ?? null),
-              label: `${routineName(todaysRoutine.routineId)} — today's program day`,
+              label: `${routineName(todaysRoutine.routineId)} — ${doneToday ? "done today" : "today's program day"}`,
               group: programGroup ?? "Program",
               bikeWarmup: warm(todaysRoutine.routineId),
             },
@@ -112,9 +132,11 @@ export function launcherRows(data: GymData, today: string, dow: number): Launche
         : []),
       ...routines
         .filter((r) => programRoutineIds.has(r.id) && r.id !== todaysRoutine?.routineId)
+        // What's next in the program leads; the rest stay A–Z (stable sort).
+        .sort((a, b) => Number(b.id === upNextId) - Number(a.id === upNextId))
         .map((r) => ({
           value: start(r.id, assignment?.id ?? null),
-          label: r.name,
+          label: r.id === upNextId ? `${r.name} — next up` : r.name,
           group: programGroup!,
           bikeWarmup: warm(r.id),
         })),
@@ -125,18 +147,23 @@ export function launcherRows(data: GymData, today: string, dow: number): Launche
         .sort((a, b) => TAIL_GROUPS.indexOf(a.group) - TAIL_GROUPS.indexOf(b.group)),
     ];
 
-    // No resume and no program day: default to what they did last (program
-    // routines carry the assignment in their value) rather than whichever
-    // routine sorts first.
+    // Nothing to resume and no program day left today: default to what's
+    // next in their program, else what they did last (program routines carry
+    // the assignment in their value) rather than whichever routine sorts
+    // first.
     const lastRoutineId = data.sessions
       .filter((s) => s.clientId === client.id && s.status === "completed" && s.routineId)
       .sort((a, b) => b.date.localeCompare(a.date))[0]?.routineId;
-    const lastValue = options.find((o) => {
-      const plan = parsePlanValue(o.value);
-      return plan?.kind === "start" && plan.routineId === lastRoutineId;
-    })?.value;
+    const routineValue = (routineId: string | null | undefined) =>
+      options.find((o) => {
+        const plan = parsePlanValue(o.value);
+        return plan?.kind === "start" && plan.routineId === routineId;
+      })?.value;
+    const fallback = options[0]?.value ?? "";
     const defaultPlan =
-      planned.length > 0 || todaysRoutine || !lastValue ? (options[0]?.value ?? "") : lastValue;
+      planned.length > 0 || (todaysRoutine && !doneToday)
+        ? fallback
+        : (routineValue(upNextId) ?? routineValue(lastRoutineId) ?? fallback);
 
     return {
       clientId: client.id,
@@ -144,7 +171,7 @@ export function launcherRows(data: GymData, today: string, dow: number): Launche
       color: client.color,
       options,
       defaultPlan,
-      defaultChecked: planned.length > 0 || todaysRoutine !== null,
+      defaultChecked: planned.length > 0 || (todaysRoutine !== null && !doneToday),
       finishedProgram:
         ended && assignment && program
           ? { assignmentId: assignment.id, programName: program.name }

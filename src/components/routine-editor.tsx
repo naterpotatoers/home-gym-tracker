@@ -17,6 +17,7 @@ import {
   Input,
   Select,
   StepperInput,
+  Textarea,
 } from "@/components/ui";
 import { MuscleCoverageBars } from "@/components/muscle-coverage";
 import { MuscleGroupLegend } from "@/components/muscle-group-legend";
@@ -28,7 +29,10 @@ import { coverageHeat, coverageMax } from "@/lib/heat";
 import { newId } from "@/lib/ids";
 import { bandRolesFor, type Variant } from "@/lib/queries";
 import type { ConditioningTarget, Routine, RoutineExercise, UnilateralMode } from "@/lib/types";
-import { CONSOLE_PRESETS, DEFAULT_STEADY_SECONDS, EMPTY_TARGET } from "@/lib/conditioning";
+import { EMPTY_TARGET, parseIntervalScheme, pieceSeconds } from "@/lib/conditioning";
+import { mmss } from "@/lib/periods";
+import { estimatedMinutes } from "@/lib/routine-time";
+import { PiecePicker } from "@/components/piece-picker";
 import { rxLabel } from "@/lib/session-labels";
 import { Dialog } from "@/components/dialog";
 import { UNILATERAL_MODES } from "@/lib/validate";
@@ -75,12 +79,11 @@ function Captioned({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-const STEADY = "steady";
-
-/** A bike row (Echo Bike): pieces, the piece (a console preset or steady
- *  minutes), the default target and rest. The target is where everyone
- *  starts; each person's own target then rolls forward from their last piece,
- *  so set it for the least-conditioned person you'd run it with. */
+/** A bike row (Echo Bike): pieces, the piece (a console preset, a custom
+ *  interval or steady minutes), rest, and the default target — on intervals
+ *  the watts to hold in the work bouts. The target is where everyone starts;
+ *  each person's own target then carries over from their last piece, so set
+ *  it for the least-conditioned person you'd run it with. */
 function ConditioningRxFields({
   row,
   onPatch,
@@ -89,8 +92,7 @@ function ConditioningRxFields({
   onPatch: (changes: Partial<RoutineExercise>) => void;
 }) {
   const target = row.conditioning ?? EMPTY_TARGET;
-  const scheme = target.intervalScheme;
-  const custom = scheme !== null && !CONSOLE_PRESETS.some((p) => p.scheme === scheme);
+  const interval = parseIntervalScheme(target.intervalScheme) !== null;
   const patchTarget = (changes: Partial<ConditioningTarget>) =>
     onPatch({ conditioning: { ...target, ...changes } });
   return (
@@ -99,56 +101,36 @@ function ConditioningRxFields({
         <Captioned label="Pieces">
           <StepperInput size="sm" value={row.sets} min={1} max={10} onChange={(v) => onPatch({ sets: v ?? 1 })} label="pieces" className="w-12" />
         </Captioned>
-        <Captioned label="Piece">
-          <Select
-            size="sm"
-            value={scheme ?? STEADY}
-            onChange={(e) => {
-              const intervalScheme = e.target.value === STEADY ? null : e.target.value;
-              onPatch({
-                conditioning: { ...target, intervalScheme },
-                durationSeconds: intervalScheme ? null : (row.durationSeconds ?? DEFAULT_STEADY_SECONDS),
-              });
-            }}
-            aria-label="Piece"
-          >
-            {CONSOLE_PRESETS.map((p) => (
-              <option key={p.scheme} value={p.scheme}>
-                {p.label}
-              </option>
-            ))}
-            {custom && <option value={scheme}>{scheme.replace("x", " × ")}</option>}
-            <option value={STEADY}>Steady</option>
-          </Select>
-        </Captioned>
-        {scheme === null && (
-          <Captioned label="Minutes">
-            <StepperInput
-              size="sm"
-              value={row.durationSeconds === null ? null : Math.round(row.durationSeconds / 60)}
-              min={1}
-              max={60}
-              onChange={(v) => onPatch({ durationSeconds: v ? v * 60 : null })}
-              label="minutes"
-              className="w-12"
-            />
-          </Captioned>
-        )}
-        <Captioned label="Rest (s)">
+        <PiecePicker
+          scheme={target.intervalScheme}
+          steadySeconds={row.durationSeconds}
+          onChange={({ intervalScheme, steadySeconds }) =>
+            onPatch({ conditioning: { ...target, intervalScheme }, durationSeconds: steadySeconds })
+          }
+          size="sm"
+          Field={Captioned}
+        />
+        <Captioned label="Rest between (s)">
           <StepperInput size="sm" value={row.restSeconds} min={0} step={15} onChange={(v) => onPatch({ restSeconds: v ?? 0 })} label="rest" className="w-14" />
         </Captioned>
       </div>
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
-        <Captioned label="Target watts">
+        <Captioned label={interval ? "Target watts (work bouts)" : "Target avg watts"}>
           <StepperInput size="sm" value={target.targetWatts} min={0} max={2000} step={5} onChange={(v) => patchTarget({ targetWatts: v || null })} label="target watts" className="w-16" />
         </Captioned>
-        <Captioned label="Target RPM">
+        <Captioned label={interval ? "Target RPM (work bouts)" : "Target RPM"}>
           <StepperInput size="sm" value={target.targetRpm} min={0} max={250} onChange={(v) => patchTarget({ targetRpm: v || null })} label="target RPM" className="w-14" />
         </Captioned>
       </div>
       <p className="text-xs text-muted">
-        Everyone starts here; after that each person&apos;s own target carries over from
-        their last piece, and goes up a notch after they hit it twice in a row.
+        <span className="font-mono text-foreground">
+          {row.sets} × {mmss(pieceSeconds(row))} ≈ {estimatedMinutes([row])} min
+        </span>{" "}
+        with rest. Everyone starts at this target; after that each person&apos;s own carries over from
+        their last piece.{" "}
+        {interval
+          ? "Raise it on their card when the work bouts get easy."
+          : "A steady target goes up a notch after they hit it twice in a row."}
       </p>
     </>
   );
@@ -352,14 +334,6 @@ export function RoutineEditor({
           aria-label="Routine name"
           className="min-w-0 flex-[3] basis-72 font-semibold"
         />
-        <Input
-          type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notes"
-          aria-label="Routine notes"
-          className="min-w-0 flex-[2] basis-56"
-        />
         <span className="text-xs text-muted">
           {saveState === "saving" ? "saving…" : saveState === "saved" ? "saved" : ""}
         </span>
@@ -373,6 +347,13 @@ export function RoutineEditor({
         />
         {error && <ErrorText>{error}</ErrorText>}
       </div>
+      <Textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Notes — how to run this routine"
+        aria-label="Routine notes"
+        className="mt-3 w-full"
+      />
 
       {/* Row edges + dots below are colored by primary muscle group. */}
       {rows.length > 0 && (
@@ -467,8 +448,7 @@ export function RoutineEditor({
                 {open && isBike && (
                   <div className="space-y-3 px-3 pb-3 pl-9 pt-1 text-sm">
                     <ConditioningRxFields row={row} onPatch={(changes) => patch(index, changes)} />
-                    <Input
-                      type="text"
+                    <Textarea
                       value={row.notes}
                       onChange={(e) => patch(index, { notes: e.target.value })}
                       className="w-full"
@@ -547,8 +527,7 @@ export function RoutineEditor({
                         </Captioned>
                       )}
                     </div>
-                    <Input
-                      type="text"
+                    <Textarea
                       value={row.notes}
                       onChange={(e) => patch(index, { notes: e.target.value })}
                       className="w-full"

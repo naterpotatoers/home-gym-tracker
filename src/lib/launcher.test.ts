@@ -10,7 +10,9 @@ import {
   warmupApplies,
   type Plan,
 } from "./launcher";
+import { buildGymData } from "./gym-data";
 import { plannedSessionFromRoutine } from "./planning";
+import type { Session } from "./types";
 
 describe("plan values (the launcher ↔ startGroupFromForm contract)", () => {
   it("round-trips every plan shape", () => {
@@ -153,5 +155,73 @@ describe("the Start button and warm-up checkbox", () => {
     expect(warmupApplies([nate], { nate: resume })).toBe(false);
     expect(warmupApplies([nate, lidia], { nate: care, lidia: lift })).toBe(true);
     expect(warmupApplies([], {})).toBe(false);
+  });
+});
+
+describe("the default plan follows the program", () => {
+  const seed = seedSnapshot();
+  // Lidia: Foundations from Mon 2026-07-06 — Mondays r_full_a, Thursdays
+  // r_full_b. Her seed history is swapped for exactly what each case needs.
+  const done = (date: string, routineId: string): Session => ({
+    id: `s_${date}_${routineId}`,
+    clientId: "lidia",
+    date,
+    assignmentId: null,
+    routineId,
+    durationMinutes: null,
+    rpe: null,
+    condition: null,
+    status: "completed",
+    notes: "",
+  });
+  const lidia = (today: string, dow: number, sessions: Session[]) => {
+    const data = buildGymData({
+      ...seed,
+      sessions: [...seed.sessions.filter((s) => s.clientId !== "lidia"), ...sessions],
+    });
+    const row = launcherRows(data, today, dow).find((r) => r.clientId === "lidia")!;
+    return { row, picked: row.options.find((o) => o.value === row.defaultPlan)! };
+  };
+  const routineOf = (value: string) => (parsePlanValue(value) as Extract<Plan, { kind: "start" }>).routineId;
+
+  it("a program day not yet done: pre-checked, today's day picked", () => {
+    const { row, picked } = lidia("2026-07-13", 1, []);
+    expect(row.defaultChecked).toBe(true);
+    expect(picked.label).toMatch(/today's program day$/);
+    expect(routineOf(picked.value)).toBe("r_full_a");
+  });
+
+  it("a day off: what's next in the program, not the routine done last", () => {
+    // Tuesday; Monday's day was missed and her last session was something else.
+    const { row, picked } = lidia("2026-07-14", 2, [done("2026-07-10", "r_lower")]);
+    expect(row.defaultChecked).toBe(false);
+    expect(routineOf(picked.value)).toBe("r_full_a");
+    expect(picked.label).toMatch(/next up$/);
+    // Carries the assignment, so the session counts toward the program.
+    expect(parsePlanValue(picked.value)).toMatchObject({ assignmentId: "a_lidia_foundations" });
+  });
+
+  it("a day off after Monday's is done: Thursday's is next", () => {
+    const { picked } = lidia("2026-07-14", 2, [done("2026-07-13", "r_full_a")]);
+    expect(routineOf(picked.value)).toBe("r_full_b");
+  });
+
+  it("today's program day already done today: not pre-checked, the next one picked", () => {
+    const { row, picked } = lidia("2026-07-13", 1, [done("2026-07-13", "r_full_a")]);
+    expect(row.defaultChecked).toBe(false);
+    expect(row.options.some((o) => /done today$/.test(o.label))).toBe(true);
+    expect(routineOf(picked.value)).toBe("r_full_b");
+  });
+
+  it("the whole program week done, or no program: the routine done last", () => {
+    const week = [done("2026-07-13", "r_full_a"), done("2026-07-16", "r_full_b")];
+    expect(routineOf(lidia("2026-07-17", 5, week).picked.value)).toBe("r_full_b");
+    const data = buildGymData({
+      ...seed,
+      assignments: seed.assignments.filter((a) => a.clientId !== "lidia"),
+      sessions: [...seed.sessions.filter((s) => s.clientId !== "lidia"), done("2026-07-10", "r_lower")],
+    });
+    const row = launcherRows(data, "2026-07-14", 2).find((r) => r.clientId === "lidia")!;
+    expect(routineOf(row.defaultPlan)).toBe("r_lower");
   });
 });

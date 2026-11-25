@@ -10,6 +10,7 @@ import { ConditioningSetRow } from "@/components/conditioning-set-row";
 import { SetRow } from "@/components/set-row";
 import { Button, FOCUS_RING } from "@/components/ui";
 import type { SessionFlow, SetEditor } from "@/components/use-session-flow";
+import { lastComparable, type BikePast } from "@/lib/conditioning";
 import { exerciseLookup, variantKey, type ExerciseCatalog } from "@/lib/exercise-catalog";
 import { variantOf } from "@/lib/modality";
 import { mmss, shortDayLabel } from "@/lib/periods";
@@ -61,6 +62,7 @@ export function SessionBlockList({
   prescriptions,
   catalog,
   history = {},
+  bikeHistory = [],
   stalls = {},
   dense = false,
   onReplace,
@@ -73,6 +75,9 @@ export function SessionBlockList({
   /** Recent completed sessions per "exerciseId|modalityId" (this session
    *  excluded) — the expanded block's "Last" line. */
   history?: Record<string, VariantSessionSummary[]>;
+  /** This person's past bike pieces, newest first (this session excluded) —
+   *  each bike card picks its like-for-like "Last" ride from it. */
+  bikeHistory?: readonly BikePast[];
   /** Lifts with no progress in 3+ weeks, per "exerciseId|modalityId". */
   stalls?: Record<string, StallHint>;
   /** Tighter set rows for the group board's cards. */
@@ -115,6 +120,7 @@ export function SessionBlockList({
             rx={blockPrescription(prescriptions, block)}
             stall={blockStall(block, stalls)}
             lastSessions={history[keyOf(block)] ?? []}
+            bikeHistory={bikeHistory}
             superset={supersetPosition(supersetLabels, index)}
             isCurrent={block === currentBlock}
             isExpanded={block.key === shownKey}
@@ -182,8 +188,8 @@ export function SessionBlockList({
  * One exercise in the list. Collapsed: a checked/progress row that opens on
  * tap. Expanded: the name (big when it's the current block), its tags, the
  * ⋯ menu, the rx line, last time's sets, a stall callout, and the editable
- * set rows. The bike warm-up is labelled, gets its own rx line and no "Last"
- * line (that history is the person's finisher pieces).
+ * set rows. The bike warm-up is labelled and gets its own rx line; bike
+ * blocks have no "Last" chips — each bike card shows its own last ride.
  */
 function SessionBlock({
   block,
@@ -192,6 +198,7 @@ function SessionBlock({
   rx,
   stall,
   lastSessions,
+  bikeHistory,
   superset,
   isCurrent,
   isExpanded,
@@ -209,6 +216,7 @@ function SessionBlock({
   rx: RoutineExercise | undefined;
   stall: StallHint | undefined;
   lastSessions: VariantSessionSummary[];
+  bikeHistory: readonly BikePast[];
   superset: { inSuperset: boolean; starts: boolean };
   isCurrent: boolean;
   isExpanded: boolean;
@@ -356,7 +364,8 @@ function SessionBlock({
       )}
       {rxLine && <p className="mt-0.5 text-xs text-muted">{rxLine}</p>}
 
-      {!isWarmup && <LastTime sessions={lastSessions} />}
+      {/* A bike card carries its own like-for-like "Last" line. */}
+      {!isBike && <LastTime sessions={lastSessions} />}
 
       {/* Editable sets */}
       <div className="mt-1.5">
@@ -377,7 +386,7 @@ function SessionBlock({
             logDisabled: editor.busy,
           };
           return isBike ? (
-            <ConditioningSetRow key={set.id} {...rowProps} />
+            <ConditioningSetRow key={set.id} {...rowProps} last={lastComparable(bikeHistory, set)} />
           ) : (
             <SetRow
               key={set.id}

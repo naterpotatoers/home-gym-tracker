@@ -41,6 +41,32 @@ export class Block {
     return this.root.getByRole("group", { name: "Console readout" }).getByLabel(caption, { exact: true });
   }
 
+  /** A bike piece's row while it isn't the open one, by its number. */
+  piece(number: number) {
+    return this.root.getByRole("button", { name: new RegExp(`^Edit piece ${number}:`) });
+  }
+
+  async addPiece() {
+    await test.step("add a bike piece", async () => {
+      await this.root.getByRole("button", { name: "Add piece" }).click();
+    });
+  }
+
+  /** Switch the open bike piece to a custom interval. */
+  async customInterval({ rounds, work, rest }: { rounds: number; work: number; rest: number }) {
+    await test.step(`set the piece to ${rounds} × ${work}/${rest}`, async () => {
+      await this.root.getByRole("combobox", { name: "Piece" }).selectOption({ label: "Custom…" });
+      const fields = [
+        ["rounds", rounds],
+        ["work seconds", work],
+        ["rest seconds", rest],
+      ] as const;
+      for (const [name, value] of fields) {
+        await this.root.getByRole("spinbutton", { name, exact: true }).fill(String(value));
+      }
+    });
+  }
+
   /** Tap a collapsed exercise to jump the cursor to it. */
   async open() {
     await this.root.getByRole("button").first().click();
@@ -69,6 +95,10 @@ export class Block {
         ["distance mi", readout.distanceMi],
         ["calories", readout.calories],
       ] as const;
+      // Everything but the average sits behind "More numbers".
+      const extras = fields.some(([caption, value]) => caption !== "avg watts" && value !== undefined);
+      const more = this.root.getByRole("button", { name: /^More numbers/ });
+      if (extras && (await more.getAttribute("aria-expanded")) !== "true") await more.click();
       for (const [caption, value] of fields) {
         if (value !== undefined) await this.readout(caption).fill(String(value));
       }

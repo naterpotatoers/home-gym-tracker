@@ -1,3 +1,4 @@
+import { EMPTY_CONDITIONING, targetOf } from "./conditioning";
 import type { SetLog } from "./types";
 import { isBikeWarmupSet } from "./warmup";
 
@@ -56,6 +57,22 @@ export function renumber(sets: SetLog[]): SetLog[] {
   });
 }
 
+/**
+ * "Add set": the next set of a block, planned like its last one. A lift
+ * copies load and reps as they are. A bike piece copies the plan only (its
+ * length and target) — the average, distance and effort belong to the piece
+ * that was ridden.
+ */
+export function nextSetLike(template: SetLog, id: string): SetLog {
+  const next = { ...template, id, completed: false };
+  if (template.conditioning === null) return next;
+  return {
+    ...next,
+    distanceFeet: null,
+    conditioning: { ...EMPTY_CONDITIONING, ...targetOf(template.conditioning) },
+  };
+}
+
 /** Prescription fields that roll forward when edited — "update once, rolls
  *  out". completed/notes/rir are per-set facts and never cascade. */
 export const CASCADE_KEYS = [
@@ -82,11 +99,11 @@ export function cascadeTargets(
   targetId: string,
   changes: Partial<SetLog>,
 ): string[] {
-  if (!CASCADE_KEYS.some((key) => key in changes)) return [];
   const block = toBlocks(sets).find((b) => b.sets.some((s) => s.id === targetId));
   if (!block) return [];
   const index = block.sets.findIndex((s) => s.id === targetId);
   const target = block.sets[index];
+  if (!cascades(target, changes)) return [];
   const out: string[] = [];
   for (const set of block.sets.slice(index + 1)) {
     if (set.completed) break;
@@ -95,7 +112,37 @@ export function cascadeTargets(
   return out;
 }
 
-/** The subset of `changes` that cascades (see CASCADE_KEYS). */
+/** Whether an edit to `target` (as it was before the edit) is a prescription
+ *  change. A bike piece's prescription is its length and the target half of
+ *  `conditioning` (scheme, watts, RPM); everything else on it — distance
+ *  included — is what the console read, a per-piece fact. */
+function cascades(target: SetLog, changes: Partial<SetLog>): boolean {
+  if (target.conditioning === null) return CASCADE_KEYS.some((key) => key in changes);
+  if ("durationSeconds" in changes) return true;
+  const next = changes.conditioning;
+  if (next == null) return false;
+  const [a, b] = [targetOf(next), targetOf(target.conditioning)];
+  return a.intervalScheme !== b.intervalScheme || a.targetWatts !== b.targetWatts || a.targetRpm !== b.targetRpm;
+}
+
+/**
+ * A later set (one of cascadeTargets) with the cascading part of `changes`
+ * applied. A lift takes the CASCADE_KEYS fields. A bike piece takes the new
+ * length and target — so piece 1's "250 W" or a switch to 30/30 reaches the
+ * pieces still to ride — and keeps its own readout.
+ */
+export function cascadeInto(set: SetLog, changes: Partial<SetLog>): SetLog {
+  if (set.conditioning === null) return { ...set, ...cascadePatch(changes) };
+  return {
+    ...set,
+    ...("durationSeconds" in changes ? { durationSeconds: changes.durationSeconds ?? null } : {}),
+    conditioning: changes.conditioning
+      ? { ...EMPTY_CONDITIONING, ...set.conditioning, ...targetOf(changes.conditioning) }
+      : set.conditioning,
+  };
+}
+
+/** The subset of `changes` that cascades for a lift (see CASCADE_KEYS). */
 export function cascadePatch(changes: Partial<SetLog>): Partial<SetLog> {
   const patch: Partial<SetLog> = {};
   for (const key of CASCADE_KEYS) {

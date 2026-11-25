@@ -1,4 +1,5 @@
 import { finisherOptions, type FinisherOption } from "./care";
+import { bikePast, type BikePast } from "./conditioning";
 import { variantKey } from "./exercise-catalog";
 import type { GymData } from "./gym-data";
 import { recentVariantHistory, type VariantSessionSummary } from "./progress";
@@ -20,6 +21,9 @@ export type LivePerson = {
   recentKeys: string[];
   /** Last sessions per variant, for each block's "Last" line. */
   history: Record<string, VariantSessionSummary[]>;
+  /** This person's past bike pieces with an average, newest first (this
+   *  session excluded) — a bike card's "Last" line and "+12 W vs" note. */
+  bikeHistory: BikePast[];
   /** The session was already completed when the page rendered. */
   finished: boolean;
   /** "Continue your workout?" add-ons, suggested first (planned only). */
@@ -67,6 +71,7 @@ export function livePerson(data: GymData, session: Session): LivePerson {
     color: client?.color ?? null,
     recentKeys: recentVariantKeys(data, session.clientId),
     history: recentVariantHistory(data, session.clientId, session.id),
+    bikeHistory: bikePast(data, session.clientId, session.id),
     finished: session.status === "completed",
     ...liveExtras(data, session),
   };

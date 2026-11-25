@@ -6,9 +6,10 @@ import { errorMessage } from "@/lib/format";
 import { randomSuffix } from "@/lib/ids";
 import type { Variant } from "@/lib/queries";
 import {
-  cascadePatch,
+  cascadeInto,
   cascadeTargets,
   completeAsBodyweight,
+  nextSetLike,
   renumber,
   toBlocks,
   type Block,
@@ -221,7 +222,6 @@ export function useSetEditor(
   function patchSet(id: string, changes: Partial<SetLog>) {
     const current = setsRef.current;
     if (!current.some((s) => s.id === id)) return;
-    const cascadeFields = cascadePatch(changes);
     const cascadeIds: ReadonlySet<string> = new Set(cascadeTargets(current, id, changes));
 
     const updated = new Map<string, SetLog>();
@@ -232,7 +232,7 @@ export function useSetEditor(
         return row;
       }
       if (cascadeIds.has(set.id)) {
-        const row = { ...set, ...cascadeFields };
+        const row = cascadeInto(set, changes);
         updated.set(set.id, row);
         return row;
       }
@@ -330,7 +330,7 @@ export function useSetEditor(
     const template = block.sets.at(-1)!;
     const index = current.findIndex((s) => s.id === template.id);
     const next = [...current];
-    next.splice(index + 1, 0, { ...template, id: clientSetId(), completed: false });
+    next.splice(index + 1, 0, nextSetLike(template, clientSetId()));
     restructure(next);
   }
 

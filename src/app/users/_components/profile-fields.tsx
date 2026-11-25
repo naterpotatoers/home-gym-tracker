@@ -1,6 +1,6 @@
 "use client";
 
-import { Field, Input, Select } from "@/components/ui";
+import { Field, Input, Select, Textarea } from "@/components/ui";
 import { CLIENT_COLORS } from "@/lib/data/clients";
 import type { Client } from "@/lib/types";
 import { EXPERIENCE_LABELS, EXPERIENCE_LEVELS, GOAL_LABELS, GOALS } from "@/lib/validate";
@@ -88,9 +88,11 @@ export function ProfileFields({ client }: { client?: Client }) {
           ))}
         </Select>
       </Field>
-      <Field label="Notes">
-        <Input type="text" name="notes" defaultValue={client?.notes ?? ""} placeholder="—" />
-      </Field>
+      <div className="col-span-2 sm:col-span-3">
+        <Field label="Notes">
+          <Textarea name="notes" defaultValue={client?.notes ?? ""} placeholder="Injuries, limits, preferences" />
+        </Field>
+      </div>
       <div className="col-span-2 sm:col-span-3">
         <ColorPicker
           name="color"

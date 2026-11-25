@@ -335,8 +335,8 @@ describe("bike warm-up prescription", () => {
     expect(restAfterLog(bike(true), undefined, [finisher], new Map())).toBe(60);
     const piece = (intervalScheme: string | null, durationSeconds: number) =>
       ({ conditioning: { ...EMPTY_TARGET, intervalScheme }, durationSeconds }) as SetLog;
-    expect(warmupRxLabel(BIKE_WARMUP_RX, piece("8x20/10", 240))).toBe("8 × 20/10 · warm-up, RPE 3–4 · rest 60s");
-    expect(warmupRxLabel(BIKE_WARMUP_RX, piece(null, 300))).toBe("5:00 steady · warm-up, RPE 3–4 · rest 60s");
+    expect(warmupRxLabel(BIKE_WARMUP_RX, piece("8x20/10", 240))).toBe("8 × 20/10 · warm-up, RPE 5–6 · rest 60s");
+    expect(warmupRxLabel(BIKE_WARMUP_RX, piece(null, 300))).toBe("5:00 steady · warm-up, RPE 5–6 · rest 60s");
   });
 
   const bikeBlock = (isWarmup: boolean) => ({
@@ -360,7 +360,7 @@ describe("bike warm-up prescription", () => {
   });
 
   it("blockRxLine: the warm-up's line, a bike piece without its target, a lift's rx", () => {
-    expect(blockRxLine(BIKE_WARMUP_RX, bikeBlock(true), true)).toBe("8 × 20/10 · warm-up, RPE 3–4 · rest 60s");
+    expect(blockRxLine(BIKE_WARMUP_RX, bikeBlock(true), true)).toBe("8 × 20/10 · warm-up, RPE 5–6 · rest 60s");
     expect(blockRxLine(finisher, bikeBlock(false), true)).toBe("8 × 20/10 · rest 120s");
     const row = { ...squat, sets: 3, repMin: 5, repMax: 5, durationSeconds: null, targetRir: 2, conditioning: null };
     expect(blockRxLine(row, { exerciseId: "squat", modalityId: "barbell", sets: [] }, false)).toBe(

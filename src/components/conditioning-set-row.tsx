@@ -4,13 +4,13 @@ import { useState } from "react";
 import { EffortScale } from "@/components/effort-picker";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { TrashIcon } from "@/components/icons";
-import { NumberInput, Select, StepperInput } from "@/components/ui";
+import { PiecePicker, type PieceChoice } from "@/components/piece-picker";
+import { FOCUS_RING, NumberInput, StepperInput } from "@/components/ui";
 import {
-  CONSOLE_PRESETS,
   conditioningOf,
-  DEFAULT_STEADY_SECONDS,
   effortLabel,
   feetToMiles,
+  lastRideLabel,
   milesToFeet,
   parseIntervalScheme,
   pieceLabel,
@@ -19,22 +19,24 @@ import {
   targetLabel,
   targetResult,
   TARGET_RESULT_LABELS,
+  vsLastLabel,
+  type BikePast,
   type TargetResult,
 } from "@/lib/conditioning";
-import { mmss } from "@/lib/periods";
 import { conditioningSetLabel } from "@/lib/session-labels";
 import type { ConditioningLog, SetLog } from "@/lib/types";
 import { WARMUP_EFFORT } from "@/lib/warmup";
 
-const STEADY = "steady";
-
 /**
  * One bike piece (Echo Bike) — the conditioning counterpart of SetRow, same
  * contract. Compact: the piece and either the person's target or, once
- * entered, the console's readout. Active: the target in big type (adjustable
- * for today — their next piece starts from it), the console numbers to copy
- * off the frozen screen after STOP, and LOG. Editing a logged piece un-logs
- * it, like SetRow.
+ * entered, the console's readout. Active, top to bottom: the plan (piece +
+ * target — watts to hold in the work bouts on intervals; adjustable for
+ * today, their next piece starts from it), their last ride of the same kind,
+ * then the two things worth typing after STOP — average watts and how hard
+ * it felt — and LOG. The rest of the console (max watts, cadence, distance,
+ * calories) and target RPM sit behind "More numbers". Editing a logged piece
+ * un-logs it, like SetRow.
  */
 export function ConditioningSetRow({
   set,
@@ -45,6 +47,7 @@ export function ConditioningSetRow({
   onActivate,
   logDisabled = false,
   dense = false,
+  last = null,
 }: {
   set: SetLog;
   onChange: (changes: Partial<SetLog>) => void;
@@ -54,8 +57,19 @@ export function ConditioningSetRow({
   onActivate?: () => void;
   logDisabled?: boolean;
   dense?: boolean;
+  /** Their last ride of this shape and kind (lastComparable) — the "Last"
+   *  line and the "+12 W vs" note. */
+  last?: BikePast | null;
 }) {
   const [relog, setRelog] = useState(false);
+  // Open from the start when this piece already carries one of the extras.
+  const [more, setMore] = useState(
+    () =>
+      set.distanceFeet !== null ||
+      [set.conditioning?.maxWatts, set.conditioning?.avgRpm, set.conditioning?.calories, set.conditioning?.targetRpm].some(
+        (v) => v != null,
+      ),
+  );
   const size = dense ? ("sm" as const) : ("md" as const);
   const log = conditioningOf(set);
   const result = targetResult(log);
@@ -81,15 +95,9 @@ export function ConditioningSetRow({
   const editLog = (changes: Partial<ConditioningLog>) =>
     edit({ conditioning: { ...log, ...changes } });
 
-  function setPiece(value: string) {
-    const intervalScheme = value === STEADY ? null : value;
-    const steadySeconds = parseIntervalScheme(log.intervalScheme)
-      ? DEFAULT_STEADY_SECONDS
-      : (set.durationSeconds ?? DEFAULT_STEADY_SECONDS);
-    edit({
-      conditioning: { ...log, intervalScheme },
-      durationSeconds: pieceSeconds({ conditioning: { ...log, intervalScheme }, durationSeconds: steadySeconds }),
-    });
+  function setPiece({ intervalScheme, steadySeconds }: PieceChoice) {
+    const conditioning = { ...log, intervalScheme };
+    edit({ conditioning, durationSeconds: pieceSeconds({ conditioning, durationSeconds: steadySeconds }) });
   }
 
   const menu = (
@@ -138,113 +146,124 @@ export function ConditioningSetRow({
     );
   }
 
-  const scheme = log.intervalScheme;
-  const custom = scheme !== null && !CONSOLE_PRESETS.some((p) => p.scheme === scheme);
+  const interval = parseIntervalScheme(log.intervalScheme) !== null;
+  const verdict = log.avgWatts !== null && last ? vsLastLabel(log.avgWatts, last) : null;
 
   return (
-    <div className="space-y-2 rounded-lg border-2 border-accent/60 bg-accent-soft px-2 py-2">
-      {/* The piece + the person's target, big — what you call out on the floor */}
-      <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-        <Labeled caption="Piece">
-          <Select size={size} value={scheme ?? STEADY} onChange={(e) => setPiece(e.target.value)} aria-label="Piece">
-            {CONSOLE_PRESETS.map((p) => (
-              <option key={p.scheme} value={p.scheme}>
-                {p.label}
-              </option>
-            ))}
-            {custom && <option value={scheme}>{scheme.replace("x", " × ")}</option>}
-            <option value={STEADY}>Steady</option>
-          </Select>
-        </Labeled>
-        {scheme === null && (
-          <Labeled caption="min">
+    <div className="space-y-2.5 rounded-lg border-2 border-accent/60 bg-accent-soft px-2 py-2">
+      {/* The plan: the piece, and the target big — what you call out on the
+          floor. */}
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+        <PiecePicker
+          scheme={log.intervalScheme}
+          steadySeconds={interval ? null : set.durationSeconds}
+          onChange={setPiece}
+          size={size}
+          Field={Labeled}
+        />
+        <span className="ml-auto">
+          <Labeled label={interval ? "target W · work bouts" : "target avg W"}>
             <StepperInput
               size={size}
-              value={set.durationSeconds === null ? null : Math.round(set.durationSeconds / 60)}
-              onChange={(v) => edit({ durationSeconds: v ? v * 60 : null })}
-              min={1}
-              max={60}
-              label="minutes"
-              className="w-12"
+              step={5}
+              value={log.targetWatts}
+              onChange={(v) => editLog({ targetWatts: v || null })}
+              max={2000}
+              label="target watts"
+              className="w-16 text-lg font-bold"
             />
           </Labeled>
-        )}
-        <Labeled caption="target W">
-          <StepperInput
-            size={size}
-            step={5}
-            value={log.targetWatts}
-            onChange={(v) => editLog({ targetWatts: v || null })}
-            max={2000}
-            label="target watts"
-            className="w-16 text-lg font-bold"
-          />
-        </Labeled>
-        <Labeled caption="target rpm">
-          <StepperInput
-            size={size}
-            value={log.targetRpm}
-            onChange={(v) => editLog({ targetRpm: v || null })}
-            max={250}
-            label="target rpm"
-            className="w-14 text-lg font-bold"
-          />
-        </Labeled>
+        </span>
       </div>
-      {!target && (
+      {(last || !target) && (
         <p className="text-xs text-muted">
-          {set.isWarmup
-            ? `Warm-up: easy pace, ${WARMUP_EFFORT} — no target needed.`
-            : "No target yet — set watts or RPM (or both)."}
+          {last ? (
+            <span className="font-mono text-foreground">{lastRideLabel(last)}</span>
+          ) : set.isWarmup ? (
+            `Warm-up: brisk, ${WARMUP_EFFORT} — get warm, don't empty the tank.`
+          ) : interval ? (
+            "No target yet — set the watts to hold in the work bouts."
+          ) : (
+            "No target yet — set the average watts to hold."
+          )}
         </p>
       )}
 
-      {/* The console's frozen screen after STOP, laid out like the Echo's:
-          WATTS (avg, then max — the AVG/MAX toggle) and CADENCE on top;
-          DISTANCE · TIME · CALORIES underneath. Speed is skipped (it's
-          derived from watts). */}
-      <div className="grid grid-cols-3 gap-2" role="group" aria-label="Console readout">
-        <Readout caption="avg watts" value={log.avgWatts} onChange={(v) => editLog({ avgWatts: whole(v) })} size={size} />
-        <Readout caption="max watts" value={log.maxWatts} onChange={(v) => editLog({ maxWatts: whole(v) })} size={size} />
-        <Readout caption="avg cadence" value={log.avgRpm} onChange={(v) => editLog({ avgRpm: whole(v) })} size={size} />
-        <Readout
-          caption="distance mi"
-          step={0.01}
-          value={set.distanceFeet === null ? null : Number(feetToMiles(set.distanceFeet).toFixed(2))}
-          onChange={(v) => edit({ distanceFeet: v === null ? null : milesToFeet(v) })}
-          size={size}
-        />
-        {/* Time is the piece's length — shown so the grid matches the
-            console, not typed (change the piece above). */}
-        <div className="flex min-w-0 flex-col">
-          <span
-            className={`flex items-center justify-center rounded-md border border-dashed border-border font-mono text-muted ${
-              size === "sm" ? "min-h-9 pointer-coarse:min-h-11 text-sm" : "min-h-11 text-base"
-            }`}
-          >
-            {set.durationSeconds !== null ? mmss(set.durationSeconds) : "—"}
-          </span>
-          <span className="mt-0.5 text-center text-[10px] leading-none text-muted">time</span>
+      {/* After STOP: the console's average and how hard it felt. Effort is a
+          self-report, not a console number, so picking one doesn't un-log
+          the piece. */}
+      <div role="group" aria-label="Console readout" className="space-y-2">
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted">avg watts</span>
+            <NumberInput
+              value={log.avgWatts}
+              onChange={(v) => editLog({ avgWatts: whole(v) })}
+              min={0}
+              size="md"
+              className="h-14! w-28 text-2xl! font-bold"
+            />
+          </label>
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Effort <span className="font-normal normal-case tracking-normal">(1 easy – 10 all-out)</span>
+            </p>
+            <EffortScale
+              value={log.effort ?? null}
+              onChange={(value) => onChange({ conditioning: { ...log, effort: value } })}
+              label="Piece effort"
+              grid={dense}
+            />
+          </div>
         </div>
-        <Readout caption="calories" value={log.calories} onChange={(v) => editLog({ calories: whole(v) })} size={size} />
+        {(verdict || result) && (
+          <p className="flex flex-wrap items-center gap-x-3 text-sm">
+            {verdict && <span className="font-mono font-semibold">{verdict}</span>}
+            {result && <ResultLabel result={result} />}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setMore((open) => !open)}
+          aria-expanded={more}
+          className={`inline-flex min-h-9 cursor-pointer items-center rounded-md px-1.5 text-xs text-muted hover:bg-current/5 pointer-coarse:min-h-11 ${FOCUS_RING}`}
+        >
+          More numbers {more ? "▴" : "▾"}
+        </button>
+        {more && (
+          // The rest of the frozen screen, in the console's order (speed is
+          // skipped — it's derived from watts), then the optional RPM target.
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2 @sm:grid-cols-4">
+              <Readout caption="max watts" value={log.maxWatts} onChange={(v) => editLog({ maxWatts: whole(v) })} size={size} />
+              <Readout caption="avg cadence" value={log.avgRpm} onChange={(v) => editLog({ avgRpm: whole(v) })} size={size} />
+              <Readout
+                caption="distance mi"
+                step={0.01}
+                value={set.distanceFeet === null ? null : Number(feetToMiles(set.distanceFeet).toFixed(2))}
+                onChange={(v) => edit({ distanceFeet: v === null ? null : milesToFeet(v) })}
+                size={size}
+              />
+              <Readout caption="calories" value={log.calories} onChange={(v) => editLog({ calories: whole(v) })} size={size} />
+            </div>
+            <Labeled label={interval ? "target rpm · work bouts" : "target rpm"} align="start">
+              <StepperInput
+                size={size}
+                value={log.targetRpm}
+                onChange={(v) => editLog({ targetRpm: v || null })}
+                max={250}
+                label="target rpm"
+                className="w-14"
+              />
+            </Labeled>
+          </div>
+        )}
       </div>
 
-      {/* How hard it felt — a self-report, not a console number, so picking
-          one doesn't un-log the piece. */}
-      <div className="space-y-1">
-        <p className="text-xs text-muted">How hard did it feel? (1 easy – 10 all-out)</p>
-        <EffortScale
-          value={log.effort ?? null}
-          onChange={(value) => onChange({ conditioning: { ...log, effort: value } })}
-          label="Piece effort"
-          grid={dense}
-        />
-      </div>
-
-      <div className="flex items-center justify-end gap-2">
-        {result && <ResultLabel result={result} />}
+      <div className="flex items-center gap-2">
         {set.completed ? (
-          <span className="flex min-h-11 flex-1 items-center justify-center text-sm font-semibold text-success-text">
+          <span className="flex min-h-12 flex-1 items-center justify-center text-sm font-semibold text-success-text">
             ✓ Logged
           </span>
         ) : (
@@ -255,7 +274,7 @@ export function ConditioningSetRow({
               setRelog(false);
             }}
             disabled={logDisabled}
-            className="min-h-11 min-w-16 max-w-48 flex-1 cursor-pointer rounded-md bg-accent-warm px-3 text-base font-bold tracking-wide text-accent-warm-fg hover:bg-accent-warm-strong disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="min-h-12 flex-1 cursor-pointer rounded-md bg-accent-warm px-3 text-base font-bold tracking-wide text-accent-warm-fg hover:bg-accent-warm-strong disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             LOG
           </button>
@@ -279,13 +298,22 @@ function ResultLabel({ result }: { result: TargetResult }) {
   return <span className={`shrink-0 text-xs ${tone}`}>{TARGET_RESULT_LABELS[result]}</span>;
 }
 
-/** A control with its unit underneath (not a <label>: a tap on the caption
- *  would press a stepper's − button; the controls carry aria-labels). */
-function Labeled({ caption, children }: { caption: string; children: React.ReactNode }) {
+/** A control with its caption underneath (not a <label>: a tap on the
+ *  caption would press a stepper's − button; the controls carry
+ *  aria-labels). */
+function Labeled({
+  label,
+  align = "center",
+  children,
+}: {
+  label: string;
+  align?: "center" | "start";
+  children: React.ReactNode;
+}) {
   return (
-    <span className="flex min-w-0 flex-col items-center">
+    <span className={`flex min-w-0 flex-col ${align === "center" ? "items-center" : "items-start"}`}>
       {children}
-      <span className="mt-0.5 whitespace-nowrap text-[10px] leading-none text-muted">{caption}</span>
+      <span className="mt-1 whitespace-nowrap text-xs leading-none text-muted">{label}</span>
     </span>
   );
 }
@@ -306,7 +334,7 @@ function Readout({
   return (
     <label className="flex min-w-0 flex-col">
       <NumberInput value={value} onChange={onChange} min={0} step={step} size={size} className="w-full" />
-      <span className="mt-0.5 text-center text-[10px] leading-none text-muted">{caption}</span>
+      <span className="mt-1 text-center text-xs leading-none text-muted">{caption}</span>
     </label>
   );
 }

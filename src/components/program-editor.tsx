@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { CopyIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { useDebouncedSave } from "@/components/use-debounced-save";
-import { BackLink, Button, Card, ErrorText, Input, Select } from "@/components/ui";
+import { BackLink, Button, Card, ErrorText, Input, Select, Textarea } from "@/components/ui";
 import {
   addWeek,
   clearProgramDay,
@@ -188,14 +188,6 @@ export function ProgramEditor({
           aria-label="Program name"
           className="min-w-0 flex-[3] basis-72 font-semibold"
         />
-        <Input
-          type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notes"
-          aria-label="Program notes"
-          className="min-w-0 flex-[2] basis-56"
-        />
         <span className="text-xs text-muted">
           {plural(program.weeks, "week")}
           {saveState === "saving" && " · saving…"}
@@ -211,6 +203,13 @@ export function ProgramEditor({
         />
         {error && <ErrorText>{error}</ErrorText>}
       </div>
+      <Textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Notes — the plan, the progression rule, who it's for"
+        aria-label="Program notes"
+        className="mt-3 w-full"
+      />
 
       {/* md+: the weeks × days grid */}
       <div className="mt-6 hidden overflow-x-auto md:block">

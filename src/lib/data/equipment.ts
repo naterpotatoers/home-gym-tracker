@@ -34,11 +34,16 @@ export const bars: readonly Bar[] = [
 ];
 
 /**
- * One pair of each size. In 1.25 lb units the per-side set is
- * {1, 2, 4, 8, 12, 20, 28, 36, 44} — the 1/2/4/8 block covers 0-15 with no
- * gaps and every larger plate shifts that window by less than its own width,
- * so loadable weights are contiguous on a 2.5 lb grid all the way up.
- * Adding or losing a size is a one-line edit; `loadableWeights()` re-derives.
+ * One pair of each size. The smallest is 2.5 lb, so a bar steps 5 lb: in
+ * 2.5 lb units the per-side set is {1, 2, 4, 6, 10, 14, 18, 22} — 1/2/4
+ * covers 0-7 with no gaps and every larger plate shifts that window by less
+ * than its own width, so loadable weights are contiguous on a 5 lb grid all
+ * the way up (45, 50, 55… on the Ohio bar; 33, 38, 43… on the Bella).
+ *
+ * No 1.25 lb pair yet (2026-11). When it arrives, add
+ * `{ weightLbs: 1.25, pairs: 1 }` below: the grid halves to 2.5 lb and
+ * `loadableWeights()` re-derives (loading.test.ts pins the 5 lb grid — update
+ * it too).
  */
 export const plates: readonly PlatePair[] = [
   { weightLbs: 55, pairs: 1 },
@@ -49,12 +54,11 @@ export const plates: readonly PlatePair[] = [
   { weightLbs: 10, pairs: 1 },
   { weightLbs: 5, pairs: 1 },
   { weightLbs: 2.5, pairs: 1 },
-  { weightLbs: 1.25, pairs: 1 },
 ];
 
 /**
  * Fixed pairs, so the step is 5 lb per hand — 10 lb total. Worth noting that
- * this makes the BARBELL the finer progression tool (2.5 lb steps), which
+ * this makes the BARBELL the finer progression tool (5 lb steps total), which
  * inverts the usual beginner advice: pick dumbbells for stability, range of
  * motion, and asymmetry work, not for load precision.
  */

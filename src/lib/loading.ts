@@ -32,11 +32,10 @@ const perSideSumUnits: readonly number[] = (() => {
 /**
  * Every weight you can actually build on a given bar, ascending.
  *
- * With the current inventory this is contiguous on a 2.5 lb grid: in 1.25 lb
- * units the per-side set is {1, 2, 4, 8, 12, 20, 28, 36, 44}, where 1/2/4/8
- * covers 0-15 with no gaps and every larger plate shifts that window by less
- * than its own width. Before the change plates it was irregular (45, 65, 75,
- * 95, … with holes at 85 and 105) and the minimum jump was 20 lb.
+ * With the current inventory (smallest plate 2.5 lb) this is contiguous on a
+ * 5 lb grid: in 2.5 lb units the per-side set is {1, 2, 4, 6, 10, 14, 18, 22},
+ * where 1/2/4 covers 0-7 with no gaps and every larger plate shifts that
+ * window by less than its own width. A 1.25 lb pair would halve the grid.
  */
 export function loadableWeights(barId: BarId): number[] {
   const bar = barById.get(barId);
@@ -68,6 +67,7 @@ export function nearestLoadableWeight(
 
 export type PlateBreakdown = {
   totalLbs: number;
+  barId: BarId;
   barLbs: number;
   /** Plates to hang on ONE side, heaviest first. */
   perSideLbs: number[];
@@ -82,7 +82,7 @@ export type PlateBreakdown = {
  */
 export function formatPlates(
   totalLbs: number,
-  barId: BarId = "ohio_bar",
+  barId: BarId = DEFAULT_BAR,
 ): PlateBreakdown | null {
   const bar = barById.get(barId);
   if (!bar) throw new Error(`Unknown bar: ${barId}`);
@@ -93,6 +93,7 @@ export function formatPlates(
   if (!found) return null;
   return {
     totalLbs,
+    barId,
     barLbs: bar.weightLbs,
     perSideLbs: found.map(toLbs),
   };
@@ -113,10 +114,33 @@ function findSubset(
   return findSubset(remaining, index + 1, picked);
 }
 
-/** Human-readable side loading, e.g. "45 + 25 + 2.5 per side". */
+/** The bar a plate hint assumes unless the weight says otherwise. */
+const DEFAULT_BAR: BarId = "ohio_bar";
+
+/**
+ * The plates for a weight on whichever bar can build it — the 45 lb Ohio
+ * first, then the others. The app doesn't record which bar is loaded, and
+ * doesn't need to: the bars' grids never overlap (the Ohio builds 45, 50,
+ * 55…; the 33 lb Bella 33, 38, 43…), so the weight itself names the bar.
+ * Null when no bar can build it.
+ */
+export function platesFor(totalLbs: number): PlateBreakdown | null {
+  const order = [DEFAULT_BAR, ...[...barById.keys()].filter((id) => id !== DEFAULT_BAR)];
+  for (const barId of order) {
+    const breakdown = formatPlates(totalLbs, barId);
+    if (breakdown) return breakdown;
+  }
+  return null;
+}
+
+/** Human-readable side loading, e.g. "45 + 25 + 2.5 per side" — led by the
+ *  bar when it isn't the usual one: "Bella Bar + 5 per side". */
 export function describePlates(breakdown: PlateBreakdown): string {
-  if (breakdown.perSideLbs.length === 0) return "empty bar";
-  return `${breakdown.perSideLbs.join(" + ")} per side`;
+  const other =
+    breakdown.barId === DEFAULT_BAR ? null : (barById.get(breakdown.barId)?.name.replace(/^Rogue /, "") ?? null);
+  if (breakdown.perSideLbs.length === 0) return other ? `empty ${other}` : "empty bar";
+  const side = `${breakdown.perSideLbs.join(" + ")} per side`;
+  return other ? `${other} + ${side}` : side;
 }
 
 /** The ± stepper increment for a set's weight field (per implement for

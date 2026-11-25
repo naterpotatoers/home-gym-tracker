@@ -13,6 +13,7 @@ import { useSetEditor } from "@/components/use-set-editor";
 import { useWakeLock } from "@/components/use-wake-lock";
 import { discardSession, finishSession } from "@/lib/actions/workout";
 import type { FinisherOption } from "@/lib/care";
+import type { BikePast } from "@/lib/conditioning";
 import type { ExerciseCatalog } from "@/lib/exercise-catalog";
 import type { VariantSessionSummary } from "@/lib/progress";
 import type { StallHint } from "@/lib/progression";
@@ -48,6 +49,7 @@ export function WorkoutRunner({
   routineName,
   recentKeys,
   history,
+  bikeHistory = [],
   finishers = [],
   stalls = {},
 }: {
@@ -61,6 +63,8 @@ export function WorkoutRunner({
   recentKeys?: string[];
   /** Last sessions per variant, for each block's "Last" line. */
   history?: Record<string, VariantSessionSummary[]>;
+  /** Past bike pieces, newest first — a bike card's "Last" line. */
+  bikeHistory?: BikePast[];
   /** "Continue your workout?" add-ons, suggested first. */
   finishers?: FinisherOption[];
   /** Stalled lifts per variant key — the block's "stalled" chip/callout. */
@@ -155,6 +159,7 @@ export function WorkoutRunner({
           prescriptions={addOns.allPrescriptions}
           catalog={catalog}
           history={history}
+          bikeHistory={bikeHistory}
           stalls={editor.stalls}
           onReplace={actions.openReplace}
           onAdd={actions.openAdd}

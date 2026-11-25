@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { seedSnapshot } from "./data/seed-snapshot";
 import { blocksFor } from "./queries";
-import { cascadePatch, cascadeTargets, completeAsBodyweight, renumber, toBlocks } from "./set-blocks";
+import { EMPTY_CONDITIONING } from "./conditioning";
+import {
+  cascadeInto,
+  cascadePatch,
+  cascadeTargets,
+  completeAsBodyweight,
+  nextSetLike,
+  renumber,
+  toBlocks,
+} from "./set-blocks";
 import type { SetLog } from "./types";
 
 function stub(overrides: Partial<SetLog>): SetLog {
@@ -150,6 +159,82 @@ describe("cascadeTargets", () => {
     expect(cascadeTargets(sets, "s1", { completed: true })).toEqual([]);
     expect(cascadeTargets(sets, "s1", { notes: "felt easy", rir: 2 })).toEqual([]);
     expect(cascadePatch({ reps: 5, notes: "x", completed: true })).toEqual({ reps: 5 });
+  });
+});
+
+describe("bike pieces cascade their plan, never their readout", () => {
+  const bike = (id: string, position: number, overrides: Partial<SetLog> = {}) =>
+    stub({
+      id,
+      position,
+      setNumber: position,
+      exerciseId: "echo_bike",
+      modalityId: "cardio",
+      reps: null,
+      weightLbs: null,
+      durationSeconds: 240,
+      conditioning: { ...EMPTY_CONDITIONING, intervalScheme: "8x20/10", targetWatts: 200 },
+      ...overrides,
+    });
+  const sets = [bike("p1", 1), bike("p2", 2), bike("p3", 3)];
+  const withLog = (changes: Partial<SetLog["conditioning"] & object>) => ({
+    conditioning: { ...sets[0].conditioning!, ...changes },
+  });
+
+  it("a new target reaches the pieces still to ride", () => {
+    const changes = withLog({ targetWatts: 250 });
+    expect(cascadeTargets(sets, "p1", changes)).toEqual(["p2", "p3"]);
+    expect(cascadeInto(sets[1], changes).conditioning).toMatchObject({ intervalScheme: "8x20/10", targetWatts: 250 });
+  });
+
+  it("a new piece shape brings its scheme and its length together", () => {
+    const changes = { ...withLog({ intervalScheme: "10x30/30" }), durationSeconds: 600 };
+    expect(cascadeTargets(sets, "p1", changes)).toEqual(["p2", "p3"]);
+    expect(cascadeInto(sets[1], changes)).toMatchObject({
+      durationSeconds: 600,
+      conditioning: { intervalScheme: "10x30/30", targetWatts: 200 },
+    });
+  });
+
+  it("what the console read stays on its own piece", () => {
+    expect(cascadeTargets(sets, "p1", withLog({ avgWatts: 171, effort: 6 }))).toEqual([]);
+    expect(cascadeTargets(sets, "p1", { distanceFeet: 4752 })).toEqual([]);
+    // Even alongside a target change, a later piece keeps its own readout.
+    const later = bike("p2", 2, { distanceFeet: 5000, conditioning: { ...sets[1].conditioning!, avgWatts: 150 } });
+    const next = cascadeInto(later, { ...withLog({ targetWatts: 250, avgWatts: 171 }), distanceFeet: 4752 });
+    expect(next.distanceFeet).toBe(5000);
+    expect(next.conditioning).toMatchObject({ targetWatts: 250, avgWatts: 150 });
+  });
+
+  it("Add piece copies the plan, not the ride", () => {
+    const ridden = bike("p1", 1, {
+      completed: true,
+      distanceFeet: 4752,
+      conditioning: { ...sets[0].conditioning!, avgWatts: 171, maxWatts: 310, calories: 33, effort: 6 },
+    });
+    expect(nextSetLike(ridden, "p2")).toMatchObject({
+      id: "p2",
+      completed: false,
+      durationSeconds: 240,
+      distanceFeet: null,
+      conditioning: { ...EMPTY_CONDITIONING, intervalScheme: "8x20/10", targetWatts: 200 },
+    });
+    expect(nextSetLike(ridden, "p2").conditioning).not.toHaveProperty("effort");
+    // A lift's next set is the last one again, not yet done.
+    expect(nextSetLike(stub({ id: "s1", completed: true, weightLbs: 145, reps: 6 }), "s2")).toMatchObject({
+      id: "s2",
+      completed: false,
+      weightLbs: 145,
+      reps: 6,
+    });
+  });
+
+  it("a lift still takes the plain prescription fields", () => {
+    expect(cascadeInto(stub({ id: "s2" }), { weightLbs: 145, reps: 6, notes: "x" })).toMatchObject({
+      weightLbs: 145,
+      reps: 6,
+      notes: "",
+    });
   });
 });
 
